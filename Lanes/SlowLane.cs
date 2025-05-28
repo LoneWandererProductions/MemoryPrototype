@@ -82,18 +82,18 @@ namespace Lanes
             var offset = 0;
             var newMap = new Dictionary<int, AllocationEntry>();
 
-            foreach (var entry in _entries)
+            for (var i = 0; i < _entries.Count; i++)
             {
+                var entry = _entries[i];
+
                 if (!entry.IsStub)
                 {
                     System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
                     entry.Offset = offset;
                     offset += entry.Size;
                 }
-                else
-                {
-                    // Keep stub entries as-is or remove if you want
-                }
+
+                _entries[i] = entry; 
                 newMap[entry.HandleId] = entry;
             }
 
@@ -107,6 +107,12 @@ namespace Lanes
                 _handleMap[kv.Key] = kv.Value;
 
             _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+        }
+
+
+        public bool HasHandle(MemoryHandle handle)
+        {
+            return _handleMap.ContainsKey(handle.Id);
         }
 
         public string DebugDump()

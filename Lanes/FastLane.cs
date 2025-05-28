@@ -37,7 +37,7 @@ namespace Lanes
                 throw new OutOfMemoryException("FastLane: Not enough memory");
 
             var id = _nextHandleId++;
-            var entry = new AllocationEntry {Offset = offset, Size = size, HandleId = id};
+            var entry = new AllocationEntry { Offset = offset, Size = size, HandleId = id };
 
             _entries.Add(entry);
             _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
@@ -75,10 +75,14 @@ namespace Lanes
                 throw new InvalidOperationException("Invalid handle.");
 
             if (entry.IsStub && entry.RedirectTo.HasValue)
-                // Redirect resolution to slow lane
                 return _slowLane.Resolve(entry.RedirectTo.Value);
 
             return Buffer + entry.Offset;
+        }
+
+        public bool HasHandle(MemoryHandle handle)
+        {
+            return _handleMap.ContainsKey(handle.Id);
         }
 
         public void Free(MemoryHandle handle)
@@ -89,18 +93,15 @@ namespace Lanes
             if (entry.IsStub && entry.RedirectTo.HasValue)
             {
                 _slowLane.Free(entry.RedirectTo.Value);
-                // Optionally, remove stub entry or keep for tracking
                 _handleMap.Remove(handle.Id);
                 _entries.Remove(entry);
             }
             else
             {
-                // Free in fast lane normally
                 _handleMap.Remove(handle.Id);
                 _entries.Remove(entry);
             }
         }
-
 
         public unsafe void Compact()
         {
@@ -108,24 +109,22 @@ namespace Lanes
             var offset = 0;
             var newMap = new Dictionary<int, AllocationEntry>();
 
-            foreach (var entry in _entries)
+            for (var i = 0; i < _entries.Count; i++)
             {
+                var entry = _entries[i];
+
                 if (!entry.IsStub)
                 {
                     System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
                     entry.Offset = offset;
                     offset += entry.Size;
                 }
-                else
-                {
-                    // Keep stub entries as-is or remove if you want
-                }
+
+                _entries[i] = entry;
                 newMap[entry.HandleId] = entry;
             }
 
             Marshal.FreeHGlobal(Buffer);
-
-            // Update buffer reference
             Buffer = newBuffer;
 
             _handleMap.Clear();
@@ -133,8 +132,9 @@ namespace Lanes
                 _handleMap[kv.Key] = kv.Value;
 
             _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
-        }
 
+            ValidateEntries();
+        }
 
         public string DebugDump()
         {
@@ -158,10 +158,9 @@ namespace Lanes
             entry.IsStub = true;
             entry.RedirectTo = slowHandle;
 
-            // Update map entry (if necessary)
+            // Update the map entry since AllocationEntry is a struct
             _handleMap[fastHandle.Id] = entry;
         }
-
 
         private int FindFreeSpot(int size)
         {
@@ -175,6 +174,21 @@ namespace Lanes
             }
 
             return offset;
+        }
+
+        private void ValidateEntries()
+        {
+            int lastEnd = 0;
+            foreach (var entry in _entries)
+            {
+                if (entry.Offset < lastEnd)
+                    throw new InvalidOperationException($"Entries overlap or are not sorted: entry ID {entry.HandleId}");
+
+                lastEnd = entry.Offset + entry.Size;
+
+                if (lastEnd > _capacity)
+                    throw new InvalidOperationException($"Entry ID {entry.HandleId} exceeds buffer capacity");
+            }
         }
     }
 }

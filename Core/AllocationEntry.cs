@@ -2,13 +2,13 @@
 {
     namespace MemoryArenaPrototype.Core
     {
-        public sealed class AllocationEntry
+        public struct AllocationEntry
         {
             public int Offset { get; set; }
             public int Size { get; set; }
             public int HandleId { get; set; }
-            public bool IsStub { get; set; } = false;
-            public MemoryHandle? RedirectTo { get; set; } = null;
+            public bool IsStub { get; set; } 
+            public MemoryHandle? RedirectTo { get; set; }
         }
     }
 }

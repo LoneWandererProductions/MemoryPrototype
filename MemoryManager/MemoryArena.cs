@@ -11,6 +11,10 @@ namespace MemoryManager
         private readonly SlowLane _slowLane;
         private readonly int _threshold;
 
+        private bool IsFastLaneHandle(MemoryHandle handle) => _fastLane.HasHandle(handle);
+        private bool IsSlowLaneHandle(MemoryHandle handle) => _slowLane.HasHandle(handle);
+
+
         public MemoryArena(int fastLaneSize, int slowLaneSize, int fastLaneThreshold)
         {
             _slowLane = new SlowLane(slowLaneSize);
@@ -68,8 +72,10 @@ namespace MemoryManager
 
         public void Free(MemoryHandle handle)
         {
-            handle.GetPointer(); // Resolve to ensure valid
-            handle.GetType().GetMethod("Free")?.Invoke(handle, new object[] {handle});
+            if (IsFastLaneHandle(handle))
+                _fastLane.Free(handle);
+            else if(IsSlowLaneHandle(handle))
+                _slowLane.Free(handle);
         }
 
         public void DebugDump()
