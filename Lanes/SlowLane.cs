@@ -37,7 +37,7 @@ namespace Lanes
 
             var offset = FindFreeSpot(size);
             var id = _nextHandleId++;
-            var entry = new AllocationEntry {Offset = offset, Size = size, HandleId = id};
+            var entry = new AllocationEntry { Offset = offset, Size = size, HandleId = id };
 
             _entries.Add(entry);
             _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
@@ -59,17 +59,6 @@ namespace Lanes
             return _buffer + entry.Offset;
         }
 
-        public IEnumerable<MemoryHandle> GetHandles()
-        {
-            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
-        }
-
-        public double UsagePercentage()
-        {
-            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
-            return (double)used / _capacity;
-        }
-
         public void Free(MemoryHandle handle)
         {
             if (_handleMap.Remove(handle.Id, out var entry))
@@ -84,7 +73,7 @@ namespace Lanes
 
             foreach (var entry in _entries)
             {
-                Buffer.MemoryCopy((void*) (_buffer + entry.Offset), (void*) (newBuffer + offset), entry.Size,
+                Buffer.MemoryCopy((void*)(_buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size,
                     entry.Size);
                 entry.Offset = offset;
                 offset += entry.Size;
@@ -105,6 +94,17 @@ namespace Lanes
                 _entries.ConvertAll(e => $"[SlowLane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}"));
         }
 
+        public IEnumerable<MemoryHandle> GetHandles()
+        {
+            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
+        }
+
+        public double UsagePercentage()
+        {
+            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
+            return (double)used / _capacity;
+        }
+
         private int FindFreeSpot(int size)
         {
             var offset = 0;
@@ -112,6 +112,7 @@ namespace Lanes
             {
                 if (offset + size <= entry.Offset)
                     return offset;
+
                 offset = entry.Offset + entry.Size;
             }
 
@@ -120,10 +121,7 @@ namespace Lanes
 
         private int GetUsed()
         {
-            var used = 0;
-            foreach (var e in _entries)
-                used += e.Size;
-            return used;
+            return _entries.Sum(e => e.Size);
         }
     }
 }

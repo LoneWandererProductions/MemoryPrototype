@@ -1,4 +1,7 @@
-﻿using System;
+﻿// ReSharper disable UnusedType.Global
+// ReSharper disable MemberCanBePrivate.Global
+
+using System;
 using System.Diagnostics;
 using Core;
 using Lanes;
@@ -37,17 +40,15 @@ namespace MemoryManager
         public void AutoCompactFastLane()
         {
             // If FastLane usage above threshold (e.g. 90%)
-            if (_fastLane.UsagePercentage() > 0.9)
-            {
-                // Find candidates to move
-                foreach (var handle in _fastLane.GetHandles())
-                {
-                    // Logic to select candidates can be based on size, age, etc.
-                    MoveFastToSlow(handle);
-                }
+            if (!(_fastLane.UsagePercentage() > 0.9)) return;
 
-                _fastLane.Compact();
-            }
+            // Find candidates to move
+            foreach (var handle in _fastLane.GetHandles())
+                // Logic to select candidates can be based on size, age, etc.
+                //Todo the idea is to use slowlane to compact fastlane
+                MoveFastToSlow(handle);
+
+            _fastLane.Compact();
         }
 
         public MemoryHandle Allocate(int size)
@@ -69,7 +70,7 @@ namespace MemoryManager
         public void Free(MemoryHandle handle)
         {
             handle.GetPointer(); // Resolve to ensure valid
-            handle.GetType().GetMethod("Free")?.Invoke(handle, new object[] {handle});
+            handle.GetType().GetMethod("Free")?.Invoke(handle, new object[] { handle });
         }
 
         public void DebugDump()
