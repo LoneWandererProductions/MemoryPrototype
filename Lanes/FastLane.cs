@@ -13,7 +13,6 @@ namespace Lanes
         private readonly List<AllocationEntry> _entries = new();
         private readonly Dictionary<int, AllocationEntry> _handleMap = new();
         private readonly SlowLane _slowLane;
-        public IntPtr Buffer { get; private set; }
         private int _nextHandleId = 1;
 
         public FastLane(int size, SlowLane slowLane)
@@ -22,6 +21,8 @@ namespace Lanes
             _capacity = size;
             Buffer = Marshal.AllocHGlobal(size);
         }
+
+        public IntPtr Buffer { get; private set; }
 
         public void Dispose()
         {
@@ -46,17 +47,6 @@ namespace Lanes
             return new MemoryHandle(id, this);
         }
 
-        public IEnumerable<MemoryHandle> GetHandles()
-        {
-            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
-        }
-
-        public double UsagePercentage()
-        {
-            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
-            return (double)used / _capacity;
-        }
-
         public bool CanAllocate(int size)
         {
             try
@@ -78,11 +68,6 @@ namespace Lanes
                 return _slowLane.Resolve(entry.RedirectTo.Value);
 
             return Buffer + entry.Offset;
-        }
-
-        public bool HasHandle(MemoryHandle handle)
-        {
-            return _handleMap.ContainsKey(handle.Id);
         }
 
         public void Free(MemoryHandle handle)
@@ -115,7 +100,8 @@ namespace Lanes
 
                 if (!entry.IsStub)
                 {
-                    System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
+                    System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size,
+                        entry.Size);
                     entry.Offset = offset;
                     offset += entry.Size;
                 }
@@ -140,6 +126,22 @@ namespace Lanes
         {
             return string.Join("\n",
                 _entries.ConvertAll(e => $"[FastLane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}"));
+        }
+
+        public IEnumerable<MemoryHandle> GetHandles()
+        {
+            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
+        }
+
+        public double UsagePercentage()
+        {
+            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
+            return (double)used / _capacity;
+        }
+
+        public bool HasHandle(MemoryHandle handle)
+        {
+            return _handleMap.ContainsKey(handle.Id);
         }
 
         public AllocationEntry GetEntry(MemoryHandle handle)
@@ -178,11 +180,12 @@ namespace Lanes
 
         private void ValidateEntries()
         {
-            int lastEnd = 0;
+            var lastEnd = 0;
             foreach (var entry in _entries)
             {
                 if (entry.Offset < lastEnd)
-                    throw new InvalidOperationException($"Entries overlap or are not sorted: entry ID {entry.HandleId}");
+                    throw new InvalidOperationException(
+                        $"Entries overlap or are not sorted: entry ID {entry.HandleId}");
 
                 lastEnd = entry.Offset + entry.Size;
 

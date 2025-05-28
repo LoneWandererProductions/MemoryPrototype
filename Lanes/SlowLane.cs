@@ -10,7 +10,6 @@ namespace Lanes
     public sealed class SlowLane : IMemoryLane, IDisposable
     {
         private const double SafetyMargin = 0.10; // 10% free space
-        public IntPtr Buffer { get; private set; }
         private readonly int _capacity;
         private readonly List<AllocationEntry> _entries = new();
 
@@ -22,6 +21,8 @@ namespace Lanes
             _capacity = size;
             Buffer = Marshal.AllocHGlobal(size);
         }
+
+        public IntPtr Buffer { get; private set; }
 
         public void Dispose()
         {
@@ -37,7 +38,7 @@ namespace Lanes
 
             var offset = FindFreeSpot(size);
             var id = _nextHandleId++;
-            var entry = new AllocationEntry {Offset = offset, Size = size, HandleId = id};
+            var entry = new AllocationEntry { Offset = offset, Size = size, HandleId = id };
 
             _entries.Add(entry);
             _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
@@ -59,17 +60,6 @@ namespace Lanes
             return Buffer + entry.Offset;
         }
 
-        public IEnumerable<MemoryHandle> GetHandles()
-        {
-            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
-        }
-
-        public double UsagePercentage()
-        {
-            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
-            return (double)used / _capacity;
-        }
-
         public void Free(MemoryHandle handle)
         {
             if (_handleMap.Remove(handle.Id, out var entry))
@@ -88,12 +78,13 @@ namespace Lanes
 
                 if (!entry.IsStub)
                 {
-                    System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
+                    System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size,
+                        entry.Size);
                     entry.Offset = offset;
                     offset += entry.Size;
                 }
 
-                _entries[i] = entry; 
+                _entries[i] = entry;
                 newMap[entry.HandleId] = entry;
             }
 
@@ -109,16 +100,27 @@ namespace Lanes
             _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
         }
 
-
-        public bool HasHandle(MemoryHandle handle)
-        {
-            return _handleMap.ContainsKey(handle.Id);
-        }
-
         public string DebugDump()
         {
             return string.Join("\n",
                 _entries.ConvertAll(e => $"[SlowLane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}"));
+        }
+
+        public IEnumerable<MemoryHandle> GetHandles()
+        {
+            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
+        }
+
+        public double UsagePercentage()
+        {
+            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
+            return (double)used / _capacity;
+        }
+
+
+        public bool HasHandle(MemoryHandle handle)
+        {
+            return _handleMap.ContainsKey(handle.Id);
         }
 
         private int FindFreeSpot(int size)

@@ -11,15 +11,22 @@ namespace MemoryManager
         private readonly SlowLane _slowLane;
         private readonly int _threshold;
 
-        private bool IsFastLaneHandle(MemoryHandle handle) => _fastLane.HasHandle(handle);
-        private bool IsSlowLaneHandle(MemoryHandle handle) => _slowLane.HasHandle(handle);
-
 
         public MemoryArena(int fastLaneSize, int slowLaneSize, int fastLaneThreshold)
         {
             _slowLane = new SlowLane(slowLaneSize);
             _fastLane = new FastLane(fastLaneSize, _slowLane);
             _threshold = fastLaneThreshold;
+        }
+
+        private bool IsFastLaneHandle(MemoryHandle handle)
+        {
+            return _fastLane.HasHandle(handle);
+        }
+
+        private bool IsSlowLaneHandle(MemoryHandle handle)
+        {
+            return _slowLane.HasHandle(handle);
         }
 
         public unsafe void MoveFastToSlow(MemoryHandle fastHandle)
@@ -45,10 +52,8 @@ namespace MemoryManager
             {
                 // Find candidates to move
                 foreach (var handle in _fastLane.GetHandles())
-                {
                     // Logic to select candidates can be based on size, age, etc.
                     MoveFastToSlow(handle);
-                }
 
                 _fastLane.Compact();
             }
@@ -74,7 +79,7 @@ namespace MemoryManager
         {
             if (IsFastLaneHandle(handle))
                 _fastLane.Free(handle);
-            else if(IsSlowLaneHandle(handle))
+            else if (IsSlowLaneHandle(handle))
                 _slowLane.Free(handle);
         }
 
