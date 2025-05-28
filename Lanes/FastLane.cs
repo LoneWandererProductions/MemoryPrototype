@@ -13,14 +13,9 @@ namespace Lanes
         private readonly List<AllocationEntry> _entries = new();
         private readonly Dictionary<int, AllocationEntry> _handleMap = new();
         private readonly SlowLane _slowLane;
-        public readonly IntPtr Buffer;
+        public IntPtr Buffer { get; private set; }
         private int _nextHandleId = 1;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="FastLane"/> class.
-        /// </summary>
-        /// <param name="size">The size.</param>
-        /// <param name="slowLane">The slow lane. FastLane is tightly coupled to slowLane. Memorymanager will handle the memory of Fastlane.</param>
         public FastLane(int size, SlowLane slowLane)
         {
             _slowLane = slowLane;
@@ -42,13 +37,24 @@ namespace Lanes
                 throw new OutOfMemoryException("FastLane: Not enough memory");
 
             var id = _nextHandleId++;
-            var entry = new AllocationEntry { Offset = offset, Size = size, HandleId = id };
+            var entry = new AllocationEntry {Offset = offset, Size = size, HandleId = id};
 
             _entries.Add(entry);
             _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
             _handleMap[id] = entry;
 
             return new MemoryHandle(id, this);
+        }
+
+        public IEnumerable<MemoryHandle> GetHandles()
+        {
+            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
+        }
+
+        public double UsagePercentage()
+        {
+            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
+            return (double)used / _capacity;
         }
 
         public bool CanAllocate(int size)
@@ -104,14 +110,24 @@ namespace Lanes
 
             foreach (var entry in _entries)
             {
-                System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size,
-                    entry.Size);
-                entry.Offset = offset;
-                offset += entry.Size;
+                if (!entry.IsStub)
+                {
+                    System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
+                    entry.Offset = offset;
+                    offset += entry.Size;
+                }
+                else
+                {
+                    // Keep stub entries as-is or remove if you want
+                }
                 newMap[entry.HandleId] = entry;
             }
 
             Marshal.FreeHGlobal(Buffer);
+
+            // Update buffer reference
+            Buffer = newBuffer;
+
             _handleMap.Clear();
             foreach (var kv in newMap)
                 _handleMap[kv.Key] = kv.Value;
@@ -119,21 +135,11 @@ namespace Lanes
             _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
         }
 
+
         public string DebugDump()
         {
             return string.Join("\n",
                 _entries.ConvertAll(e => $"[FastLane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}"));
-        }
-
-        public IEnumerable<MemoryHandle> GetHandles()
-        {
-            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
-        }
-
-        public double UsagePercentage()
-        {
-            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
-            return (double)used / _capacity;
         }
 
         public AllocationEntry GetEntry(MemoryHandle handle)
