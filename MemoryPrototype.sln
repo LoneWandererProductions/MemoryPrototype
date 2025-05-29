@@ -3,13 +3,18 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.35931.194
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MemoryPrototype", "MemoryPrototype\MemoryPrototype.csproj", "{F7C23CD0-6C2D-47F8-852F-60EC1DF8A132}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MemoryPrototype", "MemoryPrototype\MemoryPrototype.csproj", "{F7C23CD0-6C2D-47F8-852F-60EC1DF8A132}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Core\Core.csproj", "{C4E0A776-6F86-456E-A8F7-033436BD5973}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core", "Core\Core.csproj", "{C4E0A776-6F86-456E-A8F7-033436BD5973}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lanes", "Lanes\Lanes.csproj", "{49314412-D694-43C8-AFD3-78725DFF5678}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Lanes", "Lanes\Lanes.csproj", "{49314412-D694-43C8-AFD3-78725DFF5678}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MemoryManager", "MemoryManager\MemoryManager.csproj", "{8BEFFB4F-A4DA-49B0-86D4-3F8510588212}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MemoryManager", "MemoryManager\MemoryManager.csproj", "{8BEFFB4F-A4DA-49B0-86D4-3F8510588212}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{E87A4A53-C65F-4455-A5D7-EBF57BDA96A5}"
+	ProjectSection(SolutionItems) = preProject
+		License.txt = License.txt
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
