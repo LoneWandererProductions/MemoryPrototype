@@ -147,7 +147,7 @@ namespace MemoryManager
             double totalSize = _slowLane.Capacity;
 
             // Predicted free space after compaction (current free + fragmented gaps)
-            double predictedFreeAfterCompaction = currentFreeSpace + fragmentation * totalSize;
+            var predictedFreeAfterCompaction = currentFreeSpace + fragmentation * totalSize;
 
             // Use slow lane specific safety margin to decide if compaction is worthwhile
             var safetyMargin = _config.SlowLaneSafetyMargin;

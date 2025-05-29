@@ -11,11 +11,11 @@ namespace Lanes
 
             var sortedEntries = entries.Take(entryCount).OrderBy(e => e.Offset).ToArray();
 
-            int freeSpace = sortedEntries[0].Offset;
+            var freeSpace = sortedEntries[0].Offset;
 
-            for (int i = 1; i < sortedEntries.Length; i++)
+            for (var i = 1; i < sortedEntries.Length; i++)
             {
-                int gap = sortedEntries[i].Offset - (sortedEntries[i - 1].Offset + sortedEntries[i - 1].Size);
+                var gap = sortedEntries[i].Offset - (sortedEntries[i - 1].Offset + sortedEntries[i - 1].Size);
                 if (gap > 0)
                     freeSpace += gap;
             }
@@ -31,11 +31,11 @@ namespace Lanes
 
             var sortedEntries = entries.Take(entryCount).OrderBy(e => e.Offset).ToArray();
 
-            int totalGap = sortedEntries[0].Offset;
+            var totalGap = sortedEntries[0].Offset;
 
-            for (int i = 1; i < sortedEntries.Length; i++)
+            for (var i = 1; i < sortedEntries.Length; i++)
             {
-                int gap = sortedEntries[i].Offset - (sortedEntries[i - 1].Offset + sortedEntries[i - 1].Size);
+                var gap = sortedEntries[i].Offset - (sortedEntries[i - 1].Offset + sortedEntries[i - 1].Size);
                 if (gap > 0)
                     totalGap += gap;
             }
@@ -48,9 +48,9 @@ namespace Lanes
         // Add other helpers as needed...
         internal static int StubCount(int entryCount, AllocationEntry[]? entries)
         {
-            int count = 0;
-            for (int i = 0; i < entryCount; i++)
-                if (entries[i].IsStub)
+            var count = 0;
+            for (var i = 0; i < entryCount; i++)
+                if (entries?[i].IsStub == true)
                     count++;
             return count;
         }
