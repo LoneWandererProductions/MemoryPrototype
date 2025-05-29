@@ -86,32 +86,35 @@ The following are planned features or experimental directions for further explor
 ## 🧩 Example Usage
 
 ```csharp
-var config = new MemoryManagerConfig
-{
-    FastLaneSize = 1024 * 1024, // 1 MB
-    SlowLaneSize = 10 * 1024 * 1024, // 10 MB
-    Threshold = 4096, // Switch threshold between lanes
-    EnableAutoCompaction = true,
-    CompactionThreshold = 0.90,
-    SlowLaneUsageThreshold = 0.85,
-    SlowLaneSafetyMargin = 0.10,
-    PolicyCheckInterval = TimeSpan.FromSeconds(10)
-};
+            var config = new MemoryManagerConfig
+            {
+                FastLaneSize = 1024 * 1024,       // 1 MB
+                SlowLaneSize = 10 * 1024 * 1024, // 10 MB
+                Threshold = 4096,                 // Switch threshold between lanes
+                EnableAutoCompaction = true,
+                CompactionThreshold = 0.90,
+                SlowLaneUsageThreshold = 0.85,
+                SlowLaneSafetyMargin = 0.10,
+                PolicyCheckInterval = TimeSpan.FromSeconds(10)
+            };
 
-var arena = new MemoryArena(config);
+            var arena = new MemoryArena(config);
 
-// Allocate a small struct
-var handle = arena.Allocate(sizeof(MyStruct), hints: AllocationHints.None);
+            // --- Raw MemoryArena usage (more control, more verbose) ---
+            var size = Marshal.SizeOf<MyStruct>();
+            var handleRaw = arena.Allocate(size);
+            ref var dataRaw = ref arena.Get<MyStruct>(handleRaw);
+            dataRaw.Value = 123;
+            Console.WriteLine($"Raw arena Value: {dataRaw.Value}");
+            arena.Free(handleRaw);
 
-// Resolve the pointer and work with the data
-unsafe
-{
-    var ptr = (MyStruct*)arena.Resolve(handle);
-    ptr->Value = 123;
-}
+            // --- TypedMemoryArena usage (simpler, more abstract) ---
+            var typedArena = new TypedMemoryArena(arena);
+            var handleTyped = typedArena.Allocate<MyStruct>();
+            typedArena.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
+            ref var dataTyped = ref typedArena.Get<MyStruct>(handleTyped);
+            Console.WriteLine($"Typed arena Value: {dataTyped.Value}");
+            typedArena.Free(handleTyped);
 
-// Free when done
-arena.Free(handle);
-
-// Optionally run manual compaction
-arena.RunMaintenanceCycle();
+            // Optionally run manual compaction
+            arena.RunMaintenanceCycle();
