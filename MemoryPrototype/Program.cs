@@ -4,7 +4,7 @@ using MemoryManager;
 
 namespace MemoryPrototype
 {
-    internal class Program
+    internal static class Program
     {
         private static void Main(string[] args)
         {
@@ -12,9 +12,9 @@ namespace MemoryPrototype
 
             var config = new MemoryManagerConfig
             {
-                FastLaneSize = 1024 * 1024, // 1 MB
+                FastLaneSize = 1024 * 1024,       // 1 MB
                 SlowLaneSize = 10 * 1024 * 1024, // 10 MB
-                Threshold = 4096, // Switch threshold between lanes
+                Threshold = 4096,                 // Switch threshold between lanes
                 EnableAutoCompaction = true,
                 CompactionThreshold = 0.90,
                 SlowLaneUsageThreshold = 0.85,
@@ -24,14 +24,21 @@ namespace MemoryPrototype
 
             var arena = new MemoryArena(config);
 
-            // Resolve the pointer and work with the data
+            // --- Raw MemoryArena usage (more control, more verbose) ---
             var size = Marshal.SizeOf<MyStruct>();
-            var handle = arena.Allocate(size);
-            ref var data = ref arena.Get<MyStruct>(handle);
-            data.Value = 123;
+            var handleRaw = arena.Allocate(size);
+            ref var dataRaw = ref arena.Get<MyStruct>(handleRaw);
+            dataRaw.Value = 123;
+            Console.WriteLine($"Raw arena Value: {dataRaw.Value}");
+            arena.Free(handleRaw);
 
-            // Free when done
-            arena.Free(handle);
+            // --- TypedMemoryArena usage (simpler, more abstract) ---
+            var typedArena = new TypedMemoryArena(arena);
+            var handleTyped = typedArena.Allocate<MyStruct>();
+            typedArena.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
+            ref var dataTyped = ref typedArena.Get<MyStruct>(handleTyped);
+            Console.WriteLine($"Typed arena Value: {dataTyped.Value}");
+            typedArena.Free(handleTyped);
 
             // Optionally run manual compaction
             arena.RunMaintenanceCycle();

@@ -86,28 +86,32 @@ The following are planned features or experimental directions for further explor
 ## 🧩 Example Usage
 
 ```csharp
-            var config = new MemoryManagerConfig
-            {
-                FastLaneSize = 1024 * 1024, // 1 MB
-                SlowLaneSize = 10 * 1024 * 1024, // 10 MB
-                Threshold = 4096, // Switch threshold between lanes
-                EnableAutoCompaction = true,
-                CompactionThreshold = 0.90,
-                SlowLaneUsageThreshold = 0.85,
-                SlowLaneSafetyMargin = 0.10,
-                PolicyCheckInterval = TimeSpan.FromSeconds(10)
-            };
+var config = new MemoryManagerConfig
+{
+    FastLaneSize = 1024 * 1024, // 1 MB
+    SlowLaneSize = 10 * 1024 * 1024, // 10 MB
+    Threshold = 4096, // Switch threshold between lanes
+    EnableAutoCompaction = true,
+    CompactionThreshold = 0.90,
+    SlowLaneUsageThreshold = 0.85,
+    SlowLaneSafetyMargin = 0.10,
+    PolicyCheckInterval = TimeSpan.FromSeconds(10)
+};
 
-            var arena = new MemoryArena(config);
+var arena = new MemoryArena(config);
 
-            // Resolve the pointer and work with the data
-            var size = Marshal.SizeOf<MyStruct>();
-            var handle = arena.Allocate(size);
-            ref var data = ref arena.Get<MyStruct>(handle);
-            data.Value = 123;
+// Allocate a small struct
+var handle = arena.Allocate(sizeof(MyStruct), hints: AllocationHints.None);
 
-            // Free when done
-            arena.Free(handle);
+// Resolve the pointer and work with the data
+unsafe
+{
+    var ptr = (MyStruct*)arena.Resolve(handle);
+    ptr->Value = 123;
+}
 
-            // Optionally run manual compaction
-            arena.RunMaintenanceCycle();
+// Free when done
+arena.Free(handle);
+
+// Optionally run manual compaction
+arena.RunMaintenanceCycle();
