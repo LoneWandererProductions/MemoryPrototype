@@ -1,4 +1,7 @@
-﻿using System;
+﻿// ReSharper disable MemberCanBePrivate.Global
+
+#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -9,57 +12,71 @@ namespace Lanes
 {
     public sealed class FastLane : IMemoryLane, IDisposable
     {
-        private readonly int _capacity;
-        private AllocationEntry[] _entries = new AllocationEntry[128];
-        private int _entryCount = 0;
+        public int Capacity { get; private set; }
+
+        private AllocationEntry[]? _entries = new AllocationEntry[128];
+        public int EntryCount { get; private set; } = 0;
+
+        public event Action<string>? OnCompaction;
 
         private readonly Dictionary<int, int> _handleIndex = new(); // Maps handleId → index into _entries
+
         private readonly SlowLane _slowLane;
 
         public IntPtr Buffer { get; private set; }
+
         private int _nextHandleId = 1;
-
-        public FastLane(int size, SlowLane slowLane)
-        {
-            _slowLane = slowLane;
-            _capacity = size;
-            Buffer = Marshal.AllocHGlobal(size);
-        }
-
-        public void Dispose()
-        {
-            Marshal.FreeHGlobal(Buffer);
-            _handleIndex.Clear();
-            _entries = null;
-        }
-
-        public MemoryHandle Allocate(int size)
-        {
-            var offset = FindFreeSpot(size);
-            if (offset + size > _capacity)
-                throw new OutOfMemoryException("FastLane: Not enough memory");
-
-            if (_entryCount >= _entries.Length)
-                Array.Resize(ref _entries, _entries.Length * 2);
-
-            var id = _nextHandleId++;
-            _entries[_entryCount] = new AllocationEntry { Offset = offset, Size = size, HandleId = id };
-            _handleIndex[id] = _entryCount;
-            _entryCount++;
-
-            return new MemoryHandle(id, this);
-        }
 
         public bool CanAllocate(int size)
         {
             try
             {
-                return FindFreeSpot(size) + size <= _capacity;
+                return FindFreeSpot(size) + size <= Capacity;
             }
             catch
             {
                 return false;
             }
+        }
+
+        public FastLane(int size, SlowLane slowLane)
+        {
+            _slowLane = slowLane;
+            Capacity = size;
+            Buffer = Marshal.AllocHGlobal(size);
+        }
+
+        public MemoryHandle Allocate(
+            int size,
+            AllocationPriority priority = AllocationPriority.Normal,
+            AllocationHints hints = AllocationHints.None,
+            string? debugName = null,
+            int currentFrame = 0)
+        {
+            var offset = FindFreeSpot(size);
+            if (offset + size > Capacity)
+                throw new OutOfMemoryException("FastLane: Not enough memory");
+
+            if (EntryCount >= _entries.Length)
+                Array.Resize(ref _entries, _entries.Length * 2);
+
+            var id = _nextHandleId++;
+            _entries[EntryCount] = new AllocationEntry
+            {
+                Offset = offset,
+                Size = size,
+                HandleId = id,
+                Priority = priority,
+                Hints = hints,
+                DebugName = debugName,
+                AllocationFrame = currentFrame,
+                LastAccessFrame = currentFrame,
+            };
+
+            _handleIndex[id] = EntryCount;
+            EntryCount++;
+
+            return new MemoryHandle(id, this);
         }
 
         public IntPtr Resolve(MemoryHandle handle)
@@ -87,7 +104,7 @@ namespace Lanes
             }
 
             // Remove by shifting tail and updating map
-            var last = _entryCount - 1;
+            var last = EntryCount - 1;
             if (index != last)
             {
                 _entries[index] = _entries[last];
@@ -95,7 +112,7 @@ namespace Lanes
             }
 
             _handleIndex.Remove(handle.Id);
-            _entryCount--;
+            EntryCount--;
         }
 
         public IEnumerable<MemoryHandle> GetHandles()
@@ -103,21 +120,12 @@ namespace Lanes
             return _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
         }
 
-        public double UsagePercentage()
-        {
-            var used = 0;
-            for (var i = 0; i < _entryCount; i++)
-                if (!_entries[i].IsStub) used += _entries[i].Size;
-
-            return (double)used / _capacity;
-        }
-
         public unsafe void Compact()
         {
-            var newBuffer = Marshal.AllocHGlobal(_capacity);
+            var newBuffer = Marshal.AllocHGlobal(Capacity);
             var offset = 0;
 
-            for (var i = 0; i < _entryCount; i++)
+            for (var i = 0; i < EntryCount; i++)
             {
                 var entry = _entries[i];
 
@@ -126,7 +134,7 @@ namespace Lanes
                     void* source = (byte*)Buffer + entry.Offset;
                     void* target = (byte*)newBuffer + offset;
 
-                    System.Buffer.MemoryCopy(source, target, _capacity - offset, entry.Size);
+                    System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
                     entry.Offset = offset;
                     offset += entry.Size;
                 }
@@ -137,8 +145,8 @@ namespace Lanes
 
             Marshal.FreeHGlobal(Buffer);
             Buffer = newBuffer;
+            OnCompaction?.Invoke(nameof(FastLane));
         }
-
 
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
@@ -159,37 +167,30 @@ namespace Lanes
             _entries[index] = entry;
         }
 
-        private int FindFreeSpot(int size)
+        public bool HasHandle(MemoryHandle handle)
         {
-            // Sort entries in-place by Offset ascending before searching
-            Array.Sort(_entries, 0, _entryCount, new AllocationEntryOffsetComparer());
-
-            var offset = 0;
-            for (var i = 0; i < _entryCount; i++)
-            {
-                var entry = _entries[i];
-                if (offset + size <= entry.Offset)
-                    return offset;
-
-                offset = entry.Offset + entry.Size;
-            }
-            return offset;
+            return _handleIndex.ContainsKey(handle.Id);
         }
 
+        private int FindFreeSpot(int size) => MemoryLaneUtils.FindFreeSpot(size, _entries, EntryCount);
 
-        public string DebugDump()
+        // Returns total free bytes in FastLane
+        public int FreeSpace() => MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+
+        // Returns count of stub entries
+        public int StubCount() => MemoryLaneUtils.StubCount(EntryCount, _entries);
+
+        // Estimate fragmentation percentage (gaps / total capacity)
+        public int EstimateFragmentation() => MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount, Capacity);
+        public double UsagePercentage() => MemoryLaneUtils.UsagePercentage(EntryCount, _entries, Capacity);
+
+        public string DebugDump() => MemoryLaneUtils.DebugDump(_entries, EntryCount);
+
+        public void Dispose()
         {
-            var sb = new System.Text.StringBuilder(_entryCount * 48); // Rough estimate per line
-            for (var i = 0; i < _entryCount; i++)
-            {
-                var entry = _entries[i];
-                sb.Append("[FastLane] ID ").Append(entry.HandleId)
-                    .Append(" Offset ").Append(entry.Offset)
-                    .Append(" Size ").Append(entry.Size)
-                    .AppendLine();
-            }
-
-            return sb.ToString();
+            Marshal.FreeHGlobal(Buffer);
+            _handleIndex.Clear();
+            _entries = null;
         }
     }
 }
