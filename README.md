@@ -86,9 +86,32 @@ The following are planned features or experimental directions for further explor
 ## 🧩 Example Usage
 
 ```csharp
-var handle = memoryLane.Allocate<MyStruct>(lane: MemoryLaneType.Fast);
-ref var data = ref memoryLane.Get<MyStruct>(handle);
-data.Value = 42;
+var config = new MemoryManagerConfig
+{
+    FastLaneSize = 1024 * 1024, // 1 MB
+    SlowLaneSize = 10 * 1024 * 1024, // 10 MB
+    Threshold = 4096, // Switch threshold between lanes
+    EnableAutoCompaction = true,
+    CompactionThreshold = 0.90,
+    SlowLaneUsageThreshold = 0.85,
+    SlowLaneSafetyMargin = 0.10,
+    PolicyCheckInterval = TimeSpan.FromSeconds(10)
+};
 
-// Later...
-memoryLane.Free(handle);
+var arena = new MemoryArena(config);
+
+// Allocate a small struct
+var handle = arena.Allocate(sizeof(MyStruct), hints: AllocationHints.None);
+
+// Resolve the pointer and work with the data
+unsafe
+{
+    var ptr = (MyStruct*)arena.Resolve(handle);
+    ptr->Value = 123;
+}
+
+// Free when done
+arena.Free(handle);
+
+// Optionally run manual compaction
+arena.RunMaintenanceCycle();
