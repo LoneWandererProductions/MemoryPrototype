@@ -1,4 +1,34 @@
-﻿using System;
+﻿/*
+ *
+ * FastLane Policy
+ *  When to Compact FastLane:
+ * Usage > 90% of FastLane and enough memory is wasted by stubs.
+ * Large allocation request cannot be fulfilled despite stubs present.
+ * Manual trigger (e.g. during maintenance cycle or scene change).
+ * What to Move to SlowLane:
+ * Entries not accessed recently (age tagging or LRU heuristic).
+ * Entries larger than a threshold (e.g., 4 KB+).
+ * Entries marked as cold or long-lived (by system tagging).
+ * Entries not tagged as frame-critical.
+ * On Move:
+ * Allocate in SlowLane
+ * Copy data
+ * Replace original with stub
+ * Flag for FastLane.Compact() if space was freed
+ *  SlowLane Policy
+ * When to Compact SlowLane:
+ * Usage > 85% of SlowLane
+ * Fragmentation is high (e.g., >20% space in gaps)
+ * SlowLane allocation fails even though enough space exists
+ * Manual trigger, e.g. MemoryArena.CompactAll()
+ * Compacting Constraints:
+ * Only compact if free space after compaction > 10%
+ * Ensures space for future moves from FastLane
+ * Do not compact aggressively; it’s slower and costlier
+ * Prefer compaction during low activity (non-frame time)
+ */
+
+using System;
 using System.Diagnostics;
 using Core;
 using Lanes;
@@ -11,22 +41,11 @@ namespace MemoryManager
         private readonly SlowLane _slowLane;
         private readonly int _threshold;
 
-
         public MemoryArena(int fastLaneSize, int slowLaneSize, int fastLaneThreshold)
         {
             _slowLane = new SlowLane(slowLaneSize);
             _fastLane = new FastLane(fastLaneSize, _slowLane);
             _threshold = fastLaneThreshold;
-        }
-
-        private bool IsFastLaneHandle(MemoryHandle handle)
-        {
-            return _fastLane.HasHandle(handle);
-        }
-
-        private bool IsSlowLaneHandle(MemoryHandle handle)
-        {
-            return _slowLane.HasHandle(handle);
         }
 
         public unsafe void MoveFastToSlow(MemoryHandle fastHandle)
@@ -45,17 +64,43 @@ namespace MemoryManager
             _fastLane.ReplaceWithStub(fastHandle, slowHandle);
         }
 
-        public void AutoCompactFastLane()
+        public void AutoManageMemory()
         {
-            // If FastLane usage above threshold (e.g. 90%)
-            if (_fastLane.UsagePercentage() > 0.9)
+            TryCompactFastLane();
+            TryCompactSlowLane();
+        }
+
+        private void TryCompactFastLane()
+        {
+            const double fastLaneUsageThreshold = 0.9;
+
+            if (_fastLane.UsagePercentage() > fastLaneUsageThreshold)
             {
-                // Find candidates to move
                 foreach (var handle in _fastLane.GetHandles())
-                    // Logic to select candidates can be based on size, age, etc.
-                    MoveFastToSlow(handle);
+                {
+                    var entry = _fastLane.GetEntry(handle);
+                    if (entry.Size > 4096 || entry.IsStub) // Simple heuristic: large or unused
+                    {
+                        MoveFastToSlow(handle);
+                    }
+                }
 
                 _fastLane.Compact();
+            }
+        }
+
+        private void TryCompactSlowLane()
+        {
+            const double slowLaneUsageThreshold = 0.85;
+            const double safetyMargin = 0.10; // 10%
+
+            if (_slowLane.UsagePercentage() > slowLaneUsageThreshold)
+            {
+                var availablePostCompact = 1.0 - _slowLane.UsagePercentage();
+                if (availablePostCompact >= safetyMargin)
+                {
+                    _slowLane.Compact();
+                }
             }
         }
 
@@ -77,10 +122,8 @@ namespace MemoryManager
 
         public void Free(MemoryHandle handle)
         {
-            if (IsFastLaneHandle(handle))
-                _fastLane.Free(handle);
-            else if (IsSlowLaneHandle(handle))
-                _slowLane.Free(handle);
+            handle.GetPointer(); // Validate
+            handle.GetType().GetMethod("Free")?.Invoke(handle, new object[] { handle });
         }
 
         public void DebugDump()

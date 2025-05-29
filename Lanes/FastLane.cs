@@ -10,9 +10,13 @@ namespace Lanes
     public sealed class FastLane : IMemoryLane, IDisposable
     {
         private readonly int _capacity;
-        private readonly List<AllocationEntry> _entries = new();
-        private readonly Dictionary<int, AllocationEntry> _handleMap = new();
+        private AllocationEntry[] _entries = new AllocationEntry[128];
+        private int _entryCount = 0;
+
+        private readonly Dictionary<int, int> _handleIndex = new(); // Maps handleId → index into _entries
         private readonly SlowLane _slowLane;
+
+        public IntPtr Buffer { get; private set; }
         private int _nextHandleId = 1;
 
         public FastLane(int size, SlowLane slowLane)
@@ -22,13 +26,11 @@ namespace Lanes
             Buffer = Marshal.AllocHGlobal(size);
         }
 
-        public IntPtr Buffer { get; private set; }
-
         public void Dispose()
         {
             Marshal.FreeHGlobal(Buffer);
-            _entries.Clear();
-            _handleMap.Clear();
+            _handleIndex.Clear();
+            _entries = null;
         }
 
         public MemoryHandle Allocate(int size)
@@ -37,12 +39,13 @@ namespace Lanes
             if (offset + size > _capacity)
                 throw new OutOfMemoryException("FastLane: Not enough memory");
 
-            var id = _nextHandleId++;
-            var entry = new AllocationEntry { Offset = offset, Size = size, HandleId = id };
+            if (_entryCount >= _entries.Length)
+                Array.Resize(ref _entries, _entries.Length * 2);
 
-            _entries.Add(entry);
-            _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
-            _handleMap[id] = entry;
+            var id = _nextHandleId++;
+            _entries[_entryCount] = new AllocationEntry { Offset = offset, Size = size, HandleId = id };
+            _handleIndex[id] = _entryCount;
+            _entryCount++;
 
             return new MemoryHandle(id, this);
         }
@@ -61,9 +64,10 @@ namespace Lanes
 
         public IntPtr Resolve(MemoryHandle handle)
         {
-            if (!_handleMap.TryGetValue(handle.Id, out var entry))
-                throw new InvalidOperationException("Invalid handle.");
+            if (!_handleIndex.TryGetValue(handle.Id, out var index))
+                throw new InvalidOperationException("FastLane: Invalid handle");
 
+            var entry = _entries[index];
             if (entry.IsStub && entry.RedirectTo.HasValue)
                 return _slowLane.Resolve(entry.RedirectTo.Value);
 
@@ -72,126 +76,120 @@ namespace Lanes
 
         public void Free(MemoryHandle handle)
         {
-            if (!_handleMap.TryGetValue(handle.Id, out var entry))
-                throw new InvalidOperationException("Invalid handle.");
+            if (!_handleIndex.TryGetValue(handle.Id, out var index))
+                throw new InvalidOperationException("FastLane: Invalid handle");
+
+            var entry = _entries[index];
 
             if (entry.IsStub && entry.RedirectTo.HasValue)
             {
                 _slowLane.Free(entry.RedirectTo.Value);
-                _handleMap.Remove(handle.Id);
-                _entries.Remove(entry);
             }
-            else
+
+            // Remove by shifting tail and updating map
+            var last = _entryCount - 1;
+            if (index != last)
             {
-                _handleMap.Remove(handle.Id);
-                _entries.Remove(entry);
+                _entries[index] = _entries[last];
+                _handleIndex[_entries[index].HandleId] = index;
             }
+
+            _handleIndex.Remove(handle.Id);
+            _entryCount--;
+        }
+
+        public IEnumerable<MemoryHandle> GetHandles()
+        {
+            return _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
+        }
+
+        public double UsagePercentage()
+        {
+            var used = 0;
+            for (var i = 0; i < _entryCount; i++)
+                if (!_entries[i].IsStub) used += _entries[i].Size;
+
+            return (double)used / _capacity;
         }
 
         public unsafe void Compact()
         {
             var newBuffer = Marshal.AllocHGlobal(_capacity);
             var offset = 0;
-            var newMap = new Dictionary<int, AllocationEntry>();
 
-            for (var i = 0; i < _entries.Count; i++)
+            for (var i = 0; i < _entryCount; i++)
             {
                 var entry = _entries[i];
 
                 if (!entry.IsStub)
                 {
-                    System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size,
-                        entry.Size);
+                    void* source = (byte*)Buffer + entry.Offset;
+                    void* target = (byte*)newBuffer + offset;
+
+                    System.Buffer.MemoryCopy(source, target, _capacity - offset, entry.Size);
                     entry.Offset = offset;
                     offset += entry.Size;
                 }
 
                 _entries[i] = entry;
-                newMap[entry.HandleId] = entry;
+                _handleIndex[entry.HandleId] = i;
             }
 
             Marshal.FreeHGlobal(Buffer);
             Buffer = newBuffer;
-
-            _handleMap.Clear();
-            foreach (var kv in newMap)
-                _handleMap[kv.Key] = kv.Value;
-
-            _entries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
-
-            ValidateEntries();
         }
 
-        public string DebugDump()
-        {
-            return string.Join("\n",
-                _entries.ConvertAll(e => $"[FastLane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}"));
-        }
-
-        public IEnumerable<MemoryHandle> GetHandles()
-        {
-            return _handleMap.Keys.Select(id => new MemoryHandle(id, this));
-        }
-
-        public double UsagePercentage()
-        {
-            var used = _entries.Where(entry => !entry.IsStub).Sum(entry => entry.Size);
-            return (double)used / _capacity;
-        }
-
-        public bool HasHandle(MemoryHandle handle)
-        {
-            return _handleMap.ContainsKey(handle.Id);
-        }
 
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
-            if (!_handleMap.TryGetValue(handle.Id, out var entry))
+            if (!_handleIndex.TryGetValue(handle.Id, out var index))
                 throw new InvalidOperationException("FastLane: Invalid handle");
 
-            return entry;
+            return _entries[index];
         }
 
         public void ReplaceWithStub(MemoryHandle fastHandle, MemoryHandle slowHandle)
         {
-            if (!_handleMap.TryGetValue(fastHandle.Id, out var entry))
+            if (!_handleIndex.TryGetValue(fastHandle.Id, out var index))
                 throw new InvalidOperationException("FastLane: Invalid handle");
 
+            var entry = _entries[index];
             entry.IsStub = true;
             entry.RedirectTo = slowHandle;
-
-            // Update the map entry since AllocationEntry is a struct
-            _handleMap[fastHandle.Id] = entry;
+            _entries[index] = entry;
         }
 
         private int FindFreeSpot(int size)
         {
+            // Sort entries in-place by Offset ascending before searching
+            Array.Sort(_entries, 0, _entryCount, new AllocationEntryOffsetComparer());
+
             var offset = 0;
-            foreach (var entry in _entries)
+            for (var i = 0; i < _entryCount; i++)
             {
+                var entry = _entries[i];
                 if (offset + size <= entry.Offset)
                     return offset;
 
                 offset = entry.Offset + entry.Size;
             }
-
             return offset;
         }
 
-        private void ValidateEntries()
+
+        public string DebugDump()
         {
-            var lastEnd = 0;
-            foreach (var entry in _entries)
+            var sb = new System.Text.StringBuilder(_entryCount * 48); // Rough estimate per line
+            for (var i = 0; i < _entryCount; i++)
             {
-                if (entry.Offset < lastEnd)
-                    throw new InvalidOperationException(
-                        $"Entries overlap or are not sorted: entry ID {entry.HandleId}");
-
-                lastEnd = entry.Offset + entry.Size;
-
-                if (lastEnd > _capacity)
-                    throw new InvalidOperationException($"Entry ID {entry.HandleId} exceeds buffer capacity");
+                var entry = _entries[i];
+                sb.Append("[FastLane] ID ").Append(entry.HandleId)
+                    .Append(" Offset ").Append(entry.Offset)
+                    .Append(" Size ").Append(entry.Size)
+                    .AppendLine();
             }
+
+            return sb.ToString();
         }
     }
 }
