@@ -83,6 +83,12 @@ namespace MemoryManager
             _fastLane.ReplaceWithStub(fastHandle, slowHandle);
         }
 
+        public unsafe ref T Get<T>(MemoryHandle handle) where T : unmanaged
+        {
+            var ptr = Resolve(handle);
+            return ref System.Runtime.CompilerServices.Unsafe.AsRef<T>(ptr.ToPointer());
+        }
+
         public void RunMaintenanceCycle()
         {
             TryCompactFastLane();
