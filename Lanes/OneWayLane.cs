@@ -4,11 +4,13 @@ using System.Runtime.InteropServices;
 
 namespace Lanes
 {
-    public class OneWayLane
+    public sealed class OneWayLane
     {
         private readonly byte[] _buffer;
         private readonly IMemoryLane _fastLane;
         private readonly IMemoryLane _slowLane;
+
+        internal int BufferCapacity => _buffer.Length;
 
         public OneWayLane(int bufferSize, IMemoryLane fastLane, IMemoryLane slowLane)
         {
@@ -16,8 +18,6 @@ namespace Lanes
             _fastLane = fastLane ?? throw new ArgumentNullException(nameof(fastLane));
             _slowLane = slowLane ?? throw new ArgumentNullException(nameof(slowLane));
         }
-
-        internal int BufferCapacity => _buffer.Length;
 
         /// <summary>
         /// Moves data from FastLane to SlowLane using the buffer (one-way)

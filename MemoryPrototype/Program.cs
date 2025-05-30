@@ -33,12 +33,14 @@ namespace MemoryPrototype
             arena.Free(handleRaw);
 
             // --- TypedMemoryArena usage (simpler, more abstract) ---
-            var typedArena = new TypedMemoryArena(arena);
-            var handleTyped = typedArena.Allocate<MyStruct>();
-            typedArena.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
-            ref var dataTyped = ref typedArena.Get<MyStruct>(handleTyped);
+            TypedMemoryArena.Initialize(arena);
+            var instance = TypedMemoryArena.Instance;
+
+            var handleTyped = instance.Allocate<MyStruct>();
+            instance.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
+            ref var dataTyped = ref instance.Get<MyStruct>(handleTyped);
             Console.WriteLine($"Typed arena Value: {dataTyped.Value}");
-            typedArena.Free(handleTyped);
+            instance.Free(handleTyped);
 
             // Optionally run manual compaction
             arena.RunMaintenanceCycle();

@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Core;
 
@@ -6,9 +7,27 @@ namespace MemoryManager
 {
     public sealed class TypedMemoryArena
     {
+        private static TypedMemoryArena? _instance;
+
+        private static readonly object _lock = new();
+
+        public static void Initialize(MemoryArena arena)
+        {
+            lock (_lock)
+            {
+                if (_instance != null)
+                    throw new InvalidOperationException("TypedMemoryArena is already initialized.");
+
+                _instance = new TypedMemoryArena(arena);
+            }
+        }
+
+        public static TypedMemoryArena Instance =>
+            _instance ?? throw new InvalidOperationException("TypedMemoryArena is not initialized. Call Initialize() first.");
+
         private readonly MemoryArena _arena;
 
-        public TypedMemoryArena(MemoryArena arena)
+        private TypedMemoryArena(MemoryArena arena)
         {
             _arena = arena;
         }
@@ -41,5 +60,4 @@ namespace MemoryManager
             _arena.Free(handle);
         }
     }
-
 }

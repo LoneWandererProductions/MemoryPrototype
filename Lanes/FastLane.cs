@@ -61,6 +61,8 @@ namespace Lanes
             string? debugName = null,
             int currentFrame = 0)
         {
+            if(_entries == null) throw new InvalidOperationException("FastLane: Memory not reserved");
+
             var offset = FindFreeSpot(size);
             if (offset + size > Capacity)
                 throw new OutOfMemoryException("FastLane: Not enough memory");
@@ -166,7 +168,6 @@ namespace Lanes
                         entry.Offset = offset;
                         offset += entry.Size;
                     }
-
                 }
 
                 _entries[i] = entry;
@@ -178,7 +179,7 @@ namespace Lanes
             OnCompaction?.Invoke(nameof(FastLane));
         }
 
-        private bool ShouldMoveToSlowLane(AllocationEntry entry)
+        private static bool ShouldMoveToSlowLane(AllocationEntry entry)
         {
             // Basic example: offload low-priority entries
             return entry.Priority == AllocationPriority.Low;

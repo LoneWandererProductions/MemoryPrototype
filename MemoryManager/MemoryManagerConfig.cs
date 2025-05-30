@@ -103,7 +103,6 @@ namespace MemoryManager
 
             //set Transfer Buffer
             BufferSize = Math.Max(FastLaneSize / 4, 64 * 1024);
-
         }
     }
 }
