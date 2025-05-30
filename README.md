@@ -8,9 +8,8 @@
 - Does not manage C# objects directly — only unmanaged memory blocks.
 - No garbage collection integration.
 - No automatic bounds checking — accessing memory via MemoryHandle is safe in most cases (untested) only if used through the provided API correctly.
-- Designed for low-level experimentation, not production reliability.
+- Designed for low-level experimentation, not high-level safety.
 
-Designed for low-level control, not high-level safety.
 ---
 
 ## ✨ Features
@@ -31,6 +30,11 @@ Designed for low-level control, not high-level safety.
 
 - 🧪 **Safety Checks**
   - Methods like `TryGet<T>`, `IsValid`, and `GetHandleState` validate access.
+
+- 🛤️ **One-Way Lane Transfer**
+  - `OneWayLane` component moves memory entries from `FastLane` to `SlowLane` using an internal buffer and `Marshal.Copy`.
+  - Useful for offloading memory that is better suited for long-term storage.
+  - Plugged into the compaction cycle or invoked manually.
 
 ---
 
@@ -61,8 +65,17 @@ The following are planned features or experimental directions for further explor
 - [ ] **Compaction Improvements**  
   Reserve ~10% of the slow lane as scratch space for non-blocking lane compaction.
 
-- [ ] **Memory Usage Tracking**  
-  Collect statistics per category or system (e.g., physics, AI, UI).
+- [ ] **OneWayLane Improvements**  
+  - Use memory pool or shared scratch buffers.
+  - Support bidirectional memory migration.
+  - Expose migration cost/heuristics to caller or policies.
+
+- [ ] **Memory Usage Tracking (SQL Server-inspired)**  
+  Collect per-user, per-program statistics:
+  - Track access frequency, allocation lifetime, and promotion history.
+  - Use this data to recommend compaction avoidance, slow-lane promotion, or preallocation.
+  - Useful for long-running applications and plug-and-play optimization.
+  - Developer can assign debug tags to allocations for diagnostics.
 
 - [ ] **Allocation Tags / Groups**  
   Group handles by type for bulk free or memory diagnostics.
@@ -88,6 +101,7 @@ The following are planned features or experimental directions for further explor
 
 - [ ] **Robust unit tests**  
   Add automatic tests for correctness, safety, and basic performance characteristics.
+
 ---
 
 ## 🧩 Example Usage
