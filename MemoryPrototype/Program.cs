@@ -42,6 +42,10 @@ namespace MemoryPrototype
 
             // Optionally run manual compaction
             arena.RunMaintenanceCycle();
+
+            arena.DebugDump();
+
+            Console.ReadLine();
         }
     }
 }

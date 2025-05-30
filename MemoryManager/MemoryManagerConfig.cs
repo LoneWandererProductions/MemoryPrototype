@@ -31,7 +31,7 @@ namespace MemoryManager
 
         // Generic threshold for some operation (adjust as needed)
         // Example: 256KB, might represent chunk size or fragmentation tolerance
-        public int Threshold { get; set; } = (1024 * 1024) / 4; // 262,144 bytes.
+        public int Threshold { get; set; } = (1024 * 1024) / 4; //256 KB
 
         // Usage fraction of fast lane to trigger compaction (e.g., 90%)
         // Higher means less frequent compactions but higher risk of fragmentation
@@ -49,6 +49,8 @@ namespace MemoryManager
         // Safety margin for slow lane compaction decisions
         // Similar to fast lane safety margin, but can be tuned independently
         public double SlowLaneSafetyMargin { get; set; } = 0.10;
+
+        public int BufferSize { get; internal set; } = (1024 * 1024) / 4; // 256 KB
 
         // Add more knobs here as you identify other tuning parameters
 
@@ -92,6 +94,10 @@ namespace MemoryManager
             // Set defaults for slow lane thresholds
             SlowLaneUsageThreshold = 0.85;
             SlowLaneSafetyMargin = 0.10;
+
+            //set Transfer Buffer
+            BufferSize = Math.Max(FastLaneSize / 4, 64 * 1024);
+
         }
     }
 }

@@ -43,6 +43,7 @@ namespace MemoryManager
     {
         private readonly FastLane _fastLane;
         private readonly SlowLane _slowLane;
+        private readonly OneWayLane _oneWayLane;
         private int Threshold { get; set; }
         private readonly MemoryManagerConfig _config;
 
@@ -57,8 +58,13 @@ namespace MemoryManager
 
             _config = config;
             Threshold = config.Threshold;
-            _slowLane = new SlowLane(config.SlowLaneSize);
             _fastLane = new FastLane(config.FastLaneSize, _slowLane);
+            _slowLane = new SlowLane(config.SlowLaneSize);
+
+            // Now safe to construct OneWayLane
+            _oneWayLane = new OneWayLane(config.BufferSize, _fastLane, _slowLane);
+
+            _fastLane.OneWayLane = _oneWayLane;
 
             if (config.PolicyCheckInterval > TimeSpan.Zero)
             {

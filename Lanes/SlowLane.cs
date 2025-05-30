@@ -159,10 +159,20 @@ namespace Lanes
             OnCompaction?.Invoke(nameof(SlowLane));
         }
 
-        public bool HasHandle(MemoryHandle handle)
-        {
-            return _handleIndex.ContainsKey(handle.Id);
-        }
+        /// <summary>
+        /// Determines whether the specified handle has handle.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>
+        ///   <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
+        /// </returns>
+        public bool HasHandle(MemoryHandle handle) => MemoryLaneUtils.HasHandle(handle, _handleIndex);
+
+
+        public AllocationEntry GetEntry(MemoryHandle handle) => MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(SlowLane));
+
+
+        public int GetAllocationSize(MemoryHandle handle) => MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(SlowLane));
 
         private int GetUsed()
         {

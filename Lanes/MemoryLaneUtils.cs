@@ -1,5 +1,9 @@
-﻿using System.Linq;
+﻿using Core;
 using Core.MemoryArenaPrototype.Core;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 
 namespace Lanes
 {
@@ -105,6 +109,58 @@ namespace Lanes
                 if (entries?[i].IsStub == false) used += entries[i].Size;
 
             return (double)used / capacity;
+        }
+
+        /// <summary>
+        /// Determines whether the specified handle has handle.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <param name="handleIndex">Index of the handle.</param>
+        /// <returns>
+        ///   <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
+        /// </returns>
+        internal static bool HasHandle(MemoryHandle handle, Dictionary<int, int> handleIndex)
+        {
+            return handleIndex.ContainsKey(handle.Id);
+        }
+
+        /// <summary>
+        /// Gets the entry.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <param name="handleIndex">Index of the handle.</param>
+        /// <param name="entries">The entries.</param>
+        /// <param name="lane">The lane.</param>
+        /// <returns>Data from allocated space</returns>
+        /// <exception cref="System.InvalidOperationException"></exception>
+        internal static AllocationEntry GetEntry(MemoryHandle handle, Dictionary<int, int> handleIndex, AllocationEntry[] entries, string lane)
+        {
+            if (entries == null) new ArgumentException($"{lane}: Invalid handle");
+
+            if (!handleIndex.TryGetValue(handle.Id, out var index))
+                throw new InvalidOperationException($"{lane}: Invalid handle");
+
+            return entries[index];
+        }
+
+        /// <summary>
+        /// Gets the size of the allocation.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <param name="handleIndex">Index of the handle.</param>
+        /// <param name="entries">The entries.</param>
+        /// <param name="lane">The lane.</param>
+        /// <returns>Size of the allocated data.</returns>
+        /// <exception cref="System.InvalidOperationException"></exception>
+        internal static int GetAllocationSize(MemoryHandle handle, Dictionary<int, int> handleIndex, AllocationEntry[] entries, string lane)
+        {
+            if (entries == null) new ArgumentException($"{lane}: Invalid handle");
+
+            if (handleIndex.TryGetValue(handle.Id, out int index))
+            {
+                return entries[index].Size;
+            }
+            throw new InvalidOperationException($"{lane}: Invalid handle");
         }
     }
 }

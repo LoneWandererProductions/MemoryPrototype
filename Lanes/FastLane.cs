@@ -1,12 +1,12 @@
 ﻿// ReSharper disable MemberCanBePrivate.Global
 
 #nullable enable
+using Core;
+using Core.MemoryArenaPrototype.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Core;
-using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
@@ -23,6 +23,14 @@ namespace Lanes
 
         private readonly SlowLane _slowLane;
 
+        public OneWayLane? OneWayLane { get; set; }
+
+        /// <summary>
+        /// Gets the buffer.
+        /// </summary>
+        /// <value>
+        /// The buffer.
+        /// </value>
         public IntPtr Buffer { get; private set; }
 
         private int _nextHandleId = 1;
@@ -133,12 +141,32 @@ namespace Lanes
 
                 if (!entry.IsStub)
                 {
-                    void* source = (byte*)Buffer + entry.Offset;
-                    void* target = (byte*)newBuffer + offset;
+                    // Try offloading to OneWayLane, if available and policy allows
+                    if (OneWayLane != null && ShouldMoveToSlowLane(entry))
+                    {
+                        var fastHandle = new MemoryHandle(entry.HandleId, this);
 
-                    System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
-                    entry.Offset = offset;
-                    offset += entry.Size;
+                        if (OneWayLane.MoveFromFastToSlow(fastHandle))
+                        {
+                            entry.IsStub = true;
+                            entry.Size = 0;
+                            entry.Offset = 0;
+                            entry.RedirectTo = null;
+                            _entries[i] = entry;
+                            _handleIndex[entry.HandleId] = i;
+                            continue;
+                        }
+                    }
+                    else
+                    {
+                        void* source = (byte*)Buffer + entry.Offset;
+                        void* target = (byte*)newBuffer + offset;
+
+                        System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
+                        entry.Offset = offset;
+                        offset += entry.Size;
+                    }
+
                 }
 
                 _entries[i] = entry;
@@ -150,16 +178,20 @@ namespace Lanes
             OnCompaction?.Invoke(nameof(FastLane));
         }
 
-        public AllocationEntry GetEntry(MemoryHandle handle)
+        private bool ShouldMoveToSlowLane(AllocationEntry entry)
         {
-            if (!_handleIndex.TryGetValue(handle.Id, out var index))
-                throw new InvalidOperationException("FastLane: Invalid handle");
-
-            return _entries[index];
+            // Basic example: offload low-priority entries
+            return entry.Priority == AllocationPriority.Low;
         }
 
+        public AllocationEntry GetEntry(MemoryHandle handle) => MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(FastLane));
+
+        public int GetAllocationSize(MemoryHandle handle) => MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(FastLane));
+        
         public void ReplaceWithStub(MemoryHandle fastHandle, MemoryHandle slowHandle)
         {
+            if(_entries == null) throw new InvalidOperationException("FastLane: Invalid handle");
+
             if (!_handleIndex.TryGetValue(fastHandle.Id, out var index))
                 throw new InvalidOperationException("FastLane: Invalid handle");
 
@@ -169,10 +201,14 @@ namespace Lanes
             _entries[index] = entry;
         }
 
-        public bool HasHandle(MemoryHandle handle)
-        {
-            return _handleIndex.ContainsKey(handle.Id);
-        }
+        /// <summary>
+        /// Determines whether the specified handle has handle.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>
+        ///   <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
+        /// </returns>
+        public bool HasHandle(MemoryHandle handle) => MemoryLaneUtils.HasHandle(handle, _handleIndex);
 
         private int FindFreeSpot(int size) => MemoryLaneUtils.FindFreeSpot(size, _entries, EntryCount);
 

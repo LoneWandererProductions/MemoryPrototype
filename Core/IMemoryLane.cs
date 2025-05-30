@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Core.MemoryArenaPrototype.Core;
+using System;
 
 namespace Core
 {
@@ -12,6 +13,9 @@ namespace Core
             int currentFrame = 0);
 
         IntPtr Resolve(MemoryHandle handle);
+        int GetAllocationSize(MemoryHandle fastHandle);
+        AllocationEntry GetEntry(MemoryHandle handle);
+        bool HasHandle(MemoryHandle handle);
         void Free(MemoryHandle handle);
         void Compact();
         bool CanAllocate(int size);
