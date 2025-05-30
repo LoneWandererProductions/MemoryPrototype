@@ -35,6 +35,11 @@
   - `OneWayLane` component moves memory entries from `FastLane` to `SlowLane` using an internal buffer and `Marshal.Copy`.
   - Useful for offloading memory that is better suited for long-term storage.
   - Plugged into the compaction cycle or invoked manually.
+- 🪟 Typed Memory Front-End
+  - `TypedMemoryArena` provides a simplified, type-safe wrapper around the core allocator.
+  - Makes allocation, access, and freeing of typed structures easier.
+  - Supports singleton-style initialization or multiple manual instances.
+  - Ideal for prototyping or high-level systems that don't require full control.
 
 ---
 
@@ -62,11 +67,7 @@ The following are planned features or experimental directions for further explor
 - [ ] **Paging Support**  
   Evict memory to disk or swap lanes when memory is full, with lazy reloads.
 
-- [ ] **Compaction Improvements**  
-  Reserve ~10% of the slow lane as scratch space for non-blocking lane compaction.
-
 - [ ] **OneWayLane Improvements**  
-  - Use memory pool or shared scratch buffers.
   - Support bidirectional memory migration.
   - Expose migration cost/heuristics to caller or policies.
 
@@ -130,12 +131,14 @@ The following are planned features or experimental directions for further explor
             arena.Free(handleRaw);
 
             // --- TypedMemoryArena usage (simpler, more abstract) ---
-            var typedArena = new TypedMemoryArena(arena);
-            var handleTyped = typedArena.Allocate<MyStruct>();
-            typedArena.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
-            ref var dataTyped = ref typedArena.Get<MyStruct>(handleTyped);
+            TypedMemoryArena.Initialize(arena);
+            var instance = TypedMemoryArena.Instance;
+
+            var handleTyped = instance.Allocate<MyStruct>();
+            instance.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
+            ref var dataTyped = ref instance.Get<MyStruct>(handleTyped);
             Console.WriteLine($"Typed arena Value: {dataTyped.Value}");
-            typedArena.Free(handleTyped);
+            instance.Free(handleTyped);
 
             // Optionally run manual compaction
             arena.RunMaintenanceCycle();
