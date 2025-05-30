@@ -1,6 +1,6 @@
-﻿using Core;
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
+using Core;
 
 namespace Lanes
 {
@@ -10,8 +10,6 @@ namespace Lanes
         private readonly IMemoryLane _fastLane;
         private readonly IMemoryLane _slowLane;
 
-        internal int BufferCapacity => _buffer.Length;
-
         public OneWayLane(int bufferSize, IMemoryLane fastLane, IMemoryLane slowLane)
         {
             _buffer = new byte[bufferSize];
@@ -19,8 +17,10 @@ namespace Lanes
             _slowLane = slowLane ?? throw new ArgumentNullException(nameof(slowLane));
         }
 
+        internal int BufferCapacity => _buffer.Length;
+
         /// <summary>
-        /// Moves data from FastLane to SlowLane using the buffer (one-way)
+        ///     Moves data from FastLane to SlowLane using the buffer (one-way)
         /// </summary>
         /// <param name="fastHandle">The fast handle.</param>
         /// <returns>True if the move was successful, false otherwise.</returns>
@@ -32,7 +32,8 @@ namespace Lanes
             var size = _fastLane.GetAllocationSize(fastHandle);
 
             if (size > _buffer.Length)
-                throw new InvalidOperationException($"Buffer size {_buffer.Length} too small for allocation size {size}.");
+                throw new InvalidOperationException(
+                    $"Buffer size {_buffer.Length} too small for allocation size {size}.");
 
             Marshal.Copy(fastPtr, _buffer, 0, size);
 

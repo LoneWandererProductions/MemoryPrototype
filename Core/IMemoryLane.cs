@@ -1,5 +1,6 @@
-﻿using Core.MemoryArenaPrototype.Core;
+﻿#nullable enable
 using System;
+using Core.MemoryArenaPrototype.Core;
 
 namespace Core
 {

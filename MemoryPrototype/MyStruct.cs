@@ -1,6 +1,9 @@
-﻿internal struct MyStruct
+﻿namespace MemoryPrototype
 {
-    public int Value;
-    public float PositionX;
-    public float PositionY;
+    internal struct MyStruct
+    {
+        public int Value;
+        public float PositionX;
+        public float PositionY;
+    }
 }
