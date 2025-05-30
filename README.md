@@ -4,6 +4,13 @@
 
 > ⚠️ **Note:** This is a **prototype for learning and experimentation**. It is **not production-ready** and remains **untested for real-world use cases**. Use at your own risk.
 
+**Known Limitations**
+- Does not manage C# objects directly — only unmanaged memory blocks.
+- No garbage collection integration.
+- No automatic bounds checking — accessing memory via MemoryHandle is safe in most cases (untested) only if used through the provided API correctly.
+- Designed for low-level experimentation, not production reliability.
+
+Designed for low-level control, not high-level safety.
 ---
 
 ## ✨ Features
