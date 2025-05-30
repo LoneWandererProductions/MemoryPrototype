@@ -28,8 +28,8 @@ namespace Lanes
         {
             if (fastHandle.IsInvalid) return false;
 
-            IntPtr fastPtr = _fastLane.Resolve(fastHandle);
-            int size = _fastLane.GetAllocationSize(fastHandle);
+            var fastPtr = _fastLane.Resolve(fastHandle);
+            var size = _fastLane.GetAllocationSize(fastHandle);
 
             if (size > _buffer.Length)
                 throw new InvalidOperationException($"Buffer size {_buffer.Length} too small for allocation size {size}.");
@@ -39,7 +39,7 @@ namespace Lanes
             var slowHandle = _slowLane.Allocate(size);
             if (slowHandle.IsInvalid) return false;
 
-            IntPtr slowPtr = _slowLane.Resolve(slowHandle);
+            var slowPtr = _slowLane.Resolve(slowHandle);
 
             Marshal.Copy(_buffer, 0, slowPtr, size);
 

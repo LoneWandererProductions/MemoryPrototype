@@ -22,6 +22,8 @@ namespace MemoryPrototype
                 PolicyCheckInterval = TimeSpan.FromSeconds(10)
             };
 
+            Console.WriteLine($"Expected used memory: {config.GetEstimatedReservedMegabytes()} as mb.");
+
             var arena = new MemoryArena(config);
 
             // --- Raw MemoryArena usage (more control, more verbose) ---

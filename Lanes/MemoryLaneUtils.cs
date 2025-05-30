@@ -156,7 +156,7 @@ namespace Lanes
         {
             if (entries == null) new ArgumentException($"{lane}: Invalid handle");
 
-            if (handleIndex.TryGetValue(handle.Id, out int index))
+            if (handleIndex.TryGetValue(handle.Id, out var index))
             {
                 return entries[index].Size;
             }

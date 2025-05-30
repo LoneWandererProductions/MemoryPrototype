@@ -2,10 +2,22 @@
 
 namespace MemoryManager
 {
+    /// <summary>
+    /// The config for the mm
+    /// </summary>
     public sealed class MemoryManagerConfig
     {
+        /// <summary>
+        /// Estimates the total reserved unmanaged memory (in bytes) this configuration will request,
+        /// not including minor overhead for handles and management structures.
+        /// </summary>
+        public double GetEstimatedReservedMegabytes()
+        {
+            return (FastLaneSize + SlowLaneSize + BufferSize) / (1024.0 * 1024.0);
+        }
+
         // Size of the fast memory lane (high-speed, limited capacity)
-        // Rule of thumb: balance between fast allocations and available RAM, 
+        // Rule of thumb: balance between fast allocations and available RAM,
         // 1MB is small enough for fast cache-friendly allocations.
         public int FastLaneSize { get; set; } = 1024 * 1024; // 1MB
 

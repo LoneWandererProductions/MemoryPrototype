@@ -188,7 +188,7 @@ namespace Lanes
         public AllocationEntry GetEntry(MemoryHandle handle) => MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(FastLane));
 
         public int GetAllocationSize(MemoryHandle handle) => MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(FastLane));
-        
+
         public void ReplaceWithStub(MemoryHandle fastHandle, MemoryHandle slowHandle)
         {
             if(_entries == null) throw new InvalidOperationException("FastLane: Invalid handle");

@@ -169,6 +169,11 @@ namespace Lanes
         public bool HasHandle(MemoryHandle handle) => MemoryLaneUtils.HasHandle(handle, _handleIndex);
 
 
+        /// <summary>
+        /// Gets the entry.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>Get the Entry by handle.</returns>
         public AllocationEntry GetEntry(MemoryHandle handle) => MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(SlowLane));
 
 

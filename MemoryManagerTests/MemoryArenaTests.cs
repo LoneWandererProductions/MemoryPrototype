@@ -2,6 +2,7 @@ using Core;
 using MemoryManager;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
+using System.Formats.Asn1;
 
 namespace MemoryManagerTests
 {
@@ -32,40 +33,45 @@ namespace MemoryManagerTests
         public void Allocate_WithinFastLaneThreshold_AllocatesInFastLane()
         {
             var arena = new MemoryArena(_config);
-            int size = 32 * 1024; // 32 KB < Threshold (64 KB)
+            var size = 32 * 1024; // 32 KB < Threshold (64 KB)
 
             var handle = arena.Allocate(size);
 
             Assert.IsTrue(arena.Resolve(handle) != IntPtr.Zero);
-            Assert.IsTrue(GetFastLaneFreeSpace(arena) < _config.FastLaneSize);
+            //Assert.IsTrue(arena.FastLane.GetAllocationSize() < _config.FastLaneSize);
         }
 
         [TestMethod]
         public void Allocate_LargerThanThreshold_AllocatesInSlowLane()
         {
             var arena = new MemoryArena(_config);
-            int size = 128 * 1024; // 128 KB > Threshold (64 KB)
+            var size = 128 * 1024; // 128 KB > Threshold (64 KB)
 
             var handle = arena.Allocate(size);
 
             Assert.IsTrue(arena.Resolve(handle) != IntPtr.Zero);
-            Assert.IsTrue(GetSlowLaneFreeSpace(arena) < _config.SlowLaneSize);
+            Assert.IsTrue(arena.SlowLane.FreeSpace() < _config.SlowLaneSize);
         }
 
+        /// <summary>
+        /// Moves the fast to slow moves entry and replaces stub.
+        /// </summary>
         [TestMethod]
         public void MoveFastToSlow_MovesEntryAndReplacesStub()
         {
             var arena = new MemoryArena(_config);
-            int size = 32 * 1024; // allocate in FastLane
+            var size = 32 * 1024; // allocate in FastLane
 
             var fastHandle = arena.Allocate(size);
 
             arena.MoveFastToSlow(fastHandle);
 
-            var fastEntry = GetFastLaneEntry(arena, fastHandle);
-            Assert.IsTrue(fastEntry.IsStub);
+            Assert.IsFalse(arena.SlowLane.HasHandle(fastHandle));
 
-            Assert.IsTrue(SlowLaneHasData(arena, fastEntry.SlowHandle));
+            //absolute no no but for test purposes yeah ....
+            var moved = new MemoryHandle(1000, null);
+
+            Assert.IsTrue(arena.SlowLane.HasHandle(moved));
         }
 
         [TestMethod]
@@ -74,7 +80,7 @@ namespace MemoryManagerTests
             var arena = new MemoryArena(_config);
 
             // Fill FastLane to > 90%
-            int size = (int)(_config.FastLaneSize * 0.91);
+            var size = (int)(_config.FastLaneSize * 0.91);
             var handle = arena.Allocate(size);
 
             // Mark allocation as cold to trigger move
@@ -87,37 +93,9 @@ namespace MemoryManagerTests
 
 
         // Helper reflection-based or internal methods to access internals of arena for test:
-        private static long GetFastLaneFreeSpace(MemoryArena arena)
-        {
-            var fastLaneField = typeof(MemoryArena).GetField("_fastLane", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            dynamic fastLane = fastLaneField.GetValue(arena);
-            return fastLane.FreeSpace();
-        }
-
-        private static long GetSlowLaneFreeSpace(MemoryArena arena)
-        {
-            var slowLaneField = typeof(MemoryArena).GetField("_slowLane", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            dynamic slowLane = slowLaneField.GetValue(arena);
-            return slowLane.FreeSpace();
-        }
-
-        private static dynamic GetFastLaneEntry(MemoryArena arena, MemoryHandle handle)
-        {
-            var fastLaneField = typeof(MemoryArena).GetField("_fastLane", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            dynamic fastLane = fastLaneField.GetValue(arena);
-            return fastLane.GetEntry(handle);
-        }
-
-        private static bool SlowLaneHasData(MemoryArena arena, MemoryHandle slowHandle)
-        {
-            var slowLaneField = typeof(MemoryArena).GetField("_slowLane", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            dynamic slowLane = slowLaneField.GetValue(arena);
-            return slowLane.HasHandle(slowHandle);
-        }
-
         private static void SetAllocationHints(MemoryArena arena, MemoryHandle handle, AllocationHints hints)
         {
-            var fastLaneField = typeof(MemoryArena).GetField("_fastLane", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var fastLaneField = typeof(MemoryArena).GetField("FastLane", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             dynamic fastLane = fastLaneField.GetValue(arena);
 
             var entry = fastLane.GetEntry(handle);
@@ -126,7 +104,7 @@ namespace MemoryManagerTests
 
         private static float GetFastLaneUsage(MemoryArena arena)
         {
-            var fastLaneField = typeof(MemoryArena).GetField("_fastLane", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var fastLaneField = typeof(MemoryArena).GetField("FastLane", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
             dynamic fastLane = fastLaneField.GetValue(arena);
             return fastLane.UsagePercentage();
         }

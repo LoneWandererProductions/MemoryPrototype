@@ -41,9 +41,8 @@ namespace MemoryManager
 {
     public sealed class MemoryArena
     {
-        private readonly FastLane _fastLane;
-        private readonly SlowLane _slowLane;
-        private readonly OneWayLane _oneWayLane;
+        public FastLane FastLane { get; set; }
+        public SlowLane SlowLane { get; set; }
         private int Threshold { get; set; }
         private readonly MemoryManagerConfig _config;
 
@@ -58,13 +57,11 @@ namespace MemoryManager
 
             _config = config;
             Threshold = config.Threshold;
-            _fastLane = new FastLane(config.FastLaneSize, _slowLane);
-            _slowLane = new SlowLane(config.SlowLaneSize);
+            FastLane = new FastLane(config.FastLaneSize, SlowLane);
+            SlowLane = new SlowLane(config.SlowLaneSize);
 
             // Now safe to construct OneWayLane
-            _oneWayLane = new OneWayLane(config.BufferSize, _fastLane, _slowLane);
-
-            _fastLane.OneWayLane = _oneWayLane;
+            FastLane.OneWayLane = new OneWayLane(config.BufferSize, FastLane, SlowLane);
 
             if (config.PolicyCheckInterval > TimeSpan.Zero)
             {
@@ -74,18 +71,18 @@ namespace MemoryManager
 
         public unsafe void MoveFastToSlow(MemoryHandle fastHandle)
         {
-            var fastEntry = _fastLane.GetEntry(fastHandle);
+            var fastEntry = FastLane.GetEntry(fastHandle);
             var size = fastEntry.Size;
 
-            var slowHandle = _slowLane.Allocate(size);
+            var slowHandle = SlowLane.Allocate(size);
 
             Buffer.MemoryCopy(
-                (void*)(_fastLane.Buffer + fastEntry.Offset),
-                (void*)_slowLane.Resolve(slowHandle),
+                (void*)(FastLane.Buffer + fastEntry.Offset),
+                (void*)SlowLane.Resolve(slowHandle),
                 size,
                 size);
 
-            _fastLane.ReplaceWithStub(fastHandle, slowHandle);
+            FastLane.ReplaceWithStub(fastHandle, slowHandle);
         }
 
         public unsafe ref T Get<T>(MemoryHandle handle) where T : unmanaged
@@ -104,15 +101,15 @@ namespace MemoryManager
         {
             var fastLaneUsageThreshold = _config.FastLaneUsageThreshold;
 
-            if (_fastLane.UsagePercentage() <= fastLaneUsageThreshold)
+            if (FastLane.UsagePercentage() <= fastLaneUsageThreshold)
                 return;
 
             // Cache handles that should be moved first to avoid modifying collection during enumeration
             var handlesToMove = new List<MemoryHandle>();
 
-            foreach (var handle in _fastLane.GetHandles())
+            foreach (var handle in FastLane.GetHandles())
             {
-                var entry = _fastLane.GetEntry(handle);
+                var entry = FastLane.GetEntry(handle);
                 if (entry.Size > _config.FastLaneUsageThreshold ||
                     entry.Hints.HasFlag(AllocationHints.Cold) ||
                     entry.Hints.HasFlag(AllocationHints.Old))
@@ -126,13 +123,13 @@ namespace MemoryManager
                 MoveFastToSlow(handle);
             }
 
-            _fastLane.Compact();
+            FastLane.Compact();
         }
 
 
         private void CheckPolicies()
         {
-            var usage = _fastLane.UsagePercentage();
+            var usage = FastLane.UsagePercentage();
             if (!_config.EnableAutoCompaction || !(usage >= _config.CompactionThreshold)) return;
 
             TryCompactFastLane();
@@ -145,17 +142,17 @@ namespace MemoryManager
             // Usage threshold before considering compaction (e.g., 85%)
             var slowLaneUsageThreshold = _config.SlowLaneUsageThreshold;
 
-            if (!(_slowLane.UsagePercentage() > slowLaneUsageThreshold))
+            if (!(SlowLane.UsagePercentage() > slowLaneUsageThreshold))
                 return;
 
             // Estimated fragmentation fraction (0.0 - 1.0)
-            double fragmentation = _slowLane.EstimateFragmentation();
+            double fragmentation = SlowLane.EstimateFragmentation();
 
             // Current free space in bytes
-            double currentFreeSpace = _slowLane.FreeSpace();
+            double currentFreeSpace = SlowLane.FreeSpace();
 
             // Total capacity of the slow lane in bytes
-            double totalSize = _slowLane.Capacity;
+            double totalSize = SlowLane.Capacity;
 
             // Predicted free space after compaction (current free + fragmented gaps)
             var predictedFreeAfterCompaction = currentFreeSpace + fragmentation * totalSize;
@@ -166,7 +163,7 @@ namespace MemoryManager
             // If predicted free space ratio meets or exceeds safety margin, perform compaction
             if (predictedFreeAfterCompaction / totalSize >= safetyMargin)
             {
-                _slowLane.Compact();
+                SlowLane.Compact();
             }
         }
 
@@ -179,36 +176,36 @@ namespace MemoryManager
         {
             lock (_lock)
             {
-                if (size <= Threshold && _fastLane.CanAllocate(size))
-                    return _fastLane.Allocate(size, priority, hints, debugName, currentFrame);
-                if (_slowLane.CanAllocate(size))
-                    return _slowLane.Allocate(size, priority, hints, debugName, currentFrame);
+                if (size <= Threshold && FastLane.CanAllocate(size))
+                    return FastLane.Allocate(size, priority, hints, debugName, currentFrame);
+                if (SlowLane.CanAllocate(size))
+                    return SlowLane.Allocate(size, priority, hints, debugName, currentFrame);
 
                 throw new OutOfMemoryException(
                     $"Neither lane could allocate memory. Requested size: {size}, " +
-                    $"FastLane free: {_fastLane.FreeSpace()}, SlowLane free: {_slowLane.FreeSpace()}");
+                    $"FastLane free: {FastLane.FreeSpace()}, SlowLane free: {SlowLane.FreeSpace()}");
             }
         }
 
         public IntPtr Resolve(MemoryHandle handle)
         {
-            if (_fastLane.HasHandle(handle)) return _fastLane.Resolve(handle);
-            if (_slowLane.HasHandle(handle)) return _slowLane.Resolve(handle);
+            if (FastLane.HasHandle(handle)) return FastLane.Resolve(handle);
+            if (SlowLane.HasHandle(handle)) return SlowLane.Resolve(handle);
             throw new InvalidOperationException("Handle not found.");
         }
 
         public void CompactAll()
         {
-            _fastLane.Compact();
-            _slowLane.Compact();
+            FastLane.Compact();
+            SlowLane.Compact();
         }
 
         public void Free(MemoryHandle handle)
         {
-            if (_fastLane.HasHandle(handle))
-                _fastLane.Free(handle);
-            else if (_slowLane.HasHandle(handle))
-                _slowLane.Free(handle);
+            if (FastLane.HasHandle(handle))
+                FastLane.Free(handle);
+            else if (SlowLane.HasHandle(handle))
+                SlowLane.Free(handle);
             else
                 throw new InvalidOperationException("Handle not recognized by any lane.");
         }
@@ -216,14 +213,14 @@ namespace MemoryManager
         public void DebugDump()
         {
             Trace.WriteLine("===== MemoryArena Dump =====");
-            Trace.WriteLine($"Fast Lane Usage: {_fastLane.UsagePercentage():P2}, Free: {_fastLane.FreeSpace()} bytes, Entries: {_fastLane.EntryCount}, Stubs: {_fastLane.StubCount()}");
+            Trace.WriteLine($"Fast Lane Usage: {FastLane.UsagePercentage():P2}, Free: {FastLane.FreeSpace()} bytes, Entries: {FastLane.EntryCount}, Stubs: {FastLane.StubCount()}");
 
-            Trace.WriteLine($"Estimated Fragmentation: {_fastLane.EstimateFragmentation():P2}");
-            Trace.WriteLine(_fastLane.DebugDump());
+            Trace.WriteLine($"Estimated Fragmentation: {FastLane.EstimateFragmentation():P2}");
+            Trace.WriteLine(FastLane.DebugDump());
 
-            Trace.WriteLine($"Slow Lane Usage: {_slowLane.UsagePercentage():P2}, Free: {_slowLane.FreeSpace()} bytes, Entries: {_slowLane.EntryCount}, Stubs: {_slowLane.StubCount()}");
-            Trace.WriteLine($"Estimated Fragmentation: {_slowLane.EstimateFragmentation():P2}");
-            Trace.WriteLine(_slowLane.DebugDump());
+            Trace.WriteLine($"Slow Lane Usage: {SlowLane.UsagePercentage():P2}, Free: {SlowLane.FreeSpace()} bytes, Entries: {SlowLane.EntryCount}, Stubs: {SlowLane.StubCount()}");
+            Trace.WriteLine($"Estimated Fragmentation: {SlowLane.EstimateFragmentation():P2}");
+            Trace.WriteLine(SlowLane.DebugDump());
             Trace.WriteLine("============================");
         }
     }
