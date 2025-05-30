@@ -50,7 +50,13 @@ namespace MemoryManager
         // Similar to fast lane safety margin, but can be tuned independently
         public double SlowLaneSafetyMargin { get; set; } = 0.10;
 
-        public int BufferSize { get; internal set; } = (1024 * 1024) / 4; // 256 KB
+        /// <summary>
+        /// Gets or sets the size of the buffer.
+        /// </summary>
+        /// <value>
+        /// The size of the buffer.
+        /// </value>
+        public int BufferSize { get; set; } = (1024 * 1024) / 4; // 256 KB
 
         // Add more knobs here as you identify other tuning parameters
 
