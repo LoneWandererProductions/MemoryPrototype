@@ -96,6 +96,70 @@ namespace Lanes
         }
 
         /// <summary>
+        /// Debugs the visual map.
+        /// </summary>
+        /// <param name="entries">The entries.</param>
+        /// <param name="entryCount">The entry count.</param>
+        /// <param name="capacity">The capacity.</param>
+        /// <returns>A visual representation of the Memory used.</returns>
+        internal static string DebugVisualMap(AllocationEntry[] entries, int entryCount, int capacity)
+        {
+            if (entries == null || entryCount == 0)
+                return "[FastLane] Memory is empty";
+
+            var sb = new System.Text.StringBuilder();
+            var used = entries
+                .Where(e => !e.IsStub)
+                .Take(entryCount)
+                .OrderBy(e => e.Offset)
+                .ToList();
+
+            var lastEnd = 0;
+            const int barWidth = 80;
+
+            foreach (var entry in used)
+            {
+                if (entry.Offset > lastEnd)
+                {
+                    var gapStart = lastEnd;
+                    var gapSize = entry.Offset - lastEnd;
+                    sb.AppendLine($"[Gap ] {gapStart:D6}-{entry.Offset:D6} ({gapSize} bytes)");
+                }
+
+                sb.AppendLine($"[Used] {entry.Offset:D6}-{entry.Offset + entry.Size:D6} (ID {entry.HandleId}, {entry.Size} bytes)");
+
+                lastEnd = entry.Offset + entry.Size;
+            }
+
+            if (lastEnd < capacity)
+            {
+                sb.AppendLine($"[Gap ] {lastEnd:D6}-{capacity:D6} ({capacity - lastEnd} bytes)");
+            }
+
+            // ASCII visual bar
+            var visual = new char[barWidth];
+            Array.Fill(visual, '░');
+
+            foreach (var entry in used)
+            {
+                var start = (int)((entry.Offset / (double)capacity) * barWidth);
+                var end = (int)(((entry.Offset + entry.Size) / (double)capacity) * barWidth);
+                end = Math.Min(end, barWidth);
+
+                for (var i = start; i < end; i++)
+                    visual[i] = '▓';
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("Visual Map:");
+            sb.AppendLine(Environment.NewLine);
+            sb.AppendLine(new string(visual));
+            sb.AppendLine($"Capacity: {capacity} bytes");
+
+            return sb.ToString();
+        }
+
+        /// <summary>
         /// Usages the percentage.
         /// </summary>
         /// <param name="entryCount">The entry count.</param>
@@ -135,7 +199,7 @@ namespace Lanes
         /// <exception cref="System.InvalidOperationException"></exception>
         internal static AllocationEntry GetEntry(MemoryHandle handle, Dictionary<int, int> handleIndex, AllocationEntry[] entries, string lane)
         {
-            if (entries == null) new ArgumentException($"{lane}: Invalid handle");
+            if (entries == null) throw new ArgumentException($"{lane}: Invalid handle");
 
             if (!handleIndex.TryGetValue(handle.Id, out var index))
                 throw new InvalidOperationException($"{lane}: Invalid handle");
@@ -154,12 +218,13 @@ namespace Lanes
         /// <exception cref="System.InvalidOperationException"></exception>
         internal static int GetAllocationSize(MemoryHandle handle, Dictionary<int, int> handleIndex, AllocationEntry[] entries, string lane)
         {
-            if (entries == null) new ArgumentException($"{lane}: Invalid handle");
+            if (entries == null) throw new ArgumentException($"{lane}: Invalid handle");
 
             if (handleIndex.TryGetValue(handle.Id, out var index))
             {
                 return entries[index].Size;
             }
+
             throw new InvalidOperationException($"{lane}: Invalid handle");
         }
     }

@@ -208,10 +208,27 @@ namespace Lanes
         // Estimate fragmentation percentage (gaps / total capacity)
         public int EstimateFragmentation() => MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount, Capacity);
 
+        /// <summary>
+        /// Usages the percentage.
+        /// </summary>
+        /// <returns>Percentage of used memory.</returns>
         public double UsagePercentage() => MemoryLaneUtils.UsagePercentage(EntryCount, _entries, Capacity);
 
+        /// <summary>
+        /// Debugs the dump.
+        /// </summary>
+        /// <returns>Basic Debug Info</returns>
         public string DebugDump() => MemoryLaneUtils.DebugDump(_entries, EntryCount);
 
+        /// <summary>
+        /// Debugs the visual map.
+        /// </summary>
+        /// <returns>Visual information about the Debug and Memory layout.</returns>
+        public string DebugVisualMap() => MemoryLaneUtils.DebugVisualMap(_entries, EntryCount, Capacity);
+
+        /// <summary>
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
         public void Dispose()
         {
             Marshal.FreeHGlobal(Buffer);

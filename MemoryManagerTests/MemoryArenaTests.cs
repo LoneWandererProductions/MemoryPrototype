@@ -37,6 +37,8 @@ namespace MemoryManagerTests
 
             var handle = arena.Allocate(size);
 
+            arena.DebugDump();
+
             Assert.IsTrue(arena.Resolve(handle) != IntPtr.Zero);
             //Assert.IsTrue(arena.FastLane.GetAllocationSize() < _config.FastLaneSize);
         }
@@ -48,6 +50,8 @@ namespace MemoryManagerTests
             var size = 128 * 1024; // 128 KB > Threshold (64 KB)
 
             var handle = arena.Allocate(size);
+
+            arena.DebugDump();
 
             Assert.IsTrue(arena.Resolve(handle) != IntPtr.Zero);
             Assert.IsTrue(arena.SlowLane.FreeSpace() < _config.SlowLaneSize);
@@ -66,10 +70,13 @@ namespace MemoryManagerTests
 
             arena.MoveFastToSlow(fastHandle);
 
+            arena.DebugDump();
+
             Assert.IsFalse(arena.SlowLane.HasHandle(fastHandle));
 
             //absolute no no but for test purposes yeah ....
             var moved = new MemoryHandle(1000, null);
+            arena.DebugDump();
 
             Assert.IsTrue(arena.SlowLane.HasHandle(moved));
         }
@@ -87,6 +94,7 @@ namespace MemoryManagerTests
             SetAllocationHints(arena, handle, AllocationHints.Cold);
 
             arena.RunMaintenanceCycle();
+            arena.DebugDump();
 
             Assert.IsTrue(GetFastLaneUsage(arena) < 0.9f);
         }

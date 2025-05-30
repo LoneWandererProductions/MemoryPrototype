@@ -210,6 +210,9 @@ namespace MemoryManager
                 throw new InvalidOperationException("Handle not recognized by any lane.");
         }
 
+        /// <summary>
+        /// Dumps all debug logs, use with care cpu heavy..
+        /// </summary>
         public void DebugDump()
         {
             Trace.WriteLine("===== MemoryArena Dump =====");
@@ -217,10 +220,12 @@ namespace MemoryManager
 
             Trace.WriteLine($"Estimated Fragmentation: {FastLane.EstimateFragmentation():P2}");
             Trace.WriteLine(FastLane.DebugDump());
+            Trace.WriteLine(FastLane.DebugVisualMap());
 
             Trace.WriteLine($"Slow Lane Usage: {SlowLane.UsagePercentage():P2}, Free: {SlowLane.FreeSpace()} bytes, Entries: {SlowLane.EntryCount}, Stubs: {SlowLane.StubCount()}");
             Trace.WriteLine($"Estimated Fragmentation: {SlowLane.EstimateFragmentation():P2}");
             Trace.WriteLine(SlowLane.DebugDump());
+            Trace.WriteLine(SlowLane.DebugVisualMap());
             Trace.WriteLine("============================");
         }
     }
