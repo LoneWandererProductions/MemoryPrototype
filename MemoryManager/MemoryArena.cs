@@ -15,7 +15,7 @@
  * Copy data
  * Replace original with stub
  * Flag for FastLane.Compact() if space was freed
- *  SlowLane Policy
+ * SlowLane Policy
  * When to Compact SlowLane:
  * Usage > 85% of SlowLane
  * Fragmentation is high (e.g., >20% space in gaps)
@@ -23,7 +23,7 @@
  * Manual trigger, e.g. MemoryArena.CompactAll()
  * Compacting Constraints:
  * Only compact if free space after compaction > 10%
- * Ensures space for future moves from FastLane
+ * Ensures space for future moves from FastLane, at least that is planned, reserver 10% of slow lane for janitory work
  * Do not compact aggressively; it’s slower and costlier
  * Prefer compaction during low activity (non-frame time)
  */

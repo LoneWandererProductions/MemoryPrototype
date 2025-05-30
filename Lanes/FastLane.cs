@@ -122,6 +122,8 @@ namespace Lanes
 
         public unsafe void Compact()
         {
+            if (_entries == null) return;
+
             var newBuffer = Marshal.AllocHGlobal(Capacity);
             var offset = 0;
 
