@@ -355,24 +355,32 @@ namespace Lanes
 
         private int FindFreeSpot(int size)
         {
+            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+
             return MemoryLaneUtils.FindFreeSpot(size, _entries, EntryCount);
         }
 
         // Returns total free bytes in FastLane
         public int FreeSpace()
         {
+            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+
             return MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
         }
 
         // Returns count of stub entries
         public int StubCount()
         {
+            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+
             return MemoryLaneUtils.StubCount(EntryCount, _entries);
         }
 
         // Estimate fragmentation percentage (gaps / total capacity)
         public int EstimateFragmentation()
         {
+            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+
             return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount, Capacity);
         }
 
@@ -382,6 +390,8 @@ namespace Lanes
         /// <returns>Percentage of used memory.</returns>
         public double UsagePercentage()
         {
+            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+
             return MemoryLaneUtils.UsagePercentage(EntryCount, _entries, Capacity);
         }
 
@@ -391,6 +401,8 @@ namespace Lanes
         /// <returns>Visual information about the Debug and Memory layout.</returns>
         public string DebugVisualMap()
         {
+            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+
             return MemoryLaneUtils.DebugVisualMap(_entries, EntryCount, Capacity);
         }
 
@@ -400,6 +412,8 @@ namespace Lanes
         /// <returns>A overview of Redirections.</returns>
         public string DebugRedirections()
         {
+            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+
             return MemoryLaneUtils.DebugRedirections(_entries, EntryCount);
         }
     }

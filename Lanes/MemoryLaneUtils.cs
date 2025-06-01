@@ -86,10 +86,8 @@ namespace Lanes
         /// <param name="entries">The entries.</param>
         /// <returns>Number of stubs, aka references from fast to slow Lane.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int StubCount(int entryCount, AllocationEntry[]? entries)
+        internal static int StubCount(int entryCount, AllocationEntry[] entries)
         {
-            if (entries == null) return 0;
-
             var count = 0;
             for (var i = 0; i < entryCount; i++)
                 if (entries[i].IsStub)
@@ -106,10 +104,8 @@ namespace Lanes
         /// <param name="entryCount">The entry count.</param>
         /// <returns>Calculate free space.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int FindFreeSpot(int size, AllocationEntry[] entries, int entryCount)
+        internal static int FindFreeSpot(int size, IEnumerable<AllocationEntry> entries, int entryCount)
         {
-            if (entryCount == 0) return 0;
-
             var sorted = entries.Take(entryCount).ToArray();
             Array.Sort(sorted, (a, b) => a.Offset.CompareTo(b.Offset));
 
