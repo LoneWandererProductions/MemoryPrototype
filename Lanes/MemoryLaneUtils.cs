@@ -6,20 +6,21 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-using Core;
-using Core.MemoryArenaPrototype.Core;
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Core;
+using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
     internal static class MemoryLaneUtils
     {
         /// <summary>
-        /// Calculates the free space.
+        ///     Calculates the free space.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
@@ -49,12 +50,12 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Estimates the fragmentation.
+        ///     Estimates the fragmentation.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
         /// <param name="capacity">The capacity.</param>
-        /// <returns>Estimated fragementation.</returns>
+        /// <returns>Estimated fragmentation.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int EstimateFragmentation(IEnumerable<AllocationEntry> entries, int entryCount, int capacity)
         {
@@ -79,7 +80,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Stubs the count.
+        ///     Stubs the count.
         /// </summary>
         /// <param name="entryCount">The entry count.</param>
         /// <param name="entries">The entries.</param>
@@ -91,16 +92,14 @@ namespace Lanes
 
             var count = 0;
             for (var i = 0; i < entryCount; i++)
-            {
                 if (entries[i].IsStub)
                     count++;
-            }
 
             return count;
         }
 
         /// <summary>
-        /// Finds the free spot.
+        ///     Finds the free spot.
         /// </summary>
         /// <param name="size">The size.</param>
         /// <param name="entries">The entries.</param>
@@ -129,11 +128,11 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Debugs the dump.
+        ///     Debugs the dump.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
-        /// <returns>Gneric debug Dump</returns>
+        /// <returns>Generic debug Dump</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static string DebugDump(AllocationEntry[] entries, int entryCount)
         {
@@ -151,16 +150,16 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Debugs the visual map.
+        ///     Debugs the visual map.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
         /// <param name="capacity">The capacity.</param>
         /// <returns>Visual map of fragmentation.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static string DebugVisualMap(AllocationEntry[] entries, int entryCount, int capacity)
+        internal static string DebugVisualMap(IEnumerable<AllocationEntry> entries, int entryCount, int capacity)
         {
-            if (entries == null || entryCount == 0)
+            if (entryCount == 0)
                 return "[FastLane] Memory is empty";
 
             var sb = new StringBuilder();
@@ -184,10 +183,7 @@ namespace Lanes
                 lastEnd = e.Offset + e.Size;
             }
 
-            if (lastEnd < capacity)
-            {
-                sb.AppendLine($"[Gap ] {lastEnd:D6}-{capacity:D6} ({capacity - lastEnd} bytes)");
-            }
+            if (lastEnd < capacity) sb.AppendLine($"[Gap ] {lastEnd:D6}-{capacity:D6} ({capacity - lastEnd} bytes)");
 
             // Visual bar
             var visual = new char[barWidth];
@@ -195,8 +191,8 @@ namespace Lanes
 
             foreach (var e in sorted)
             {
-                var start = (int)((e.Offset / (double)capacity) * barWidth);
-                var end = (int)(((e.Offset + e.Size) / (double)capacity) * barWidth);
+                var start = (int)(e.Offset / (double)capacity * barWidth);
+                var end = (int)((e.Offset + e.Size) / (double)capacity * barWidth);
                 end = Math.Min(end, barWidth);
 
                 for (var i = start; i < end; i++)
@@ -213,9 +209,9 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Gets the next identifier.
-        /// SlowLane always counts up in a negative from -1
-        /// FastLane always counts up in a positive from +1
+        ///     Gets the next identifier.
+        ///     SlowLane always counts up in a negative from -1
+        ///     FastLane always counts up in a positive from +1
         /// </summary>
         /// <param name="freeIds">The free ids.</param>
         /// <param name="nextHandleId">The next handle identifier.</param>
@@ -230,7 +226,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Debugs the redirections.
+        ///     Debugs the redirections.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
@@ -247,11 +243,9 @@ namespace Lanes
                     .Append(" Size ").Append(e.Size);
 
                 if (e.IsStub)
-                {
                     sb.Append(" [STUB -> ID ")
                         .Append(e.RedirectTo?.Id.ToString() ?? "null")
                         .Append("]");
-                }
 
                 if (!string.IsNullOrWhiteSpace(e.DebugName))
                     sb.Append(" Name=").Append(e.DebugName);
@@ -263,7 +257,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Usages the percentage.
+        ///     Usages the percentage.
         /// </summary>
         /// <param name="entryCount">The entry count.</param>
         /// <param name="entries">The entries.</param>
@@ -276,21 +270,19 @@ namespace Lanes
 
             var used = 0;
             for (var i = 0; i < entryCount; i++)
-            {
                 if (!entries[i].IsStub)
                     used += entries[i].Size;
-            }
 
             return (double)used / capacity;
         }
 
         /// <summary>
-        /// Determines whether the specified handle has handle.
+        ///     Determines whether the specified handle has handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <param name="handleIndex">Index of the handle.</param>
         /// <returns>
-        ///   <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
+        ///     <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
         /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool HasHandle(MemoryHandle handle, Dictionary<int, int> handleIndex)
@@ -299,7 +291,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Gets the entry.
+        ///     Gets the entry.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <param name="handleIndex">Index of the handle.</param>
@@ -309,7 +301,8 @@ namespace Lanes
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static AllocationEntry GetEntry(MemoryHandle handle, Dictionary<int, int> handleIndex, AllocationEntry[] entries, string lane)
+        internal static AllocationEntry GetEntry(MemoryHandle handle, Dictionary<int, int> handleIndex,
+            AllocationEntry[] entries, string lane)
         {
             if (entries == null)
                 throw new ArgumentException($"{lane}: Invalid handle");
@@ -321,7 +314,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Gets the size of the allocation.
+        ///     Gets the size of the allocation.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <param name="handleIndex">Index of the handle.</param>
@@ -331,7 +324,8 @@ namespace Lanes
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int GetAllocationSize(MemoryHandle handle, Dictionary<int, int> handleIndex, AllocationEntry[] entries, string lane)
+        internal static int GetAllocationSize(MemoryHandle handle, Dictionary<int, int> handleIndex,
+            AllocationEntry[] entries, string lane)
         {
             if (entries == null)
                 throw new ArgumentException($"{lane}: Invalid handle");

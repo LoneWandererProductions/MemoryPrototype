@@ -13,10 +13,10 @@ namespace Core
     public readonly struct MemoryHandle
     {
         /// <summary>
-        /// Gets the identifier. Must be signed int!
+        ///     Gets the identifier. Must be signed int!
         /// </summary>
         /// <value>
-        /// The identifier.
+        ///     The identifier.
         /// </value>
         public int Id { get; }
 
@@ -34,10 +34,10 @@ namespace Core
         }
 
         /// <summary>
-        /// Gets a value indicating whether this instance is invalid.
+        ///     Gets a value indicating whether this instance is invalid.
         /// </summary>
         /// <value>
-        ///   <c>true</c> if this instance is invalid; otherwise, <c>false</c>.
+        ///     <c>true</c> if this instance is invalid; otherwise, <c>false</c>.
         /// </value>
         public bool IsInvalid => Id <= 0 || _lane == null;
     }

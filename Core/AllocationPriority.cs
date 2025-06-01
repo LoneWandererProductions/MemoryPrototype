@@ -12,6 +12,6 @@ namespace Core
     {
         Critical = 0,
         Normal = 1,
-        Low = 2,
+        Low = 2
     }
 }

@@ -6,10 +6,10 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+using System;
 using Core;
 using MemoryManager;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using System;
 
 namespace MemoryManagerTests
 {
@@ -23,16 +23,16 @@ namespace MemoryManagerTests
         {
             _config = new MemoryManagerConfig
             {
-                FastLaneSize = 1024 * 1024,          // 1 MB
-                SlowLaneSize = 4 * 1024 * 1024,      // 4 MB
-                BufferSize = 256 * 1024,              // 256 KB
-                Threshold = 64 * 1024,                // 64 KB
+                FastLaneSize = 1024 * 1024, // 1 MB
+                SlowLaneSize = 4 * 1024 * 1024, // 4 MB
+                BufferSize = 256 * 1024, // 256 KB
+                Threshold = 64 * 1024, // 64 KB
                 FastLaneUsageThreshold = 0.9f,
                 SlowLaneUsageThreshold = 0.85f,
                 CompactionThreshold = 0.9f,
                 SlowLaneSafetyMargin = 0.10f,
                 EnableAutoCompaction = true,
-                PolicyCheckInterval = TimeSpan.Zero  // no timer for test
+                PolicyCheckInterval = TimeSpan.Zero // no timer for test
             };
         }
 
@@ -51,7 +51,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        /// Moves the fast to slow moves entry and replaces stub.
+        ///     Moves the fast to slow moves entry and replaces stub.
         /// </summary>
         [TestMethod]
         public void MoveFastToSlowMovesEntryAndReplacesStub()

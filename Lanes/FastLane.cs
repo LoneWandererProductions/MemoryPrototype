@@ -10,88 +10,106 @@
 // ReSharper disable MemberCanBePrivate.Global
 
 #nullable enable
-using Core;
-using Core.MemoryArenaPrototype.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Core;
+using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
     public sealed class FastLane : IMemoryLane, IDisposable
     {
         /// <summary>
-        /// Gets the capacity.
-        /// </summary>
-        /// <value>
-        /// The capacity.
-        /// </value>
-        public int Capacity { get; private set; }
-
-        private AllocationEntry[]? _entries = new AllocationEntry[128];
-
-        /// <summary>
-        /// Gets the entry count.
-        /// </summary>
-        /// <value>
-        /// The entry count.
-        /// </value>
-        public int EntryCount { get; private set; } = 0;
-
-        /// <summary>
-        /// Occurs when [on compaction].
-        /// </summary>
-        public event Action<string>? OnCompaction;
-
-        /// <summary>
-        /// The handle index
-        /// Maps handleId → index into _entries
-        /// </summary>
-        private readonly Dictionary<int, int> _handleIndex = new();
-
-        /// <summary>
-        /// Only contains handles that were replaced with stubs
-        /// </summary>
-        private Dictionary<int, MemoryHandle> Redirects { get; set; } = new();
-
-        /// <summary>
-        /// The slow lane
-        /// </summary>
-        private readonly SlowLane _slowLane;
-
-        /// <summary>
-        /// Gets or sets the one way lane.
-        /// </summary>
-        /// <value>
-        /// The one way lane.
-        /// </value>
-        public OneWayLane? OneWayLane { get; set; }
-
-        /// <summary>
-        /// Gets the buffer.
-        /// </summary>
-        /// <value>
-        /// The buffer.
-        /// </value>
-        public IntPtr Buffer { get; private set; }
-
-        /// <summary>
-        /// The next handle identifier
-        /// </summary>
-        private int _nextHandleId = 1;
-
-        /// <summary>
-        /// The free ids
+        ///     The free ids
         /// </summary>
         private readonly Stack<int> _freeIds = new();
 
         /// <summary>
-        /// Determines whether this instance can allocate the specified size.
+        ///     The handle index
+        ///     Maps handleId → index into _entries
+        /// </summary>
+        private readonly Dictionary<int, int> _handleIndex = new();
+
+        /// <summary>
+        ///     The slow lane
+        /// </summary>
+        private readonly SlowLane _slowLane;
+
+        private AllocationEntry[]? _entries = new AllocationEntry[128];
+
+        /// <summary>
+        ///     The next handle identifier
+        /// </summary>
+        private int _nextHandleId = 1;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="FastLane" /> class.
+        /// </summary>
+        /// <param name="size">The size.</param>
+        /// <param name="slowLane">The slow lane.</param>
+        public FastLane(int size, SlowLane slowLane)
+        {
+            _slowLane = slowLane;
+            Capacity = size;
+            Buffer = Marshal.AllocHGlobal(size);
+        }
+
+        /// <summary>
+        ///     Gets the capacity.
+        /// </summary>
+        /// <value>
+        ///     The capacity.
+        /// </value>
+        public int Capacity { get; }
+
+        /// <summary>
+        ///     Gets the entry count.
+        /// </summary>
+        /// <value>
+        ///     The entry count.
+        /// </value>
+        public int EntryCount { get; private set; }
+
+        /// <summary>
+        ///     Only contains handles that were replaced with stubs
+        /// </summary>
+        private Dictionary<int, MemoryHandle> Redirects { get; } = new();
+
+        /// <summary>
+        ///     Gets or sets the one way lane.
+        /// </summary>
+        /// <value>
+        ///     The one way lane.
+        /// </value>
+        public OneWayLane? OneWayLane { get; set; }
+
+        /// <summary>
+        ///     Gets the buffer.
+        /// </summary>
+        /// <value>
+        ///     The buffer.
+        /// </value>
+        public IntPtr Buffer { get; private set; }
+
+        /// <summary>
+        ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
+        public void Dispose()
+        {
+            Marshal.FreeHGlobal(Buffer);
+            _handleIndex.Clear();
+            Redirects.Clear();
+            _entries = null;
+        }
+
+        /// <summary>
+        ///     Determines whether this instance can allocate the specified size.
         /// </summary>
         /// <param name="size">The size.</param>
         /// <returns>
-        ///   <c>true</c> if this instance can allocate the specified size; otherwise, <c>false</c>.
+        ///     <c>true</c> if this instance can allocate the specified size; otherwise, <c>false</c>.
         /// </returns>
         public bool CanAllocate(int size)
         {
@@ -106,19 +124,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="FastLane"/> class.
-        /// </summary>
-        /// <param name="size">The size.</param>
-        /// <param name="slowLane">The slow lane.</param>
-        public FastLane(int size, SlowLane slowLane)
-        {
-            _slowLane = slowLane;
-            Capacity = size;
-            Buffer = Marshal.AllocHGlobal(size);
-        }
-
-        /// <summary>
-        /// Allocates the specified size.
+        ///     Allocates the specified size.
         /// </summary>
         /// <param name="size">The size.</param>
         /// <param name="priority">The priority.</param>
@@ -135,7 +141,7 @@ namespace Lanes
             string? debugName = null,
             int currentFrame = 0)
         {
-            if(_entries == null) throw new InvalidOperationException("FastLane: Memory not reserved");
+            if (_entries == null) throw new InvalidOperationException("FastLane: Memory not reserved");
 
             var offset = FindFreeSpot(size);
             if (offset + size > Capacity)
@@ -156,7 +162,7 @@ namespace Lanes
                 Hints = hints,
                 DebugName = debugName,
                 AllocationFrame = currentFrame,
-                LastAccessFrame = currentFrame,
+                LastAccessFrame = currentFrame
             };
 
             _handleIndex[id] = EntryCount;
@@ -166,14 +172,14 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Resolves the specified handle.
+        ///     Resolves the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <returns>Pointer to the Memory.</returns>
         /// <exception cref="InvalidOperationException">
-        /// FastLane: Memory is corrupted.
-        /// or
-        /// FastLane: Invalid handle
+        ///     FastLane: Memory is corrupted.
+        ///     or
+        ///     FastLane: Invalid handle
         /// </exception>
         public IntPtr Resolve(MemoryHandle handle)
         {
@@ -194,13 +200,13 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Frees the specified handle.
+        ///     Frees the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <exception cref="InvalidOperationException">
-        /// FastLane: Memory is corrupted.
-        /// or
-        /// FastLane: Invalid handle
+        ///     FastLane: Memory is corrupted.
+        ///     or
+        ///     FastLane: Invalid handle
         /// </exception>
         public void Free(MemoryHandle handle)
         {
@@ -229,11 +235,6 @@ namespace Lanes
             _handleIndex.Remove(handle.Id);
             EntryCount--;
             _freeIds.Push(handle.Id);
-        }
-
-        public IEnumerable<MemoryHandle> GetHandles()
-        {
-            return _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
         }
 
         public unsafe void Compact()
@@ -285,20 +286,57 @@ namespace Lanes
             OnCompaction?.Invoke(nameof(FastLane));
         }
 
+        public AllocationEntry GetEntry(MemoryHandle handle)
+        {
+            return MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(FastLane));
+        }
+
+        /// <summary>
+        ///     Gets the size of the allocation.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>Returns the used space of Allocation.</returns>
+        public int GetAllocationSize(MemoryHandle handle)
+        {
+            return MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(FastLane));
+        }
+
+        /// <summary>
+        ///     Determines whether the specified handle has handle.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>
+        ///     <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
+        /// </returns>
+        public bool HasHandle(MemoryHandle handle)
+        {
+            return MemoryLaneUtils.HasHandle(handle, _handleIndex);
+        }
+
+        /// <summary>
+        ///     Debugs the dump.
+        /// </summary>
+        /// <returns>Basic Debug Info</returns>
+        public string DebugDump()
+        {
+            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
+        }
+
+        /// <summary>
+        ///     Occurs when [on compaction].
+        /// </summary>
+        public event Action<string>? OnCompaction;
+
+        public IEnumerable<MemoryHandle> GetHandles()
+        {
+            return _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
+        }
+
         private static bool ShouldMoveToSlowLane(AllocationEntry entry)
         {
             // Basic example: offload low-priority entries
             return entry.Priority == AllocationPriority.Low;
         }
-
-        public AllocationEntry GetEntry(MemoryHandle handle) => MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(FastLane));
-
-        /// <summary>
-        /// Gets the size of the allocation.
-        /// </summary>
-        /// <param name="handle">The handle.</param>
-        /// <returns>Returns the used space of Allocation.</returns>
-        public int GetAllocationSize(MemoryHandle handle) => MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(FastLane));
 
         public void ReplaceWithStub(MemoryHandle fastHandle, MemoryHandle slowHandle)
         {
@@ -315,59 +353,54 @@ namespace Lanes
             Redirects[fastHandle.Id] = slowHandle;
         }
 
-        /// <summary>
-        /// Determines whether the specified handle has handle.
-        /// </summary>
-        /// <param name="handle">The handle.</param>
-        /// <returns>
-        ///   <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
-        /// </returns>
-        public bool HasHandle(MemoryHandle handle) => MemoryLaneUtils.HasHandle(handle, _handleIndex);
-
-        private int FindFreeSpot(int size) => MemoryLaneUtils.FindFreeSpot(size, _entries, EntryCount);
+        private int FindFreeSpot(int size)
+        {
+            return MemoryLaneUtils.FindFreeSpot(size, _entries, EntryCount);
+        }
 
         // Returns total free bytes in FastLane
-        public int FreeSpace() => MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+        public int FreeSpace()
+        {
+            return MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+        }
 
         // Returns count of stub entries
-        public int StubCount() => MemoryLaneUtils.StubCount(EntryCount, _entries);
+        public int StubCount()
+        {
+            return MemoryLaneUtils.StubCount(EntryCount, _entries);
+        }
 
         // Estimate fragmentation percentage (gaps / total capacity)
-        public int EstimateFragmentation() => MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount, Capacity);
+        public int EstimateFragmentation()
+        {
+            return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount, Capacity);
+        }
 
         /// <summary>
-        /// Usages the percentage.
+        ///     Usages the percentage.
         /// </summary>
         /// <returns>Percentage of used memory.</returns>
-        public double UsagePercentage() => MemoryLaneUtils.UsagePercentage(EntryCount, _entries, Capacity);
+        public double UsagePercentage()
+        {
+            return MemoryLaneUtils.UsagePercentage(EntryCount, _entries, Capacity);
+        }
 
         /// <summary>
-        /// Debugs the dump.
-        /// </summary>
-        /// <returns>Basic Debug Info</returns>
-        public string DebugDump() => MemoryLaneUtils.DebugDump(_entries, EntryCount);
-
-        /// <summary>
-        /// Debugs the visual map.
+        ///     Debugs the visual map.
         /// </summary>
         /// <returns>Visual information about the Debug and Memory layout.</returns>
-        public string DebugVisualMap() => MemoryLaneUtils.DebugVisualMap(_entries, EntryCount, Capacity);
+        public string DebugVisualMap()
+        {
+            return MemoryLaneUtils.DebugVisualMap(_entries, EntryCount, Capacity);
+        }
 
         /// <summary>
-        /// Debugs the redirections.
+        ///     Debugs the redirections.
         /// </summary>
         /// <returns>A overview of Redirections.</returns>
-        public string DebugRedirections() => MemoryLaneUtils.DebugRedirections(_entries, EntryCount);
-
-        /// <summary>
-        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-        /// </summary>
-        public void Dispose()
+        public string DebugRedirections()
         {
-            Marshal.FreeHGlobal(Buffer);
-            _handleIndex.Clear();
-            Redirects.Clear();
-            _entries = null;
+            return MemoryLaneUtils.DebugRedirections(_entries, EntryCount);
         }
     }
 }

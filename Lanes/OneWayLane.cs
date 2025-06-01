@@ -6,8 +6,8 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-using Core;
 using System;
+using Core;
 
 namespace Lanes
 {
@@ -17,8 +17,6 @@ namespace Lanes
         private readonly IMemoryLane _fastLane;
         private readonly IMemoryLane _slowLane;
 
-        internal int BufferCapacity => _buffer.Length;
-
         public OneWayLane(int bufferSize, IMemoryLane fastLane, IMemoryLane slowLane)
         {
             _buffer = new byte[bufferSize];
@@ -26,8 +24,10 @@ namespace Lanes
             _slowLane = slowLane ?? throw new ArgumentNullException(nameof(slowLane));
         }
 
+        internal int BufferCapacity => _buffer.Length;
+
         /// <summary>
-        /// Moves data from FastLane to SlowLane using the buffer (one-way)
+        ///     Moves data from FastLane to SlowLane using the buffer (one-way)
         /// </summary>
         /// <param name="fastHandle">The fast handle.</param>
         /// <returns>True if the move was successful, false otherwise.</returns>
@@ -46,10 +46,10 @@ namespace Lanes
 
             // Copy memory block directly from fastPtr to slowPtr
             Buffer.MemoryCopy(
-                source: (void*)fastPtr,
-                destination: (void*)slowPtr,
-                destinationSizeInBytes: size,
-                sourceBytesToCopy: size);
+                (void*)fastPtr,
+                (void*)slowPtr,
+                size,
+                size);
 
             _fastLane.Free(fastHandle);
 

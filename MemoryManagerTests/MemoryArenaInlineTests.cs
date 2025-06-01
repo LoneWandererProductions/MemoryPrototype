@@ -16,12 +16,6 @@ namespace MemoryManagerTests
     [TestClass]
     public class MemoryArenaInlineTests
     {
-        private struct MyStruct
-        {
-            public int X;
-            public float Y;
-        }
-
         [TestMethod]
         public void MemoryArenaCanAllocateAndResolvePrimitiveAndStructs()
         {
@@ -80,6 +74,11 @@ namespace MemoryManagerTests
             //Debug
             arena.DebugDump();
         }
-    }
 
+        private struct MyStruct
+        {
+            public int X;
+            public float Y;
+        }
+    }
 }

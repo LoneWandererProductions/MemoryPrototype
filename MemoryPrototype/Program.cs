@@ -20,9 +20,9 @@ namespace MemoryPrototype
 
             var config = new MemoryManagerConfig
             {
-                FastLaneSize = 1024 * 1024,       // 1 MB
+                FastLaneSize = 1024 * 1024, // 1 MB
                 SlowLaneSize = 10 * 1024 * 1024, // 10 MB
-                Threshold = 4096,                 // Switch threshold between lanes
+                Threshold = 4096, // Switch threshold between lanes
                 EnableAutoCompaction = true,
                 CompactionThreshold = 0.90,
                 SlowLaneUsageThreshold = 0.85,
