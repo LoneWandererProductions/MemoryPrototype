@@ -1,4 +1,11 @@
-﻿#nullable enable
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     MemoryManager
+ * FILE:        TypedMemoryArena.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Your name here
+ */
+
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -10,28 +17,27 @@ namespace MemoryManager
     {
         private static TypedMemoryArena? _instance;
 
-        private static readonly object Lock = new();
-
-        private readonly MemoryArena _arena;
-
-        private TypedMemoryArena(MemoryArena arena)
-        {
-            _arena = arena;
-        }
-
-        public static TypedMemoryArena Instance =>
-            _instance ??
-            throw new InvalidOperationException("TypedMemoryArena is not initialized. Call Initialize() first.");
+        private static readonly object _lock = new();
 
         public static void Initialize(MemoryArena arena)
         {
-            lock (Lock)
+            lock (_lock)
             {
                 if (_instance != null)
                     throw new InvalidOperationException("TypedMemoryArena is already initialized.");
 
                 _instance = new TypedMemoryArena(arena);
             }
+        }
+
+        public static TypedMemoryArena Instance =>
+            _instance ?? throw new InvalidOperationException("TypedMemoryArena is not initialized. Call Initialize() first.");
+
+        private readonly MemoryArena _arena;
+
+        private TypedMemoryArena(MemoryArena arena)
+        {
+            _arena = arena;
         }
 
         public MemoryHandle Allocate<T>() where T : unmanaged

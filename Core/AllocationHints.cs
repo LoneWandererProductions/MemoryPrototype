@@ -1,4 +1,12 @@
-﻿using System;
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     Core
+ * FILE:        AllocationHints.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Your name here
+ */
+
+using System;
 
 namespace Core
 {

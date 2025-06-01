@@ -1,4 +1,12 @@
-﻿/*
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     MemoryManager
+ * FILE:        MemoryArena.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Your name here
+ */
+
+/*
  *
  * FastLane Policy
  *  When to Compact FastLane:
@@ -30,11 +38,9 @@
 
 // ReSharper disable NotAccessedField.Local
 
-#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using Core;
 using Lanes;
@@ -43,12 +49,42 @@ namespace MemoryManager
 {
     public sealed class MemoryArena
     {
-        private readonly MemoryManagerConfig _config;
+        /// <summary>
+        /// Gets or sets the fast lane.
+        /// </summary>
+        /// <value>
+        /// The fast lane.
+        /// </value>
+        public FastLane FastLane { get; set; }
 
-        private readonly object _lock;
+        /// <summary>
+        /// Gets or sets the slow lane.
+        /// </summary>
+        /// <value>
+        /// The slow lane.
+        /// </value>
+        public SlowLane SlowLane { get; set; }
+
+        /// <summary>
+        /// Gets or sets the threshold.
+        /// </summary>
+        /// <value>
+        /// The threshold.
+        /// </value>
+        private int Threshold { get; set; }
+
+        /// <summary>
+        /// The configuration
+        /// </summary>
+        private readonly MemoryManagerConfig _config;
 
         // Optionally: background thread for policies
         private Timer? _policyTimer;
+
+        /// <summary>
+        /// The lock
+        /// </summary>
+        private object _lock;
 
         public MemoryArena(MemoryManagerConfig config)
         {
@@ -56,20 +92,17 @@ namespace MemoryManager
 
             _config = config;
             Threshold = config.Threshold;
-            FastLane = new FastLane(config.FastLaneSize, SlowLane);
             SlowLane = new SlowLane(config.SlowLaneSize);
+            FastLane = new FastLane(config.FastLaneSize, SlowLane);
 
             // Now safe to construct OneWayLane
             FastLane.OneWayLane = new OneWayLane(config.BufferSize, FastLane, SlowLane);
 
             if (config.PolicyCheckInterval > TimeSpan.Zero)
-                _policyTimer = new Timer(_ => CheckPolicies(), null, config.PolicyCheckInterval,
-                    config.PolicyCheckInterval);
+            {
+                _policyTimer = new Timer(_ => CheckPolicies(), null, config.PolicyCheckInterval, config.PolicyCheckInterval);
+            }
         }
-
-        public FastLane FastLane { get; set; }
-        public SlowLane SlowLane { get; set; }
-        private int Threshold { get; }
 
         public unsafe void MoveFastToSlow(MemoryHandle fastHandle)
         {
@@ -87,10 +120,16 @@ namespace MemoryManager
             FastLane.ReplaceWithStub(fastHandle, slowHandle);
         }
 
+        /// <summary>
+        /// Gets the specified handle.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="handle">The handle.</param>
+        /// <returns>Get handle to the type.</returns>
         public unsafe ref T Get<T>(MemoryHandle handle) where T : unmanaged
         {
             var ptr = Resolve(handle);
-            return ref Unsafe.AsRef<T>(ptr.ToPointer());
+            return ref System.Runtime.CompilerServices.Unsafe.AsRef<T>(ptr.ToPointer());
         }
 
         public void RunMaintenanceCycle()
@@ -115,15 +154,23 @@ namespace MemoryManager
                 if (entry.Size > _config.FastLaneUsageThreshold ||
                     entry.Hints.HasFlag(AllocationHints.Cold) ||
                     entry.Hints.HasFlag(AllocationHints.Old))
+                {
                     handlesToMove.Add(handle);
+                }
             }
 
-            foreach (var handle in handlesToMove) MoveFastToSlow(handle);
+            foreach (var handle in handlesToMove)
+            {
+                MoveFastToSlow(handle);
+            }
 
             FastLane.Compact();
         }
 
 
+        /// <summary>
+        /// Checks the policies.
+        /// </summary>
         private void CheckPolicies()
         {
             var usage = FastLane.UsagePercentage();
@@ -158,7 +205,10 @@ namespace MemoryManager
             var safetyMargin = _config.SlowLaneSafetyMargin;
 
             // If predicted free space ratio meets or exceeds safety margin, perform compaction
-            if (predictedFreeAfterCompaction / totalSize >= safetyMargin) SlowLane.Compact();
+            if (predictedFreeAfterCompaction / totalSize >= safetyMargin)
+            {
+                SlowLane.Compact();
+            }
         }
 
         public MemoryHandle Allocate(
@@ -181,48 +231,68 @@ namespace MemoryManager
             }
         }
 
+        /// <summary>
+        /// Checks the policies.
+        /// Convention: Positive handles go to FastLane, negative to SlowLane.
+        /// Zero is reserved/invalid.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>Get the pointer to the data.</returns>
         public IntPtr Resolve(MemoryHandle handle)
         {
-            if (FastLane.HasHandle(handle)) return FastLane.Resolve(handle);
-            if (SlowLane.HasHandle(handle)) return SlowLane.Resolve(handle);
+            if (handle.IsInvalid)
+                throw new InvalidOperationException($"Invalid handle {handle.Id}");
 
-            throw new InvalidOperationException("Handle not found.");
+            if (handle.Id > 0)
+                return FastLane.Resolve(handle);
+
+            return SlowLane.Resolve(handle);
         }
 
+        /// <summary>
+        /// Compacts all lanes.
+        /// </summary>
         public void CompactAll()
         {
             FastLane.Compact();
             SlowLane.Compact();
         }
 
+        /// <summary>
+        /// Free the memory by pointer
+        /// Convention: Positive handles go to FastLane, negative to SlowLane.
+        /// Zero is reserved/invalid.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
         public void Free(MemoryHandle handle)
         {
-            if (FastLane.HasHandle(handle))
+            if (handle.IsInvalid)
+                throw new InvalidOperationException("Invalid handle");
+
+            if (handle.Id > 0)
                 FastLane.Free(handle);
-            else if (SlowLane.HasHandle(handle))
-                SlowLane.Free(handle);
             else
-                throw new InvalidOperationException("Handle not recognized by any lane.");
+                SlowLane.Free(handle);
         }
 
         /// <summary>
-        ///     Dumps all debug logs, use with care cpu heavy..
+        /// Dumps all debug logs, use with care cpu heavy..
         /// </summary>
         public void DebugDump()
         {
             Trace.WriteLine("===== MemoryArena Dump =====");
-            Trace.WriteLine(
-                $"Fast Lane Usage: {FastLane.UsagePercentage():P2}, Free: {FastLane.FreeSpace()} bytes, Entries: {FastLane.EntryCount}, Stubs: {FastLane.StubCount()}");
+            Trace.WriteLine($"Fast Lane Usage: {FastLane.UsagePercentage():P2}, Free: {FastLane.FreeSpace()} bytes, Entries: {FastLane.EntryCount}, Stubs: {FastLane.StubCount()}");
 
             Trace.WriteLine($"Estimated Fragmentation: {FastLane.EstimateFragmentation():P2}");
             Trace.WriteLine(FastLane.DebugDump());
             Trace.WriteLine(FastLane.DebugVisualMap());
+            Trace.WriteLine(FastLane.DebugRedirections());
 
-            Trace.WriteLine(
-                $"Slow Lane Usage: {SlowLane.UsagePercentage():P2}, Free: {SlowLane.FreeSpace()} bytes, Entries: {SlowLane.EntryCount}, Stubs: {SlowLane.StubCount()}");
+            Trace.WriteLine($"Slow Lane Usage: {SlowLane.UsagePercentage():P2}, Free: {SlowLane.FreeSpace()} bytes, Entries: {SlowLane.EntryCount}, Stubs: {SlowLane.StubCount()}");
             Trace.WriteLine($"Estimated Fragmentation: {SlowLane.EstimateFragmentation():P2}");
             Trace.WriteLine(SlowLane.DebugDump());
             Trace.WriteLine(SlowLane.DebugVisualMap());
+            Trace.WriteLine(SlowLane.DebugRedirections());
             Trace.WriteLine("============================");
         }
     }

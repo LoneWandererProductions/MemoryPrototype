@@ -1,4 +1,12 @@
-﻿using System.Collections.Generic;
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     Lanes
+ * FILE:        AllocationEntryOffsetComparer.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Your name here
+ */
+
+using System.Collections.Generic;
 using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes

@@ -1,6 +1,13 @@
-﻿using System;
-using System.Runtime.InteropServices;
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     Lanes
+ * FILE:        OneWayLane.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Your name here
+ */
+
 using Core;
+using System;
 
 namespace Lanes
 {
@@ -10,6 +17,8 @@ namespace Lanes
         private readonly IMemoryLane _fastLane;
         private readonly IMemoryLane _slowLane;
 
+        internal int BufferCapacity => _buffer.Length;
+
         public OneWayLane(int bufferSize, IMemoryLane fastLane, IMemoryLane slowLane)
         {
             _buffer = new byte[bufferSize];
@@ -17,32 +26,30 @@ namespace Lanes
             _slowLane = slowLane ?? throw new ArgumentNullException(nameof(slowLane));
         }
 
-        internal int BufferCapacity => _buffer.Length;
-
         /// <summary>
-        ///     Moves data from FastLane to SlowLane using the buffer (one-way)
+        /// Moves data from FastLane to SlowLane using the buffer (one-way)
         /// </summary>
         /// <param name="fastHandle">The fast handle.</param>
         /// <returns>True if the move was successful, false otherwise.</returns>
-        internal bool MoveFromFastToSlow(MemoryHandle fastHandle)
+        internal unsafe bool MoveFromFastToSlow(MemoryHandle fastHandle)
         {
             if (fastHandle.IsInvalid) return false;
 
             var fastPtr = _fastLane.Resolve(fastHandle);
             var size = _fastLane.GetAllocationSize(fastHandle);
 
-            if (size > _buffer.Length)
-                throw new InvalidOperationException(
-                    $"Buffer size {_buffer.Length} too small for allocation size {size}.");
-
-            Marshal.Copy(fastPtr, _buffer, 0, size);
-
+            // Allocate on slow lane first to get destination pointer
             var slowHandle = _slowLane.Allocate(size);
             if (slowHandle.IsInvalid) return false;
 
             var slowPtr = _slowLane.Resolve(slowHandle);
 
-            Marshal.Copy(_buffer, 0, slowPtr, size);
+            // Copy memory block directly from fastPtr to slowPtr
+            Buffer.MemoryCopy(
+                source: (void*)fastPtr,
+                destination: (void*)slowPtr,
+                destinationSizeInBytes: size,
+                sourceBytesToCopy: size);
 
             _fastLane.Free(fastHandle);
 

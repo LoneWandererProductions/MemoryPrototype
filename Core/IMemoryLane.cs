@@ -1,6 +1,13 @@
-﻿#nullable enable
-using System;
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     Core
+ * FILE:        IMemoryLane.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Your name here
+ */
+
 using Core.MemoryArenaPrototype.Core;
+using System;
 
 namespace Core
 {
