@@ -3,7 +3,7 @@
  * PROJECT:     Core
  * FILE:        AllocationPriority.cs
  * PURPOSE:     Your file purpose here
- * PROGRAMMER:  Your name here
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 namespace Core

@@ -3,7 +3,7 @@
  * PROJECT:     MemoryManager
  * FILE:        MemoryArena.cs
  * PURPOSE:     Your file purpose here
- * PROGRAMMER:  Your name here
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 /*
@@ -86,6 +86,10 @@ namespace MemoryManager
         /// </summary>
         private object _lock;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MemoryArena"/> class.
+        /// </summary>
+        /// <param name="config">The configuration.</param>
         public MemoryArena(MemoryManagerConfig config)
         {
             _lock = new object();

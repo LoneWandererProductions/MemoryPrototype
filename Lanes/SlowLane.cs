@@ -2,8 +2,9 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     Lanes
  * FILE:        SlowLane.cs
- * PURPOSE:     Your file purpose here
- * PROGRAMMER:  Your name here
+ * PURPOSE:     Memory store for long lived data and stuff we could not hold into he slow lane.
+ *              Ids for Allocations is always negative here.
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 // ReSharper disable EventNeverSubscribedTo.Global
@@ -12,14 +13,24 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Core;
 using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
+    /// <inheritdoc cref="IMemoryLane" />
+    /// <summary>
+    /// The SlowLane for all the sorted out stuff and bigger longer resting data.
+    /// </summary>
+    /// <seealso cref="T:Core.IMemoryLane" />
+    /// <seealso cref="T:System.IDisposable" />
     public sealed class SlowLane : IMemoryLane, IDisposable
     {
+        /// <summary>
+        /// The safety margin
+        /// </summary>
         private const double SafetyMargin = 0.10; // 10% free space reserved
 
         /// <summary>
@@ -28,35 +39,76 @@ namespace Lanes
         /// <value>
         /// The buffer.
         /// </value>
-        private IntPtr Buffer;
-
-        public int Capacity { get; private set; }
-
-        private readonly AllocationEntry[] _entries;
-
-        private readonly Dictionary<int, int> _handleIndex = new(); // handleId -> entries array index
-        public int EntryCount { get; private set; } = 0;
-
-        public event Action<string>? OnCompaction;
-
-        private readonly Stack<int> _freeSlots = new(); // reuse freed slots
+        private IntPtr _buffer;
 
         /// <summary>
-        /// Gets or sets the next handle identifier.
-        /// Separate ID range for slow lane
+        /// Gets the capacity.
         /// </summary>
         /// <value>
-        /// The next handle identifier.
+        /// The capacity.
         /// </value>
-        private int NextHandleId { get; set; } = -1;
+        public int Capacity { get; private set; }
 
+        /// <summary>
+        /// The allocated entries
+        /// </summary>
+        private readonly AllocationEntry[] _entries;
+
+        /// <summary>
+        /// The handle index
+        /// </summary>
+        private readonly Dictionary<int, int> _handleIndex = new(); // handleId -> entries array index
+
+        /// <summary>
+        /// Gets the entry count.
+        /// </summary>
+        /// <value>
+        /// The entry count.
+        /// </value>
+        public int EntryCount { get; private set; } = 0;
+
+        /// <summary>
+        /// Occurs when [on compaction].
+        /// </summary>
+        public event Action<string>? OnCompaction;
+
+        /// <summary>
+        /// The free slots, we reuse freed slots
+        /// </summary>
+        private readonly Stack<int> _freeSlots = new();
+
+        /// <summary>
+        /// The next handle identifier
+        /// </summary>
+        private int _nextHandleId = -1;
+
+        /// <summary>
+        /// The free ids
+        /// </summary>
+        private readonly Stack<int> _freeIds = new();
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SlowLane"/> class.
+        /// </summary>
+        /// <param name="capacity">The capacity.</param>
+        /// <param name="maxEntries">The maximum entries.</param>
         public SlowLane(int capacity, int maxEntries = 1024)
         {
             Capacity = capacity;
-            Buffer = Marshal.AllocHGlobal(capacity);
+            _buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
         }
 
+        /// <summary>
+        /// Allocates the specified size.
+        /// </summary>
+        /// <param name="size">The size.</param>
+        /// <param name="priority">The priority.</param>
+        /// <param name="hints">The hints.</param>
+        /// <param name="debugName">Name of the debug.</param>
+        /// <param name="currentFrame">The current frame.</param>
+        /// <returns>Allocated memory and a reference.</returns>
+        /// <exception cref="OutOfMemoryException">SlowLane: Cannot allocate</exception>
         public MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
@@ -70,8 +122,8 @@ namespace Lanes
             var offset = FindFreeSpot(size);
             var slotIndex = (_freeSlots.Count > 0) ? _freeSlots.Pop() : EntryCount++;
 
-            //Todo that won't fly
-            var id = NextHandleId--;
+            //So we reuse freed handles here
+            var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
 
             _entries[slotIndex] = new AllocationEntry
             {
@@ -96,11 +148,31 @@ namespace Lanes
             return new MemoryHandle(id, this);
         }
 
+        /// <summary>
+        /// Determines whether this instance can allocate the specified size.
+        /// </summary>
+        /// <param name="size">The size.</param>
+        /// <returns>
+        ///   <c>true</c> if this instance can allocate the specified size; otherwise, <c>false</c>.
+        /// </returns>
         public bool CanAllocate(int size)
         {
-            return GetUsed() + size <= Capacity * (1.0 - SafetyMargin);
+            if (GetUsed() + size > Capacity * (1.0 - SafetyMargin))
+                return false;
+
+            return FindFreeSpot(size) != -1;
         }
 
+        /// <summary>
+        /// Resolves the specified handle.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>Pointer to the stored data.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// SlowLane: Invalid handle
+        /// or
+        /// SlowLane: Cannot resolve stub entry without redirection
+        /// </exception>
         public IntPtr Resolve(MemoryHandle handle)
         {
             if (!_handleIndex.TryGetValue(handle.Id, out var index))
@@ -110,7 +182,7 @@ namespace Lanes
             if (entry.IsStub && entry.RedirectTo.HasValue)
                 throw new InvalidOperationException("SlowLane: Cannot resolve stub entry without redirection");
 
-            return Buffer + entry.Offset;
+            return _buffer + entry.Offset;
         }
 
         public IEnumerable<MemoryHandle> GetHandles()
@@ -118,6 +190,11 @@ namespace Lanes
             return _handleIndex.Select(kv => new MemoryHandle(kv.Key, this));
         }
 
+        /// <summary>
+        /// Frees the specified handle.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <exception cref="InvalidOperationException">SlowLane: Invalid handle</exception>
         public void Free(MemoryHandle handle)
         {
             if (!_handleIndex.TryGetValue(handle.Id, out var index))
@@ -128,12 +205,16 @@ namespace Lanes
             // Mark slot free, clear entry
             _entries[index] = default;
             _freeSlots.Push(index);
+
+            EntryCount++;
+            _freeIds.Push(handle.Id);
         }
 
+        /// <summary>
+        /// Compacts this instance.
+        /// </summary>
         public unsafe void Compact()
         {
-            if (_entries == null) return;
-
             var newBuffer = Marshal.AllocHGlobal(Capacity);
             var offset = 0;
 
@@ -150,7 +231,7 @@ namespace Lanes
                     continue;
                 }
 
-                System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
+                System.Buffer.MemoryCopy((void*)(_buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
 
                 entry.Offset = offset;
                 offset += entry.Size;
@@ -166,8 +247,8 @@ namespace Lanes
                 _entries[i] = default;
 
             // Update state
-            Marshal.FreeHGlobal(Buffer);
-            Buffer = newBuffer;
+            Marshal.FreeHGlobal(_buffer);
+            _buffer = newBuffer;
 
             _handleIndex.Clear();
             foreach (var kvp in newHandleIndex)
@@ -199,9 +280,18 @@ namespace Lanes
         /// <returns>Get the Entry by handle.</returns>
         public AllocationEntry GetEntry(MemoryHandle handle) => MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(SlowLane));
 
-
+        /// <summary>
+        /// Gets the size of the allocation.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>Size of allocated space.</returns>
         public int GetAllocationSize(MemoryHandle handle) => MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(SlowLane));
 
+        /// <summary>
+        /// Gets the used.
+        /// </summary>
+        /// <returns>Get used Id.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int GetUsed()
         {
             var used = 0;
@@ -214,18 +304,33 @@ namespace Lanes
             return used;
         }
 
+        /// <summary>
+        /// Sorts the entries by offset.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void SortEntriesByOffset()
         {
             // Simple insertion sort for small arrays, else replace with more efficient if needed
             Array.Sort(_entries, 0, EntryCount, new AllocationEntryOffsetComparer());
         }
 
-        // Returns total free bytes in FastLane
+        /// <summary>
+        /// Frees the space.
+        /// </summary>
+        /// <returns>The Free space</returns>
         public int FreeSpace() => MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
 
+        /// <summary>
+        /// Finds the free spot.
+        /// </summary>
+        /// <param name="size">The size.</param>
+        /// <returns>Returns total free bytes in FastLane</returns>
         private int FindFreeSpot(int size) => MemoryLaneUtils.FindFreeSpot(size, _entries, EntryCount);
 
-        // Returns count of stub entries
+        /// <summary>
+        /// Stubs the count.
+        /// </summary>
+        /// <returns>Returns count of stub entries</returns>
         public int StubCount() => MemoryLaneUtils.StubCount(EntryCount, _entries);
 
         // Estimate fragmentation percentage (gaps / total capacity)
@@ -260,7 +365,7 @@ namespace Lanes
         /// </summary>
         public void Dispose()
         {
-            Marshal.FreeHGlobal(Buffer);
+            Marshal.FreeHGlobal(_buffer);
             EntryCount = 0;
             _handleIndex.Clear();
             _freeSlots.Clear();

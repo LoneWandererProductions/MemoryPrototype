@@ -3,7 +3,7 @@
  * PROJECT:     Core
  * FILE:        AllocationHints.cs
  * PURPOSE:     Your file purpose here
- * PROGRAMMER:  Your name here
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 using System;

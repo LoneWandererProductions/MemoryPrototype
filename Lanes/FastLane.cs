@@ -2,8 +2,9 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     Lanes
  * FILE:        FastLane.cs
- * PURPOSE:     Your file purpose here
- * PROGRAMMER:  Your name here
+ * PURPOSE:     Memory store for short lived data, smaller one preferable but that is up to the user.
+ *              Ids for Allocations is always positive here.
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 // ReSharper disable MemberCanBePrivate.Global
@@ -20,6 +21,12 @@ namespace Lanes
 {
     public sealed class FastLane : IMemoryLane, IDisposable
     {
+        /// <summary>
+        /// Gets the capacity.
+        /// </summary>
+        /// <value>
+        /// The capacity.
+        /// </value>
         public int Capacity { get; private set; }
 
         private AllocationEntry[]? _entries = new AllocationEntry[128];
@@ -37,7 +44,11 @@ namespace Lanes
         /// </summary>
         public event Action<string>? OnCompaction;
 
-        private readonly Dictionary<int, int> _handleIndex = new(); // Maps handleId → index into _entries
+        /// <summary>
+        /// The handle index
+        /// Maps handleId → index into _entries
+        /// </summary>
+        private readonly Dictionary<int, int> _handleIndex = new();
 
         /// <summary>
         /// Only contains handles that were replaced with stubs
@@ -49,6 +60,12 @@ namespace Lanes
         /// </summary>
         private readonly SlowLane _slowLane;
 
+        /// <summary>
+        /// Gets or sets the one way lane.
+        /// </summary>
+        /// <value>
+        /// The one way lane.
+        /// </value>
         public OneWayLane? OneWayLane { get; set; }
 
         /// <summary>
@@ -62,7 +79,12 @@ namespace Lanes
         /// <summary>
         /// The next handle identifier
         /// </summary>
-        private int NextHandleId { get; set; } = 1;
+        private int _nextHandleId = 1;
+
+        /// <summary>
+        /// The free ids
+        /// </summary>
+        private readonly Stack<int> _freeIds = new();
 
         /// <summary>
         /// Determines whether this instance can allocate the specified size.
@@ -95,6 +117,17 @@ namespace Lanes
             Buffer = Marshal.AllocHGlobal(size);
         }
 
+        /// <summary>
+        /// Allocates the specified size.
+        /// </summary>
+        /// <param name="size">The size.</param>
+        /// <param name="priority">The priority.</param>
+        /// <param name="hints">The hints.</param>
+        /// <param name="debugName">Name of the debug.</param>
+        /// <param name="currentFrame">The current frame.</param>
+        /// <returns>Handler to the reserved memory.</returns>
+        /// <exception cref="InvalidOperationException">FastLane: Memory not reserved</exception>
+        /// <exception cref="OutOfMemoryException">FastLane: Not enough memory</exception>
         public MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
@@ -111,8 +144,8 @@ namespace Lanes
             if (EntryCount >= _entries.Length)
                 Array.Resize(ref _entries, _entries.Length * 2);
 
-            //todo, that wont fly
-            var id = NextHandleId++;
+            //So we reuse freed handles here
+            var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
 
             _entries[EntryCount] = new AllocationEntry
             {
@@ -132,6 +165,16 @@ namespace Lanes
             return new MemoryHandle(id, this);
         }
 
+        /// <summary>
+        /// Resolves the specified handle.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>Pointer to the Memory.</returns>
+        /// <exception cref="InvalidOperationException">
+        /// FastLane: Memory is corrupted.
+        /// or
+        /// FastLane: Invalid handle
+        /// </exception>
         public IntPtr Resolve(MemoryHandle handle)
         {
             if (_entries == null)
@@ -150,6 +193,15 @@ namespace Lanes
             return Buffer + entry.Offset;
         }
 
+        /// <summary>
+        /// Frees the specified handle.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <exception cref="InvalidOperationException">
+        /// FastLane: Memory is corrupted.
+        /// or
+        /// FastLane: Invalid handle
+        /// </exception>
         public void Free(MemoryHandle handle)
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Memory is corrupted.");
@@ -176,6 +228,7 @@ namespace Lanes
 
             _handleIndex.Remove(handle.Id);
             EntryCount--;
+            _freeIds.Push(handle.Id);
         }
 
         public IEnumerable<MemoryHandle> GetHandles()
