@@ -70,7 +70,7 @@ The following are planned features or experimental directions for further explor
   - Support bidirectional memory migration.
   - Expose migration cost/heuristics to caller or policies.
 
-  - [ ] **Lane Improvements**  
+- [ ] **Lane Improvements**  
   - Change the way the Lanes allocate the Memory
   - FastLane already looks for gaps and uses them
   - SlowLane should just append at the end and compact if needed.
