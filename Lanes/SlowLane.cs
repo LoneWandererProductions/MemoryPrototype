@@ -251,8 +251,9 @@ namespace Lanes
             Buffer = newBuffer;
 
             _handleIndex.Clear();
-            foreach (var kvp in newHandleIndex)
-                _handleIndex[kvp.Key] = kvp.Value;
+
+            foreach (var (key, value) in newHandleIndex)
+                _handleIndex[key] = value;
 
             EntryCount = writeIndex;
 

@@ -64,6 +64,7 @@ namespace Lanes
             var sorted = entries.Take(entryCount).ToArray();
             Array.Sort(sorted, (a, b) => a.Offset.CompareTo(b.Offset));
 
+            // omit tail space from fragmentation metric
             var gapSum = sorted[0].Offset;
 
             for (var i = 1; i < entryCount; i++)
@@ -73,10 +74,7 @@ namespace Lanes
                 if (gap > 0) gapSum += gap;
             }
 
-            var lastEnd = sorted[entryCount - 1].Offset + sorted[entryCount - 1].Size;
-            gapSum += capacity - lastEnd;
-
-            return (int)((double)gapSum / capacity * 100);
+            return (int)((double)gapSum / sorted[entryCount - 1].Offset * 100); // Only count "gaps between entries"
         }
 
         /// <summary>
