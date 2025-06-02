@@ -2,21 +2,27 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryPrototype
  * FILE:        Program.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     Sample Program to showcase the Syntax.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 using System;
 using System.Runtime.InteropServices;
+using Core;
 using MemoryManager;
 
 namespace MemoryPrototype
 {
     internal static class Program
     {
+        /// <summary>
+        /// Defines the entry point of the application.
+        /// Here we just showcase some basic syntax.
+        /// </summary>
+        /// <param name="args">The arguments.</param>
         private static void Main(string[] args)
         {
-            Console.WriteLine("Hello World!");
+            Console.WriteLine("Hello Memory.");
 
             var config = new MemoryManagerConfig
             {
@@ -43,8 +49,8 @@ namespace MemoryPrototype
             arena.Free(handleRaw);
 
             // --- TypedMemoryArena usage (simpler, more abstract) ---
-            TypedMemoryArena.Initialize(arena);
-            var instance = TypedMemoryArena.Instance;
+            TypedMemoryArenaSingleton.Initialize(arena);
+            var instance = TypedMemoryArenaSingleton.Instance;
 
             var handleTyped = instance.Allocate<MyStruct>();
             instance.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
@@ -55,9 +61,52 @@ namespace MemoryPrototype
             // Optionally run manual compaction
             arena.RunMaintenanceCycle();
 
+            // --- TypedMemoryArena usage, handle arrays ---
+            // Allocate array of 10 ints
+            const int count = 10;
+            var handle = instance.Allocate<int>(count);
+
+            // Get a Span<int> to safely access the array memory
+            Span<int> intArray = instance.GetSpan<int>(handle, count);
+
+            // Initialize array elements
+            for (int i = 0; i < count; i++)
+            {
+                intArray[i] = i * 2;
+            }
+
+            // Read elements
+            for (int i = 0; i < count; i++)
+            {
+                Console.WriteLine($"Element {i} = {intArray[i]}");
+            }
+
+            // When done, free the allocated memory
+            instance.Free(handle);
+
+            //a bit more compressed.
+            handle = instance.AllocateAndSet(new MyStruct { Value = 456, PositionX = 3.1f, PositionY = 2.2f });
+            ref var data = ref instance.Get<MyStruct>(handle);
+            Console.WriteLine(data.PositionX);
+
+            //and with direct access
+            ref var data2 = ref instance.AllocateAndGet(new MyStruct { Value = 789 });
+            data2.PositionX += 10f;
+            Console.WriteLine(data2.PositionX);
+
             arena.DebugDump();
 
             Console.ReadLine();
+        }
+
+        /// <summary>
+        /// Test struct
+        /// </summary>
+        internal struct MyStruct
+        {
+            public int Value;
+            public float PositionX;
+            public float PositionY;
         }
     }
 }
