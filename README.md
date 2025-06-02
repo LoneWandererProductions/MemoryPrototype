@@ -72,8 +72,7 @@ The following are planned features or experimental directions for further explor
 
 - [ ] **Lane Improvements**  
   - Change the way the Lanes allocate the Memory
-  - FastLane already looks for gaps and uses them
-  - SlowLane should just append at the end and compact if needed.
+  - Improve performance in generell
 
 - [ ] **Memory Usage Tracking (SQL Server-inspired)**  
   Collect per-user, per-program statistics:

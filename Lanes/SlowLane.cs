@@ -126,6 +126,7 @@ namespace Lanes
             if (!CanAllocate(size))
                 throw new OutOfMemoryException("SlowLane: Cannot allocate");
 
+            //TODO  Optimize
             var offset = FindFreeSpot(size);
             var slotIndex = _freeSlots.Count > 0 ? _freeSlots.Pop() : EntryCount++;
 
@@ -150,6 +151,7 @@ namespace Lanes
 
             _handleIndex[id] = slotIndex;
 
+            //TODO  Optimize huge bottleneck
             SortEntriesByOffset();
 
             return new MemoryHandle(id, this);
