@@ -172,6 +172,7 @@ namespace Lanes
             {
                 sb.AppendLine($"[Lane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}");
             }
+
             sb.AppendLine();
 
             // Logical order by HandleId
@@ -181,6 +182,7 @@ namespace Lanes
                 sb.AppendLine($"[ID {e.HandleId,3}] Offset {e.Offset:D6}-{e.Offset + e.Size:D6} ({e.Size} bytes)"
                               + (e.DebugName != null ? $" - {e.DebugName}" : ""));
             }
+
             sb.AppendLine();
 
             // Memory Layout order by Offset
@@ -193,35 +195,36 @@ namespace Lanes
                 sb.AppendLine($"[Check] Entry: Offset={e.Offset}, Size={e.Size}");
             }
 
-            int lastEnd = 0;
+            var lastEnd = 0;
             foreach (var e in sortedByOffset)
             {
                 if (e.Offset > lastEnd)
                 {
-                    int gap = e.Offset - lastEnd;
+                    var gap = e.Offset - lastEnd;
                     sb.AppendLine($"[Gap ] {lastEnd:D6}-{e.Offset:D6} ({gap} bytes)");
                 }
 
                 sb.AppendLine($"[Used] {e.Offset:D6}-{e.Offset + e.Size:D6} (ID {e.HandleId}, {e.Size} bytes)");
                 lastEnd = e.Offset + e.Size;
             }
+
             if (lastEnd < capacity)
                 sb.AppendLine($"[Gap ] {lastEnd:D6}-{capacity:D6} ({capacity - lastEnd} bytes)");
 
             // Visual map with shading
             const int barWidth = 80;
             var visual = new char[barWidth];
-            Array.Fill(visual, '░');  // Light shade for gaps
+            Array.Fill(visual, '░'); // Light shade for gaps
 
             foreach (var e in sortedByOffset)
             {
-                double scale = barWidth / (double)capacity;
-                int start = (int)(e.Offset * scale);
-                int end = (int)((e.Offset + e.Size) * scale);
+                var scale = barWidth / (double)capacity;
+                var start = (int)(e.Offset * scale);
+                var end = (int)((e.Offset + e.Size) * scale);
                 end = Math.Max(start + 1, end);
                 end = Math.Min(barWidth, end);
 
-                for (int i = start; i < end; i++)
+                for (var i = start; i < end; i++)
                 {
                     visual[i] = '▓'; // Dark shade for allocations
                 }

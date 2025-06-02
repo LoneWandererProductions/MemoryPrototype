@@ -67,16 +67,16 @@ namespace MemoryPrototype
             var handle = instance.Allocate<int>(count);
 
             // Get a Span<int> to safely access the array memory
-            Span<int> intArray = instance.GetSpan<int>(handle, count);
+            var intArray = instance.GetSpan<int>(handle, count);
 
             // Initialize array elements
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
                 intArray[i] = i * 2;
             }
 
             // Read elements
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
                 Console.WriteLine($"Element {i} = {intArray[i]}");
             }

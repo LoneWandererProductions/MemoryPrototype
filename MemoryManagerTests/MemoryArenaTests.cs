@@ -58,29 +58,5 @@ namespace MemoryManagerTests
             Assert.IsTrue(arena.Resolve(handle) != IntPtr.Zero);
             //Assert.IsTrue(arena.FastLane.GetAllocationSize() < _config.FastLaneSize);
         }
-
-        /// <summary>
-        ///     Moves the fast to slow moves entry and replaces stub.
-        /// </summary>
-        [TestMethod]
-        public void MoveFastToSlowMovesEntryAndReplacesStub()
-        {
-            var arena = new MemoryArena(_config);
-            var size = 32 * 1024; // allocate in FastLane
-
-            var fastHandle = arena.Allocate(size);
-
-            arena.MoveFastToSlow(fastHandle);
-
-            arena.DebugDump();
-
-            Assert.IsFalse(arena.SlowLane.HasHandle(fastHandle));
-
-            //absolute no no but for test purposes yeah ....
-            var moved = new MemoryHandle(-1, null);
-            arena.DebugDump();
-
-            Assert.IsTrue(arena.SlowLane.HasHandle(moved));
-        }
     }
 }

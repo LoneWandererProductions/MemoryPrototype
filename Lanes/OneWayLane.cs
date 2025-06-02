@@ -63,14 +63,14 @@ namespace Lanes
         /// <returns>True if the move was successful, false otherwise.</returns>
         internal unsafe bool MoveFromFastToSlow(MemoryHandle fastHandle)
         {
-            if (fastHandle.IsInvalid) return false;
+            if (fastHandle.IsInvalid || fastHandle.Id >=0) return false;
 
             var fastPtr = _fastLane.Resolve(fastHandle);
             var size = _fastLane.GetAllocationSize(fastHandle);
 
             // Allocate on slow lane first to get destination pointer
             var slowHandle = _slowLane.Allocate(size);
-            if (slowHandle.IsInvalid) return false;
+            if (slowHandle.IsInvalid || slowHandle.Id >= 0) return false;
 
             var slowPtr = _slowLane.Resolve(slowHandle);
 
