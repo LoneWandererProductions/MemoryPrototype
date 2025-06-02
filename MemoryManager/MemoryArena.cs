@@ -48,7 +48,7 @@ using Lanes;
 namespace MemoryManager
 {
     /// <summary>
-    /// The wrapper around the different Memory Components.
+    ///     The wrapper around the different Memory Components.
     /// </summary>
     public sealed class MemoryArena
     {
@@ -111,8 +111,8 @@ namespace MemoryManager
         private int Threshold { get; }
 
         /// <summary>
-        /// Moves the fast to slow.
-        /// Leaves a Stub to the new location.
+        ///     Moves the fast to slow.
+        ///     Leaves a Stub to the new location.
         /// </summary>
         /// <param name="fastHandle">The fast handle.</param>
         public unsafe void MoveFastToSlow(MemoryHandle fastHandle)
@@ -132,8 +132,8 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Moves the slow to fast.
-        /// Moves an Entry from slow to fast, it should be policy based and not directly done by the user.
+        ///     Moves the slow to fast.
+        ///     Moves an Entry from slow to fast, it should be policy based and not directly done by the user.
         /// </summary>
         /// <param name="slowHandle">The slow handle.</param>
         /// <returns>New handle to the fastlane</returns>
@@ -179,8 +179,8 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Runs the maintenance cycle.
-        /// Will be policy managed in the future
+        ///     Runs the maintenance cycle.
+        ///     Will be policy managed in the future
         /// </summary>
         public void RunMaintenanceCycle()
         {
@@ -189,7 +189,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Allocates the specified size.
+        ///     Allocates the specified size.
         /// </summary>
         /// <param name="size">The size.</param>
         /// <param name="priority">The priority.</param>
@@ -197,8 +197,10 @@ namespace MemoryManager
         /// <param name="debugName">Name of the debug.</param>
         /// <param name="currentFrame">The current frame.</param>
         /// <returns>Handle to the memory area.</returns>
-        /// <exception cref="System.OutOfMemoryException">Neither lane could allocate memory. Requested size: {size}, " +
-        ///                     $"FastLane free: {FastLane.FreeSpace()}, SlowLane free: {SlowLane.FreeSpace()}</exception>
+        /// <exception cref="System.OutOfMemoryException">
+        ///     Neither lane could allocate memory. Requested size: {size}, " +
+        ///     $"FastLane free: {FastLane.FreeSpace()}, SlowLane free: {SlowLane.FreeSpace()}
+        /// </exception>
         public MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
@@ -287,7 +289,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Tries to compact the FastLane.
+        ///     Tries to compact the FastLane.
         /// </summary>
         private void TryCompactFastLane()
         {
@@ -314,7 +316,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Tries to compact the SlowLane.
+        ///     Tries to compact the SlowLane.
         /// </summary>
         private void TryCompactSlowLane()
         {

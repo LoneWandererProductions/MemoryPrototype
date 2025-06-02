@@ -10,14 +10,14 @@
 // ReSharper disable EventNeverSubscribedTo.Global
 
 #nullable enable
-using Core;
-using Core.MemoryArenaPrototype.Core;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Core;
+using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
@@ -55,14 +55,6 @@ namespace Lanes
         private readonly Dictionary<int, int> _handleIndex = new(); // handleId -> entries array index
 
         /// <summary>
-        ///     Gets or sets the buffer.
-        /// </summary>
-        /// <value>
-        ///     The buffer.
-        /// </value>
-        public IntPtr Buffer { get; private set; }
-
-        /// <summary>
         ///     The next handle identifier
         /// </summary>
         private int _nextHandleId = -1;
@@ -78,6 +70,14 @@ namespace Lanes
             Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
         }
+
+        /// <summary>
+        ///     Gets or sets the buffer.
+        /// </summary>
+        /// <value>
+        ///     The buffer.
+        /// </value>
+        public IntPtr Buffer { get; private set; }
 
         /// <summary>
         ///     Gets the capacity.
@@ -231,7 +231,8 @@ namespace Lanes
                     // Skip stubs (or handle as needed)
                     continue;
 
-                System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
+                System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size,
+                    entry.Size);
 
                 entry.Offset = offset;
                 offset += entry.Size;
@@ -298,10 +299,23 @@ namespace Lanes
         }
 
         /// <summary>
+        ///     Debugs the dump.
+        /// </summary>
+        /// <returns>Basic Debug Info</returns>
+        public string DebugDump()
+        {
+            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
+        }
+
+        /// <summary>
         ///     Occurs when [on compaction].
         /// </summary>
         public event Action<string>? OnCompaction;
 
+        /// <summary>
+        /// Gets the handles.
+        /// </summary>
+        /// <returns>List of handles.</returns>
         public IEnumerable<MemoryHandle> GetHandles()
         {
             return _handleIndex.Select(kv => new MemoryHandle(kv.Key, this));
@@ -394,16 +408,7 @@ namespace Lanes
         }
 
         /// <summary>
-        ///     Debugs the dump.
-        /// </summary>
-        /// <returns>Basic Debug Info</returns>
-        public string DebugDump()
-        {
-            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
-        }
-
-        /// <summary>
-        /// Dump all Debug Infos.
+        ///     Dump all Debug Infos.
         /// </summary>
         public void LogDump()
         {

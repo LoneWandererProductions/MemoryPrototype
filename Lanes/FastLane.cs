@@ -10,13 +10,13 @@
 // ReSharper disable MemberCanBePrivate.Global
 
 #nullable enable
-using Core;
-using Core.MemoryArenaPrototype.Core;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Core;
+using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
@@ -39,7 +39,7 @@ namespace Lanes
         private readonly SlowLane _slowLane;
 
         /// <summary>
-        /// The entries
+        ///     The entries
         /// </summary>
         private AllocationEntry[]? _entries = new AllocationEntry[128];
 
@@ -242,7 +242,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Compacts this instance.
+        ///     Compacts this instance.
         /// </summary>
         public unsafe void Compact()
         {
@@ -318,12 +318,21 @@ namespace Lanes
         }
 
         /// <summary>
+        ///     Debugs the dump.
+        /// </summary>
+        /// <returns>Basic Debug Info</returns>
+        public string DebugDump()
+        {
+            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
+        }
+
+        /// <summary>
         ///     Occurs when [on compaction].
         /// </summary>
         public event Action<string>? OnCompaction;
 
         /// <summary>
-        /// Gets the handles.
+        ///     Gets the handles.
         /// </summary>
         /// <returns></returns>
         public IEnumerable<MemoryHandle> GetHandles()
@@ -332,10 +341,10 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Shoulds the move to slow lane.
+        ///     Should the move to slow lane.
         /// </summary>
         /// <param name="entry">The entry.</param>
-        /// <returns>Status if a move is neccessary.</returns>
+        /// <returns>Status if a move is necessary.</returns>
         private static bool ShouldMoveToSlowLane(AllocationEntry entry)
         {
             // Basic example: offload low-priority entries
@@ -343,7 +352,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Replaces the with stub.
+        ///     Replaces the with stub.
         /// </summary>
         /// <param name="fastHandle">The fast handle.</param>
         /// <param name="slowHandle">The slow handle.</param>
@@ -428,16 +437,7 @@ namespace Lanes
         }
 
         /// <summary>
-        ///     Debugs the dump.
-        /// </summary>
-        /// <returns>Basic Debug Info</returns>
-        public string DebugDump()
-        {
-            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
-        }
-
-        /// <summary>
-        /// Dump all Debug Infos.
+        ///     Dump all Debug Infos.
         /// </summary>
         public void LogDump()
         {

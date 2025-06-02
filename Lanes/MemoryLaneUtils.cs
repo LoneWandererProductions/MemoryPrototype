@@ -167,19 +167,15 @@ namespace Lanes
 
             // Dump all allocations (for reference)
             foreach (var e in validEntries.OrderBy(e => e.HandleId))
-            {
                 sb.AppendLine($"[Lane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}");
-            }
 
             sb.AppendLine();
 
             // Logical order by HandleId
             sb.AppendLine("Logical Handle Order:");
             foreach (var e in validEntries.OrderBy(e => e.HandleId))
-            {
                 sb.AppendLine($"[ID {e.HandleId,3}] Offset {e.Offset:D6}-{e.Offset + e.Size:D6} ({e.Size} bytes)"
                               + (e.DebugName != null ? $" - {e.DebugName}" : ""));
-            }
 
             sb.AppendLine();
 
@@ -188,10 +184,7 @@ namespace Lanes
             var sortedByOffset = validEntries.OrderBy(e => e.Offset).ToArray();
 
             // Debug info for entries
-            foreach (var e in sortedByOffset)
-            {
-                sb.AppendLine($"[Check] Entry: Offset={e.Offset}, Size={e.Size}");
-            }
+            foreach (var e in sortedByOffset) sb.AppendLine($"[Check] Entry: Offset={e.Offset}, Size={e.Size}");
 
             var lastEnd = 0;
             foreach (var e in sortedByOffset)
@@ -222,10 +215,7 @@ namespace Lanes
                 end = Math.Max(start + 1, end);
                 end = Math.Min(barWidth, end);
 
-                for (var i = start; i < end; i++)
-                {
-                    visual[i] = '▓'; // Dark shade for allocations
-                }
+                for (var i = start; i < end; i++) visual[i] = '▓'; // Dark shade for allocations
             }
 
             sb.AppendLine();

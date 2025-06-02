@@ -30,7 +30,7 @@ namespace MemoryManagerTests
             Trace.WriteLine($"[GC] Memory Increase: {gcPressure / 1024.0 / 1024.0:F2} MB");
 
             var swSlow = Stopwatch.StartNew();
-            using (var slowLane = new SlowLane((ObjectSize * AllocationCount) + (100 * 1024 * 1024)))
+            using (var slowLane = new SlowLane(ObjectSize * AllocationCount + 100 * 1024 * 1024))
             {
                 var handles = new MemoryHandle[AllocationCount];
                 for (var i = 0; i < AllocationCount; i++)
@@ -47,15 +47,12 @@ namespace MemoryManagerTests
         [TestCategory("Performance")]
         public void SlowLaneAllocations()
         {
-            using var slowLane = new SlowLane((ObjectSize * AllocationCount) + (100 * 1024 * 1024));
+            using var slowLane = new SlowLane(ObjectSize * AllocationCount + 100 * 1024 * 1024);
 
             var stopwatch = Stopwatch.StartNew();
 
             var handles = new MemoryHandle[AllocationCount];
-            for (var i = 0; i < AllocationCount; i++)
-            {
-                handles[i] = slowLane.Allocate(ObjectSize);
-            }
+            for (var i = 0; i < AllocationCount; i++) handles[i] = slowLane.Allocate(ObjectSize);
 
             stopwatch.Stop();
             Trace.WriteLine($"SlowLane Allocation Time: {stopwatch.ElapsedMilliseconds} ms");
@@ -72,7 +69,7 @@ namespace MemoryManagerTests
             const int count = 600;
             const int size = 64 * 1024;
 
-            using var slowLane = new SlowLane((size * count) + (20 * 1024 * 1024));
+            using var slowLane = new SlowLane(size * count + 20 * 1024 * 1024);
             var handles = new MemoryHandle[count];
 
             for (var i = 0; i < count; i++)
@@ -95,6 +92,5 @@ namespace MemoryManagerTests
 
             Assert.IsTrue(fragAfter < fragBefore, "Fragmentation should decrease");
         }
-
     }
 }

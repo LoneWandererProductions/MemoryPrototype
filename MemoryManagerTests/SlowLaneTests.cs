@@ -7,11 +7,11 @@
  */
 
 using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Lanes;
-using Core;
 using System.Diagnostics;
+using Core;
+using Lanes;
 using MemoryManager;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace MemoryManagerTests
 {
@@ -19,17 +19,17 @@ namespace MemoryManagerTests
     public class SlowLaneTests
     {
         /// <summary>
-        /// The FastLane
-        /// </summary>
-        private SlowLane _slowLane;
-
-        /// <summary>
-        /// The configuration
+        ///     The configuration
         /// </summary>
         private MemoryManagerConfig _config;
 
         /// <summary>
-        /// Setups this instance.
+        ///     The FastLane
+        /// </summary>
+        private SlowLane _slowLane;
+
+        /// <summary>
+        ///     Setups this instance.
         /// </summary>
         [TestInitialize]
         public void Setup()
@@ -69,7 +69,7 @@ namespace MemoryManagerTests
             Assert.IsFalse(arena.SlowLane.HasHandle(fastHandle));
 
             //absolute no no but for test purposes yeah ....
-            var moved = new MemoryHandle(-1, _slowLane); 
+            var moved = new MemoryHandle(-1, _slowLane);
             arena.DebugDump();
 
             Assert.IsTrue(arena.SlowLane.HasHandle(moved));
@@ -86,7 +86,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        /// SlowLane compact removes gaps after freed entries.
+        ///     SlowLane compact removes gaps after freed entries.
         /// </summary>
         [TestMethod]
         public void SlowLaneCompactRemovesGapsAfterFreedEntries()
@@ -100,7 +100,7 @@ namespace MemoryManagerTests
                 Assert.IsTrue(_slowLane.HasHandle(handles[i]), $"Handle {i} should be allocated.");
             }
 
-            //Debug 
+            //Debug
             Trace.WriteLine("first:");
             _slowLane.LogDump();
 
@@ -112,7 +112,7 @@ namespace MemoryManagerTests
             Assert.IsFalse(_slowLane.HasHandle(handles[3]), "Handle 3 should have been freed.");
 
             var usedBefore = _slowLane.UsagePercentage();
-            //Debug 
+            //Debug
             Trace.WriteLine("Second:");
             _slowLane.LogDump();
 
@@ -129,10 +129,9 @@ namespace MemoryManagerTests
             var usedAfter = _slowLane.UsagePercentage();
             Assert.IsTrue(usedAfter <= usedBefore, "Compaction should ideally not increase usage.");
 
-            //Debug 
+            //Debug
             Trace.WriteLine("Third:");
             _slowLane.LogDump();
-
         }
     }
 }

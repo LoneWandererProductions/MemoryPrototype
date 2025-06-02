@@ -7,11 +7,11 @@
  */
 
 using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Lanes;
-using Core;
 using System.Diagnostics;
+using Core;
+using Lanes;
 using MemoryManager;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace MemoryManagerTests
 {
@@ -19,17 +19,17 @@ namespace MemoryManagerTests
     public class FastLaneTests
     {
         /// <summary>
-        /// The FastLane
-        /// </summary>
-        private FastLane _fastLane;
-
-        /// <summary>
-        /// The configuration
+        ///     The configuration
         /// </summary>
         private MemoryManagerConfig _config;
 
         /// <summary>
-        /// Setups this instance.
+        ///     The FastLane
+        /// </summary>
+        private FastLane _fastLane;
+
+        /// <summary>
+        ///     Setups this instance.
         /// </summary>
         [TestInitialize]
         public void Setup()
@@ -78,7 +78,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        /// FastLane compact removes gaps after freed entries.
+        ///     FastLane compact removes gaps after freed entries.
         /// </summary>
         [TestMethod]
         public void FastLaneCompactRemovesGapsAfterFreedEntries()
@@ -92,7 +92,7 @@ namespace MemoryManagerTests
                 Assert.IsTrue(_fastLane.HasHandle(handles[i]), $"Handle {i} should be allocated.");
             }
 
-            //Debug 
+            //Debug
             Trace.WriteLine("first:");
             _fastLane.LogDump();
 
@@ -104,7 +104,7 @@ namespace MemoryManagerTests
             Assert.IsFalse(_fastLane.HasHandle(handles[3]), "Handle 3 should have been freed.");
 
             var usedBefore = _fastLane.UsagePercentage();
-            //Debug 
+            //Debug
             Trace.WriteLine("Second:");
             _fastLane.LogDump();
 
@@ -121,10 +121,9 @@ namespace MemoryManagerTests
             var usedAfter = _fastLane.UsagePercentage();
             Assert.IsTrue(usedAfter <= usedBefore, "Compaction should ideally not increase usage.");
 
-            //Debug 
+            //Debug
             Trace.WriteLine("Third:");
             _fastLane.LogDump();
-
         }
     }
 }

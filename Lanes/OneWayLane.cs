@@ -12,34 +12,35 @@ using Core;
 namespace Lanes
 {
     /// <summary>
-    /// One way Memory Lane
+    ///     One way Memory Lane
     /// </summary>
     public sealed class OneWayLane
     {
         /// <summary>
-        /// The buffer
+        ///     The buffer
         /// </summary>
         private readonly byte[] _buffer;
 
         /// <summary>
-        /// The FastLane
+        ///     The FastLane
         /// </summary>
         private readonly IMemoryLane _fastLane;
+
         /// <summary>
-        /// The SlowLane
+        ///     The SlowLane
         /// </summary>
         private readonly IMemoryLane _slowLane;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="OneWayLane"/> class.
+        ///     Initializes a new instance of the <see cref="OneWayLane" /> class.
         /// </summary>
         /// <param name="bufferSize">Size of the buffer.</param>
         /// <param name="fastLane">The fast lane.</param>
         /// <param name="slowLane">The slow lane.</param>
         /// <exception cref="System.ArgumentNullException">
-        /// fastLane
-        /// or
-        /// slowLane
+        ///     fastLane
+        ///     or
+        ///     slowLane
         /// </exception>
         public OneWayLane(int bufferSize, IMemoryLane fastLane, IMemoryLane slowLane)
         {
@@ -49,10 +50,10 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Gets the buffer capacity.
+        ///     Gets the buffer capacity.
         /// </summary>
         /// <value>
-        /// The buffer capacity.
+        ///     The buffer capacity.
         /// </value>
         internal int BufferCapacity => _buffer.Length;
 
@@ -63,7 +64,7 @@ namespace Lanes
         /// <returns>True if the move was successful, false otherwise.</returns>
         internal unsafe bool MoveFromFastToSlow(MemoryHandle fastHandle)
         {
-            if (fastHandle.IsInvalid || fastHandle.Id >=0) return false;
+            if (fastHandle.IsInvalid || fastHandle.Id >= 0) return false;
 
             var fastPtr = _fastLane.Resolve(fastHandle);
             var size = _fastLane.GetAllocationSize(fastHandle);

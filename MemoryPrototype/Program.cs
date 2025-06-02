@@ -8,7 +8,6 @@
 
 using System;
 using System.Runtime.InteropServices;
-using Core;
 using MemoryManager;
 
 namespace MemoryPrototype
@@ -16,8 +15,8 @@ namespace MemoryPrototype
     internal static class Program
     {
         /// <summary>
-        /// Defines the entry point of the application.
-        /// Here we just showcase some basic syntax.
+        ///     Defines the entry point of the application.
+        ///     Here we just showcase some basic syntax.
         /// </summary>
         /// <param name="args">The arguments.</param>
         private static void Main(string[] args)
@@ -70,16 +69,10 @@ namespace MemoryPrototype
             var intArray = instance.GetSpan<int>(handle, count);
 
             // Initialize array elements
-            for (var i = 0; i < count; i++)
-            {
-                intArray[i] = i * 2;
-            }
+            for (var i = 0; i < count; i++) intArray[i] = i * 2;
 
             // Read elements
-            for (var i = 0; i < count; i++)
-            {
-                Console.WriteLine($"Element {i} = {intArray[i]}");
-            }
+            for (var i = 0; i < count; i++) Console.WriteLine($"Element {i} = {intArray[i]}");
 
             // When done, free the allocated memory
             instance.Free(handle);
@@ -100,7 +93,7 @@ namespace MemoryPrototype
         }
 
         /// <summary>
-        /// Test struct
+        ///     Test struct
         /// </summary>
         internal struct MyStruct
         {

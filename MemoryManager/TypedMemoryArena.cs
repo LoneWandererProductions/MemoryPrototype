@@ -16,18 +16,18 @@ using Core;
 namespace MemoryManager
 {
     /// <summary>
-    /// A typed, singleton-style wrapper around <see cref="MemoryArena"/> that simplifies
-    /// allocation, access, and deallocation of unmanaged memory.
+    ///     A typed, singleton-style wrapper around <see cref="MemoryArena" /> that simplifies
+    ///     allocation, access, and deallocation of unmanaged memory.
     /// </summary>
     public sealed class TypedMemoryArena
     {
         /// <summary>
-        /// Internal reference to the wrapped <see cref="MemoryArena"/>.
+        ///     Internal reference to the wrapped <see cref="MemoryArena" />.
         /// </summary>
         private readonly MemoryArena _arena;
 
         /// <summary>
-        /// Private constructor to enforce singleton usage.
+        ///     Private constructor to enforce singleton usage.
         /// </summary>
         /// <param name="arena">The memory arena to wrap.</param>
         public TypedMemoryArena(MemoryArena arena)
@@ -36,10 +36,10 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Allocates memory for a single instance of type <typeparamref name="T"/>.
+        ///     Allocates memory for a single instance of type <typeparamref name="T" />.
         /// </summary>
         /// <typeparam name="T">The unmanaged type to allocate.</typeparam>
-        /// <returns>A <see cref="MemoryHandle"/> referencing the allocated memory.</returns>
+        /// <returns>A <see cref="MemoryHandle" /> referencing the allocated memory.</returns>
         public MemoryHandle Allocate<T>() where T : unmanaged
         {
             var size = Marshal.SizeOf<T>();
@@ -47,11 +47,11 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Allocates memory for an array of <paramref name="count"/> elements of type <typeparamref name="T"/>.
+        ///     Allocates memory for an array of <paramref name="count" /> elements of type <typeparamref name="T" />.
         /// </summary>
         /// <typeparam name="T">The unmanaged type to allocate.</typeparam>
         /// <param name="count">Number of elements to allocate.</param>
-        /// <returns>A <see cref="MemoryHandle"/> referencing the allocated memory.</returns>
+        /// <returns>A <see cref="MemoryHandle" /> referencing the allocated memory.</returns>
         public MemoryHandle Allocate<T>(int count) where T : unmanaged
         {
             var size = Marshal.SizeOf<T>() * count;
@@ -59,7 +59,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Gets a typed reference to the memory at the specified <paramref name="handle"/>.
+        ///     Gets a typed reference to the memory at the specified <paramref name="handle" />.
         /// </summary>
         /// <typeparam name="T">The unmanaged type stored at the memory location.</typeparam>
         /// <param name="handle">The handle referencing the memory.</param>
@@ -73,13 +73,13 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Gets a <see cref="Span{T}"/> over the memory region referenced by <paramref name="handle"/> 
-        /// for <paramref name="count"/> elements of type <typeparamref name="T"/>.
+        ///     Gets a <see cref="Span{T}" /> over the memory region referenced by <paramref name="handle" />
+        ///     for <paramref name="count" /> elements of type <typeparamref name="T" />.
         /// </summary>
         /// <typeparam name="T">The unmanaged type stored in the array.</typeparam>
         /// <param name="handle">The handle referencing the memory block.</param>
         /// <param name="count">Number of elements in the memory block.</param>
-        /// <returns>A <see cref="Span{T}"/> to access the allocated memory safely.</returns>
+        /// <returns>A <see cref="Span{T}" /> to access the allocated memory safely.</returns>
         public unsafe Span<T> GetSpan<T>(MemoryHandle handle, int count) where T : unmanaged
         {
             var ptr = (T*)_arena.Resolve(handle);
@@ -87,8 +87,8 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Writes a value of type <typeparamref name="T"/> into the memory referenced by <paramref name="handle"/>.
-        /// Mostly used for Structs.
+        ///     Writes a value of type <typeparamref name="T" /> into the memory referenced by <paramref name="handle" />.
+        ///     Mostly used for Structs.
         /// </summary>
         /// <typeparam name="T">The unmanaged type to write.</typeparam>
         /// <param name="handle">The handle referencing the target memory.</param>
@@ -103,11 +103,12 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Allocates memory for an unmanaged type <typeparamref name="T"/> and writes the provided <paramref name="value"/> to it.
+        ///     Allocates memory for an unmanaged type <typeparamref name="T" /> and writes the provided <paramref name="value" />
+        ///     to it.
         /// </summary>
         /// <typeparam name="T">The unmanaged type to allocate and write.</typeparam>
         /// <param name="value">The value to store in allocated memory.</param>
-        /// <returns>A <see cref="MemoryHandle"/> referencing the allocated memory.</returns>
+        /// <returns>A <see cref="MemoryHandle" /> referencing the allocated memory.</returns>
         public MemoryHandle AllocateAndSet<T>(in T value) where T : unmanaged
         {
             var handle = Allocate<T>();
@@ -116,7 +117,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Allocates memory for an unmanaged type <typeparamref name="T"/> and provides a handle to it.
+        ///     Allocates memory for an unmanaged type <typeparamref name="T" /> and provides a handle to it.
         /// </summary>
         /// <typeparam name="T">The unmanaged type to allocate and write.</typeparam>
         /// <param name="value">The value to store in allocated memory.</param>
@@ -129,7 +130,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Frees the memory associated with the specified <paramref name="handle"/>.
+        ///     Frees the memory associated with the specified <paramref name="handle" />.
         /// </summary>
         /// <param name="handle">The handle referencing the memory to free.</param>
         public void Free(MemoryHandle handle)

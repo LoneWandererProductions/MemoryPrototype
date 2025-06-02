@@ -7,7 +7,6 @@
  */
 
 using System;
-using Core;
 using MemoryManager;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -17,12 +16,12 @@ namespace MemoryManagerTests
     public class MemoryArenaTests
     {
         /// <summary>
-        /// The configuration
+        ///     The configuration
         /// </summary>
         private MemoryManagerConfig _config;
 
         /// <summary>
-        /// Setups this instance.
+        ///     Setups this instance.
         /// </summary>
         [TestInitialize]
         public void Setup()
@@ -43,7 +42,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        /// Allocates the within fast lane threshold allocates in fast lane.
+        ///     Allocates the within fast lane threshold allocates in fast lane.
         /// </summary>
         [TestMethod]
         public void AllocateWithinFastLaneThresholdAllocatesInFastLane()
