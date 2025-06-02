@@ -10,13 +10,14 @@
 // ReSharper disable EventNeverSubscribedTo.Global
 
 #nullable enable
+using Core;
+using Core.MemoryArenaPrototype.Core;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Core;
-using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
@@ -59,7 +60,7 @@ namespace Lanes
         /// <value>
         ///     The buffer.
         /// </value>
-        private IntPtr _buffer;
+        public IntPtr Buffer { get; private set; }
 
         /// <summary>
         ///     The next handle identifier
@@ -74,7 +75,7 @@ namespace Lanes
         public SlowLane(int capacity, int maxEntries = 1024)
         {
             Capacity = capacity;
-            _buffer = Marshal.AllocHGlobal(capacity);
+            Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
         }
 
@@ -99,7 +100,7 @@ namespace Lanes
         /// </summary>
         public void Dispose()
         {
-            Marshal.FreeHGlobal(_buffer);
+            Marshal.FreeHGlobal(Buffer);
             EntryCount = 0;
             _handleIndex.Clear();
             _freeSlots.Clear();
@@ -188,7 +189,7 @@ namespace Lanes
             if (entry.IsStub && entry.RedirectTo.HasValue)
                 throw new InvalidOperationException("SlowLane: Cannot resolve stub entry without redirection");
 
-            return _buffer + entry.Offset;
+            return Buffer + entry.Offset;
         }
 
         /// <summary>
@@ -230,7 +231,7 @@ namespace Lanes
                     // Skip stubs (or handle as needed)
                     continue;
 
-                Buffer.MemoryCopy((void*)(_buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
+                System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size, entry.Size);
 
                 entry.Offset = offset;
                 offset += entry.Size;
@@ -246,8 +247,8 @@ namespace Lanes
                 _entries[i] = default;
 
             // Update state
-            Marshal.FreeHGlobal(_buffer);
-            _buffer = newBuffer;
+            Marshal.FreeHGlobal(Buffer);
+            Buffer = newBuffer;
 
             _handleIndex.Clear();
             foreach (var kvp in newHandleIndex)
@@ -293,15 +294,6 @@ namespace Lanes
         public int GetAllocationSize(MemoryHandle handle)
         {
             return MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(SlowLane));
-        }
-
-        /// <summary>
-        ///     Debugs the dump.
-        /// </summary>
-        /// <returns>Basic Debug Info</returns>
-        public string DebugDump()
-        {
-            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
         }
 
         /// <summary>
@@ -398,6 +390,27 @@ namespace Lanes
         public string DebugRedirections()
         {
             return MemoryLaneUtils.DebugRedirections(_entries, EntryCount);
+        }
+
+        /// <summary>
+        ///     Debugs the dump.
+        /// </summary>
+        /// <returns>Basic Debug Info</returns>
+        public string DebugDump()
+        {
+            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
+        }
+
+        /// <summary>
+        /// Dump all Debug Infos.
+        /// </summary>
+        public void LogDump()
+        {
+            Trace.WriteLine($"--- {GetType().Name} Dump Start ---");
+            Trace.WriteLine(DebugDump());
+            Trace.WriteLine(DebugVisualMap());
+            Trace.WriteLine(DebugRedirections());
+            Trace.WriteLine($"--- {GetType().Name} Dump End ---");
         }
     }
 }

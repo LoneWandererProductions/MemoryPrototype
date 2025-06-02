@@ -2,7 +2,7 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     Lanes
  * FILE:        OneWayLane.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     Reserved Memory area that only ports references from FastLane to SlowLane
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
@@ -11,12 +11,36 @@ using Core;
 
 namespace Lanes
 {
+    /// <summary>
+    /// One way Memory Lane
+    /// </summary>
     public sealed class OneWayLane
     {
+        /// <summary>
+        /// The buffer
+        /// </summary>
         private readonly byte[] _buffer;
+
+        /// <summary>
+        /// The FastLane
+        /// </summary>
         private readonly IMemoryLane _fastLane;
+        /// <summary>
+        /// The SlowLane
+        /// </summary>
         private readonly IMemoryLane _slowLane;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="OneWayLane"/> class.
+        /// </summary>
+        /// <param name="bufferSize">Size of the buffer.</param>
+        /// <param name="fastLane">The fast lane.</param>
+        /// <param name="slowLane">The slow lane.</param>
+        /// <exception cref="System.ArgumentNullException">
+        /// fastLane
+        /// or
+        /// slowLane
+        /// </exception>
         public OneWayLane(int bufferSize, IMemoryLane fastLane, IMemoryLane slowLane)
         {
             _buffer = new byte[bufferSize];
@@ -24,6 +48,12 @@ namespace Lanes
             _slowLane = slowLane ?? throw new ArgumentNullException(nameof(slowLane));
         }
 
+        /// <summary>
+        /// Gets the buffer capacity.
+        /// </summary>
+        /// <value>
+        /// The buffer capacity.
+        /// </value>
         internal int BufferCapacity => _buffer.Length;
 
         /// <summary>

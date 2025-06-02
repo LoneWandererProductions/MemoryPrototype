@@ -16,6 +16,9 @@ namespace MemoryManagerTests
     [TestClass]
     public class MemoryArenaInlineTests
     {
+        /// <summary>
+        /// Memories the arena can allocate and resolve primitive and structs.
+        /// </summary>
         [TestMethod]
         public void MemoryArenaCanAllocateAndResolvePrimitiveAndStructs()
         {
@@ -75,6 +78,9 @@ namespace MemoryManagerTests
             arena.DebugDump();
         }
 
+        /// <summary>
+        /// Test Struct.
+        /// </summary>
         private struct MyStruct
         {
             public int X;

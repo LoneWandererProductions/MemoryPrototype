@@ -10,12 +10,13 @@
 // ReSharper disable MemberCanBePrivate.Global
 
 #nullable enable
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
 using Core;
 using Core.MemoryArenaPrototype.Core;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace Lanes
 {
@@ -37,6 +38,9 @@ namespace Lanes
         /// </summary>
         private readonly SlowLane _slowLane;
 
+        /// <summary>
+        /// The entries
+        /// </summary>
         private AllocationEntry[]? _entries = new AllocationEntry[128];
 
         /// <summary>
@@ -237,6 +241,9 @@ namespace Lanes
             _freeIds.Push(handle.Id);
         }
 
+        /// <summary>
+        /// Compacts this instance.
+        /// </summary>
         public unsafe void Compact()
         {
             if (_entries == null) return;
@@ -250,7 +257,6 @@ namespace Lanes
 
                 if (!entry.IsStub)
                 {
-                    // Try offloading to OneWayLane, if available and policy allows
                     if (OneWayLane != null && ShouldMoveToSlowLane(entry))
                     {
                         var fastHandle = new MemoryHandle(entry.HandleId, this);
@@ -262,19 +268,17 @@ namespace Lanes
                             entry.Offset = 0;
                             entry.RedirectTo = null;
                             _entries[i] = entry;
+                            // still update handleIndex to keep consistent
                             _handleIndex[entry.HandleId] = i;
                             continue;
                         }
                     }
-                    else
-                    {
-                        void* source = (byte*)Buffer + entry.Offset;
-                        void* target = (byte*)newBuffer + offset;
 
-                        System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
-                        entry.Offset = offset;
-                        offset += entry.Size;
-                    }
+                    void* source = (byte*)Buffer + entry.Offset;
+                    void* target = (byte*)newBuffer + offset;
+                    System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
+                    entry.Offset = offset;
+                    offset += entry.Size;
                 }
 
                 _entries[i] = entry;
@@ -314,30 +318,36 @@ namespace Lanes
         }
 
         /// <summary>
-        ///     Debugs the dump.
-        /// </summary>
-        /// <returns>Basic Debug Info</returns>
-        public string DebugDump()
-        {
-            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
-        }
-
-        /// <summary>
         ///     Occurs when [on compaction].
         /// </summary>
         public event Action<string>? OnCompaction;
 
+        /// <summary>
+        /// Gets the handles.
+        /// </summary>
+        /// <returns></returns>
         public IEnumerable<MemoryHandle> GetHandles()
         {
             return _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
         }
 
+        /// <summary>
+        /// Shoulds the move to slow lane.
+        /// </summary>
+        /// <param name="entry">The entry.</param>
+        /// <returns>Status if a move is neccessary.</returns>
         private static bool ShouldMoveToSlowLane(AllocationEntry entry)
         {
             // Basic example: offload low-priority entries
             return entry.Priority == AllocationPriority.Low;
         }
 
+        /// <summary>
+        /// Replaces the with stub.
+        /// </summary>
+        /// <param name="fastHandle">The fast handle.</param>
+        /// <param name="slowHandle">The slow handle.</param>
+        /// <exception cref="System.InvalidOperationException">FastLane: Invalid handle</exception>
         public void ReplaceWithStub(MemoryHandle fastHandle, MemoryHandle slowHandle)
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid handle");
@@ -415,6 +425,27 @@ namespace Lanes
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
             return MemoryLaneUtils.DebugRedirections(_entries, EntryCount);
+        }
+
+        /// <summary>
+        ///     Debugs the dump.
+        /// </summary>
+        /// <returns>Basic Debug Info</returns>
+        public string DebugDump()
+        {
+            return MemoryLaneUtils.DebugDump(_entries, EntryCount);
+        }
+
+        /// <summary>
+        /// Dump all Debug Infos.
+        /// </summary>
+        public void LogDump()
+        {
+            Trace.WriteLine($"--- {GetType().Name} Dump Start ---");
+            Trace.WriteLine(DebugDump());
+            Trace.WriteLine(DebugVisualMap());
+            Trace.WriteLine(DebugRedirections());
+            Trace.WriteLine($"--- {GetType().Name} Dump End ---");
         }
     }
 }

@@ -2,7 +2,7 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryManagerTests
  * FILE:        MemoryArenaTests.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     MemoryArena some basic tests for the wrapper.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
@@ -16,8 +16,14 @@ namespace MemoryManagerTests
     [TestClass]
     public class MemoryArenaTests
     {
+        /// <summary>
+        /// The configuration
+        /// </summary>
         private MemoryManagerConfig _config;
 
+        /// <summary>
+        /// Setups this instance.
+        /// </summary>
         [TestInitialize]
         public void Setup()
         {
@@ -36,6 +42,9 @@ namespace MemoryManagerTests
             };
         }
 
+        /// <summary>
+        /// Allocates the within fast lane threshold allocates in fast lane.
+        /// </summary>
         [TestMethod]
         public void AllocateWithinFastLaneThresholdAllocatesInFastLane()
         {

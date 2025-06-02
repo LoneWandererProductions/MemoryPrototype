@@ -2,38 +2,36 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryManager
  * FILE:        MemoryArena.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     The wrapper around the different Memory Components.
+ *              Mostly consists of FastLane, SlowLane, OnwayLane
+ *              All configurable via Config and all internal actions are policy based.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
- */
-
-/*
- *
- * FastLane Policy
- *  When to Compact FastLane:
- * Usage > 90% of FastLane and enough memory is wasted by stubs.
- * Large allocation request cannot be fulfilled despite stubs present.
- * Manual trigger (e.g. during maintenance cycle or scene change).
- * What to Move to SlowLane:
- * Entries not accessed recently (age tagging or LRU heuristic).
- * Entries larger than a threshold (e.g., 4 KB+).
- * Entries marked as cold or long-lived (by system tagging).
- * Entries not tagged as frame-critical.
- * On Move:
- * Allocate in SlowLane
- * Copy data
- * Replace original with stub
- * Flag for FastLane.Compact() if space was freed
- * SlowLane Policy
- * When to Compact SlowLane:
- * Usage > 85% of SlowLane
- * Fragmentation is high (e.g., >20% space in gaps)
- * SlowLane allocation fails even though enough space exists
- * Manual trigger, e.g. MemoryArena.CompactAll()
- * Compacting Constraints:
- * Only compact if free space after compaction > 10%
- * Ensures space for future moves from FastLane, at least that is planned, reserved 10% of slow lane for janitor work
- * Do not compact aggressively; it’s slower and costlier
- * Prefer compaction during low activity (non-frame time)
+ * REMARKS:     FastLane Policy
+ *              When to Compact FastLane:
+ *              Usage > 90% of FastLane and enough memory is wasted by stubs.
+ *              Large allocation request cannot be fulfilled despite stubs present.
+ *              Manual trigger (e.g. during maintenance cycle or scene change).
+ *              What to Move to SlowLane:
+ *              Entries not accessed recently (age tagging or LRU heuristic).
+ *              Entries larger than a threshold (e.g., 4 KB+).
+ *              Entries marked as cold or long-lived (by system tagging).
+ *              Entries not tagged as frame-critical.
+ *              On Move:
+ *              Allocate in SlowLane
+ *              Copy data
+ *              Replace original with stub
+ *              Flag for FastLane.Compact() if space was freed
+ *              SlowLane Policy
+ *              When to Compact SlowLane:
+ *              Usage > 85% of SlowLane
+ *              Fragmentation is high (e.g., >20% space in gaps)
+ *              SlowLane allocation fails even though enough space exists
+ *              Manual trigger, e.g. MemoryArena.CompactAll()
+ *              Compacting Constraints:
+ *              Only compact if free space after compaction > 10%
+ *              Ensures space for future moves from FastLane, at least that is planned, reserved 10% of slow lane for janitor work
+ *              Do not compact aggressively; it’s slower and costlier
+ *              Prefer compaction during low activity (non-frame time)
  */
 
 // ReSharper disable NotAccessedField.Local
@@ -49,6 +47,9 @@ using Lanes;
 
 namespace MemoryManager
 {
+    /// <summary>
+    /// The wrapper around the different Memory Components.
+    /// </summary>
     public sealed class MemoryArena
     {
         /// <summary>
@@ -109,6 +110,11 @@ namespace MemoryManager
         /// </value>
         private int Threshold { get; }
 
+        /// <summary>
+        /// Moves the fast to slow.
+        /// Leaves a Stub to the new location.
+        /// </summary>
+        /// <param name="fastHandle">The fast handle.</param>
         public unsafe void MoveFastToSlow(MemoryHandle fastHandle)
         {
             var fastEntry = FastLane.GetEntry(fastHandle);
@@ -126,6 +132,41 @@ namespace MemoryManager
         }
 
         /// <summary>
+        /// Moves the slow to fast.
+        /// Moves an Entry from slow to fast, it should be policy based and not directly done by the user.
+        /// </summary>
+        /// <param name="slowHandle">The slow handle.</param>
+        /// <returns>New handle to the fastlane</returns>
+        /// <exception cref="System.ArgumentException">Handle must be a valid SlowLane handle (negative ID).</exception>
+        /// <exception cref="System.OutOfMemoryException">Not enough space in FastLane to move from SlowLane.</exception>
+        public unsafe MemoryHandle MoveSlowToFast(MemoryHandle slowHandle)
+        {
+            if (slowHandle.IsInvalid || slowHandle.Id >= 0)
+                throw new ArgumentException("Handle must be a valid SlowLane handle (negative ID).");
+
+            var slowEntry = SlowLane.GetEntry(slowHandle);
+            var size = slowEntry.Size;
+
+            if (!FastLane.CanAllocate(size))
+                throw new OutOfMemoryException("Not enough space in FastLane to move from SlowLane.");
+
+            // Allocate in FastLane
+            var fastHandle = FastLane.Allocate(size);
+
+            // Copy data from SlowLane buffer to FastLane buffer
+            Buffer.MemoryCopy(
+                (void*)(SlowLane.Buffer + slowEntry.Offset),
+                (void*)FastLane.Resolve(fastHandle),
+                size,
+                size);
+
+            // Free the old slow lane allocation
+            SlowLane.Free(slowHandle);
+
+            return fastHandle;
+        }
+
+        /// <summary>
         ///     Gets the specified handle.
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -137,77 +178,27 @@ namespace MemoryManager
             return ref Unsafe.AsRef<T>(ptr.ToPointer());
         }
 
+        /// <summary>
+        /// Runs the maintenance cycle.
+        /// Will be policy managed in the future
+        /// </summary>
         public void RunMaintenanceCycle()
         {
             TryCompactFastLane();
             TryCompactSlowLane();
         }
 
-        private void TryCompactFastLane()
-        {
-            var fastLaneUsageThreshold = _config.FastLaneUsageThreshold;
-
-            if (FastLane.UsagePercentage() <= fastLaneUsageThreshold)
-                return;
-
-            // Cache handles that should be moved first to avoid modifying collection during enumeration
-            var handlesToMove = new List<MemoryHandle>();
-
-            foreach (var handle in FastLane.GetHandles())
-            {
-                var entry = FastLane.GetEntry(handle);
-                if (entry.Size > _config.FastLaneUsageThreshold ||
-                    entry.Hints.HasFlag(AllocationHints.Cold) ||
-                    entry.Hints.HasFlag(AllocationHints.Old))
-                    handlesToMove.Add(handle);
-            }
-
-            foreach (var handle in handlesToMove) MoveFastToSlow(handle);
-
-            FastLane.Compact();
-        }
-
-
         /// <summary>
-        ///     Checks the policies.
+        /// Allocates the specified size.
         /// </summary>
-        private void CheckPolicies()
-        {
-            var usage = FastLane.UsagePercentage();
-            if (!_config.EnableAutoCompaction || !(usage >= _config.CompactionThreshold)) return;
-
-            TryCompactFastLane();
-            TryCompactSlowLane();
-            // Optional: log compaction stats or notify observers
-        }
-
-        private void TryCompactSlowLane()
-        {
-            // Usage threshold before considering compaction (e.g., 85%)
-            var slowLaneUsageThreshold = _config.SlowLaneUsageThreshold;
-
-            if (!(SlowLane.UsagePercentage() > slowLaneUsageThreshold))
-                return;
-
-            // Estimated fragmentation fraction (0.0 - 1.0)
-            double fragmentation = SlowLane.EstimateFragmentation();
-
-            // Current free space in bytes
-            double currentFreeSpace = SlowLane.FreeSpace();
-
-            // Total capacity of the slow lane in bytes
-            double totalSize = SlowLane.Capacity;
-
-            // Predicted free space after compaction (current free + fragmented gaps)
-            var predictedFreeAfterCompaction = currentFreeSpace + fragmentation * totalSize;
-
-            // Use slow lane specific safety margin to decide if compaction is worthwhile
-            var safetyMargin = _config.SlowLaneSafetyMargin;
-
-            // If predicted free space ratio meets or exceeds safety margin, perform compaction
-            if (predictedFreeAfterCompaction / totalSize >= safetyMargin) SlowLane.Compact();
-        }
-
+        /// <param name="size">The size.</param>
+        /// <param name="priority">The priority.</param>
+        /// <param name="hints">The hints.</param>
+        /// <param name="debugName">Name of the debug.</param>
+        /// <param name="currentFrame">The current frame.</param>
+        /// <returns>Handle to the memory area.</returns>
+        /// <exception cref="System.OutOfMemoryException">Neither lane could allocate memory. Requested size: {size}, " +
+        ///                     $"FastLane free: {FastLane.FreeSpace()}, SlowLane free: {SlowLane.FreeSpace()}</exception>
         public MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
@@ -293,6 +284,76 @@ namespace MemoryManager
             Trace.WriteLine(SlowLane.DebugVisualMap());
             Trace.WriteLine(SlowLane.DebugRedirections());
             Trace.WriteLine("============================");
+        }
+
+        /// <summary>
+        /// Tries to compact the FastLane.
+        /// </summary>
+        private void TryCompactFastLane()
+        {
+            var fastLaneUsageThreshold = _config.FastLaneUsageThreshold;
+
+            if (FastLane.UsagePercentage() <= fastLaneUsageThreshold)
+                return;
+
+            // Cache handles that should be moved first to avoid modifying collection during enumeration
+            var handlesToMove = new List<MemoryHandle>();
+
+            foreach (var handle in FastLane.GetHandles())
+            {
+                var entry = FastLane.GetEntry(handle);
+                if (entry.Size > _config.FastLaneUsageThreshold ||
+                    entry.Hints.HasFlag(AllocationHints.Cold) ||
+                    entry.Hints.HasFlag(AllocationHints.Old))
+                    handlesToMove.Add(handle);
+            }
+
+            foreach (var handle in handlesToMove) MoveFastToSlow(handle);
+
+            FastLane.Compact();
+        }
+
+        /// <summary>
+        /// Tries to compact the SlowLane.
+        /// </summary>
+        private void TryCompactSlowLane()
+        {
+            // Usage threshold before considering compaction (e.g., 85%)
+            var slowLaneUsageThreshold = _config.SlowLaneUsageThreshold;
+
+            if (!(SlowLane.UsagePercentage() > slowLaneUsageThreshold))
+                return;
+
+            // Estimated fragmentation fraction (0.0 - 1.0)
+            double fragmentation = SlowLane.EstimateFragmentation();
+
+            // Current free space in bytes
+            double currentFreeSpace = SlowLane.FreeSpace();
+
+            // Total capacity of the slow lane in bytes
+            double totalSize = SlowLane.Capacity;
+
+            // Predicted free space after compaction (current free + fragmented gaps)
+            var predictedFreeAfterCompaction = currentFreeSpace + fragmentation * totalSize;
+
+            // Use slow lane specific safety margin to decide if compaction is worthwhile
+            var safetyMargin = _config.SlowLaneSafetyMargin;
+
+            // If predicted free space ratio meets or exceeds safety margin, perform compaction
+            if (predictedFreeAfterCompaction / totalSize >= safetyMargin) SlowLane.Compact();
+        }
+
+        /// <summary>
+        ///     Checks the policies.
+        /// </summary>
+        private void CheckPolicies()
+        {
+            var usage = FastLane.UsagePercentage();
+            if (!_config.EnableAutoCompaction || !(usage >= _config.CompactionThreshold)) return;
+
+            TryCompactFastLane();
+            TryCompactSlowLane();
+            // Optional: log compaction stats or notify observers
         }
     }
 }

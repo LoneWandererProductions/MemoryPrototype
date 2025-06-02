@@ -156,50 +156,98 @@ namespace Lanes
         internal static string DebugVisualMap(IEnumerable<AllocationEntry> entries, int entryCount, int capacity)
         {
             if (entryCount == 0)
-                return "[FastLane] Memory is empty";
+                return "Memory is empty";
 
             var sb = new StringBuilder();
-            var sorted = entries.Take(entryCount)
+
+            var validEntries = entries
+                .Take(entryCount)
                 .Where(e => !e.IsStub)
-                .OrderBy(e => e.Offset)
                 .ToArray();
 
-            var lastEnd = 0;
-            const int barWidth = 80;
+            sb.AppendLine("--- Dump Start ---");
 
-            foreach (var e in sorted)
+            // Dump all allocations (for reference)
+            foreach (var e in validEntries.OrderBy(e => e.HandleId))
+            {
+                sb.AppendLine($"[Lane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}");
+            }
+            sb.AppendLine();
+
+            // Logical order by HandleId
+            sb.AppendLine("Logical Handle Order:");
+            foreach (var e in validEntries.OrderBy(e => e.HandleId))
+            {
+                sb.AppendLine($"[ID {e.HandleId,3}] Offset {e.Offset:D6}-{e.Offset + e.Size:D6} ({e.Size} bytes)"
+                              + (e.DebugName != null ? $" - {e.DebugName}" : ""));
+            }
+            sb.AppendLine();
+
+            // Memory Layout order by Offset
+            sb.AppendLine("Memory Layout (by Offset):");
+            var sortedByOffset = validEntries.OrderBy(e => e.Offset).ToArray();
+
+            // Debug info for entries
+            foreach (var e in sortedByOffset)
+            {
+                sb.AppendLine($"[Check] Entry: Offset={e.Offset}, Size={e.Size}");
+            }
+
+            int lastEnd = 0;
+            foreach (var e in sortedByOffset)
             {
                 if (e.Offset > lastEnd)
                 {
-                    var gap = e.Offset - lastEnd;
+                    int gap = e.Offset - lastEnd;
                     sb.AppendLine($"[Gap ] {lastEnd:D6}-{e.Offset:D6} ({gap} bytes)");
                 }
 
                 sb.AppendLine($"[Used] {e.Offset:D6}-{e.Offset + e.Size:D6} (ID {e.HandleId}, {e.Size} bytes)");
                 lastEnd = e.Offset + e.Size;
             }
+            if (lastEnd < capacity)
+                sb.AppendLine($"[Gap ] {lastEnd:D6}-{capacity:D6} ({capacity - lastEnd} bytes)");
 
-            if (lastEnd < capacity) sb.AppendLine($"[Gap ] {lastEnd:D6}-{capacity:D6} ({capacity - lastEnd} bytes)");
-
-            // Visual bar
+            // Visual map with shading
+            const int barWidth = 80;
             var visual = new char[barWidth];
-            Array.Fill(visual, '░');
+            Array.Fill(visual, '░');  // Light shade for gaps
 
-            foreach (var e in sorted)
+            foreach (var e in sortedByOffset)
             {
-                var start = (int)(e.Offset / (double)capacity * barWidth);
-                var end = (int)((e.Offset + e.Size) / (double)capacity * barWidth);
-                end = Math.Min(end, barWidth);
+                double scale = barWidth / (double)capacity;
+                int start = (int)(e.Offset * scale);
+                int end = (int)((e.Offset + e.Size) * scale);
+                end = Math.Max(start + 1, end);
+                end = Math.Min(barWidth, end);
 
-                for (var i = start; i < end; i++)
-                    visual[i] = '▓';
+                for (int i = start; i < end; i++)
+                {
+                    visual[i] = '▓'; // Dark shade for allocations
+                }
             }
 
             sb.AppendLine();
-            sb.AppendLine("Visual Map:");
-            sb.AppendLine();
+            sb.AppendLine("Visual Map (▓ = allocated, ░ = gap):");
             sb.AppendLine(new string(visual));
             sb.AppendLine($"Capacity: {capacity} bytes");
+
+            sb.AppendLine();
+
+            // Check for duplicate HandleIds
+            var duplicates = validEntries
+                .GroupBy(e => e.HandleId)
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            if (duplicates.Any())
+            {
+                sb.AppendLine("⚠️  WARNING: Duplicate HandleIds detected!");
+                foreach (var dup in duplicates)
+                    sb.AppendLine($" - HandleId {dup.Key} appears {dup.Count()} times");
+            }
+
+            sb.AppendLine("--- Dump End ---");
 
             return sb.ToString();
         }
