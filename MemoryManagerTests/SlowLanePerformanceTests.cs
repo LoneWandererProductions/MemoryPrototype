@@ -10,18 +10,18 @@ namespace MemoryManagerTests
     public class SlowLanePerformanceTests
     {
         /// <summary>
-        /// The object size
+        ///     The object size
         /// </summary>
         private const int ObjectSize = 1024 * 64; // 64KB
 
         /// <summary>
-        /// The allocation count
+        ///     The allocation count
         /// </summary>
         private const int AllocationCount = 1000;
 
         [TestMethod]
         [TestCategory("Performance")]
-        public void CompareGCAndSlowLane()
+        public void CompareGcAndSlowLane()
         {
             var gcBefore = GC.GetTotalMemory(true);
 

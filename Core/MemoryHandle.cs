@@ -52,6 +52,6 @@ namespace Core
         ///     Gets a value indicating whether this handle is invalid.
         ///     An invalid handle is one with a non-positive ID or no associated memory lane.
         /// </summary>
-        public bool IsInvalid => _lane == null || Id==0;
+        public bool IsInvalid => _lane == null || Id == 0;
     }
 }

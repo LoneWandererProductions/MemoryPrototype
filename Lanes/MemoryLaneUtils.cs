@@ -54,10 +54,9 @@ namespace Lanes
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
-        /// <param name="capacity">The capacity.</param>
         /// <returns>Estimated fragmentation.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int EstimateFragmentation(IEnumerable<AllocationEntry> entries, int entryCount, int capacity)
+        internal static int EstimateFragmentation(IEnumerable<AllocationEntry> entries, int entryCount)
         {
             if (entryCount == 0) return 0;
 
@@ -110,9 +109,8 @@ namespace Lanes
                 .ToArray();
             var offset = 0;
 
-            for (var i = 0; i < sorted.Length; i++)
+            foreach (var entry in sorted)
             {
-                var entry = sorted[i];
                 if (offset + size <= entry.Offset)
                     return offset;
 
@@ -170,39 +168,36 @@ namespace Lanes
             const int barWidth = 80;
             var visual = new char[barWidth];
 
-            double[] allocationCoverage = new double[barWidth];
-            double scale = barWidth / (double)capacity;
+            var allocationCoverage = new double[barWidth];
+            var scale = barWidth / (double)capacity;
 
             foreach (var e in validEntries)
             {
                 double startByte = e.Offset;
                 double endByte = e.Offset + e.Size;
-                int startIdx = (int)(startByte * scale);
-                int endIdx = (int)(endByte * scale);
+                var startIdx = (int)(startByte * scale);
+                var endIdx = (int)(endByte * scale);
                 endIdx = Math.Max(startIdx + 1, endIdx);
                 endIdx = Math.Min(barWidth, endIdx);
 
-                for (int i = startIdx; i < endIdx; i++)
+                for (var i = startIdx; i < endIdx; i++)
                 {
-                    double cellStart = i / scale;
-                    double cellEnd = (i + 1) / scale;
+                    var cellStart = i / scale;
+                    var cellEnd = (i + 1) / scale;
 
-                    double overlap = Math.Min(endByte, cellEnd) - Math.Max(startByte, cellStart);
-                    double cellSize = cellEnd - cellStart;
+                    var overlap = Math.Min(endByte, cellEnd) - Math.Max(startByte, cellStart);
+                    var cellSize = cellEnd - cellStart;
 
-                    if (overlap > 0)
-                    {
-                        allocationCoverage[i] += overlap / cellSize;
-                    }
+                    if (overlap > 0) allocationCoverage[i] += overlap / cellSize;
                 }
             }
 
             // Define partial blocks (8 levels + dot)
             char[] blocks = { '░', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█' };
 
-            for (int i = 0; i < barWidth; i++)
+            for (var i = 0; i < barWidth; i++)
             {
-                double coverage = allocationCoverage[i];
+                var coverage = allocationCoverage[i];
                 if (coverage <= 0.0)
                 {
                     visual[i] = '░'; // free
@@ -213,7 +208,7 @@ namespace Lanes
                 }
                 else
                 {
-                    int blockIndex = (int)Math.Round(coverage * 8);
+                    var blockIndex = (int)Math.Round(coverage * 8);
                     blockIndex = Math.Min(8, blockIndex);
                     visual[i] = blocks[blockIndex];
                 }
@@ -358,7 +353,7 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Ensures the entry capacity.
+        ///     Ensures the entry capacity.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="requiredSlotIndex">Index of the required slot.</param>

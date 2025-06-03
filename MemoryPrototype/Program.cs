@@ -95,7 +95,7 @@ namespace MemoryPrototype
         /// <summary>
         ///     Test struct
         /// </summary>
-        internal struct MyStruct
+        private struct MyStruct
         {
             public int Value;
             public float PositionX;

@@ -292,11 +292,11 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Retrieves the full allocation entry metadata for a given handle.
+        ///     Retrieves the full allocation entry metadata for a given handle.
         /// </summary>
         /// <param name="handle">The handle identifying the allocation.</param>
         /// <returns>
-        /// The allocation entry associated with the handle.
+        ///     The allocation entry associated with the handle.
         /// </returns>
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
@@ -340,7 +340,7 @@ namespace Lanes
         public event Action<string>? OnCompaction;
 
         /// <summary>
-        /// Occurs when [on allocation extension].
+        ///     Occurs when [on allocation extension].
         /// </summary>
         public event Action<string, int, int>? OnAllocationExtension;
 
@@ -386,19 +386,19 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Ensures the entry capacity.
+        ///     Ensures the entry capacity.
         /// </summary>
         /// <param name="requiredSlotIndex">Index of the required slot.</param>
         private void EnsureEntryCapacity(int requiredSlotIndex)
         {
-            var oldSize = _entries.Count();
+            var oldSize = _entries.Length;
             var newSize = MemoryLaneUtils.EnsureEntryCapacity(ref _entries, requiredSlotIndex);
             // Allocation Entriesmust be extended
             OnAllocationExtension?.Invoke(nameof(SlowLane), oldSize, newSize);
         }
 
         /// <summary>
-        /// Finds the free spot.
+        ///     Finds the free spot.
         /// </summary>
         /// <param name="size">The size.</param>
         /// <returns></returns>
@@ -431,7 +431,7 @@ namespace Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount, Capacity);
+            return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount);
         }
 
         /// <summary>

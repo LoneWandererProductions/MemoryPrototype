@@ -35,11 +35,6 @@ namespace Lanes
         private const double SafetyMargin = 0.10; // 10% free space reserved
 
         /// <summary>
-        ///     The allocated entries
-        /// </summary>
-        private AllocationEntry[] _entries;
-
-        /// <summary>
         ///     The free ids
         /// </summary>
         private readonly Stack<int> _freeIds = new();
@@ -53,6 +48,11 @@ namespace Lanes
         ///     The handle index
         /// </summary>
         private readonly Dictionary<int, int> _handleIndex = new(); // handleId -> entries array index
+
+        /// <summary>
+        ///     The allocated entries
+        /// </summary>
+        private AllocationEntry[] _entries;
 
         /// <summary>
         ///     The next handle identifier
@@ -313,15 +313,15 @@ namespace Lanes
         public event Action<string>? OnCompaction;
 
         /// <summary>
-        /// Occurs when [on allocation extension].
+        ///     Occurs when [on allocation extension].
         /// </summary>
         public event Action<string, int, int>? OnAllocationExtension;
 
         /// <summary>
-        /// Gets the handles.
+        ///     Gets the handles.
         /// </summary>
         /// <returns>
-        /// List of handles.
+        ///     List of handles.
         /// </returns>
         public IEnumerable<MemoryHandle> GetHandles()
         {
@@ -353,14 +353,14 @@ namespace Lanes
         }
 
         /// <summary>
-        /// Ensures the entry capacity.
+        ///     Ensures the entry capacity.
         /// </summary>
         /// <param name="requiredSlotIndex">Index of the required slot.</param>
         private void EnsureEntryCapacity(int requiredSlotIndex)
         {
-            var oldSize = _entries.Count();
+            var oldSize = _entries.Length;
             var newSize = MemoryLaneUtils.EnsureEntryCapacity(ref _entries, requiredSlotIndex);
-            // Allocation Entriesmust be extended
+            // Allocation Entries must be extended
             OnAllocationExtension?.Invoke(nameof(SlowLane), oldSize, newSize);
         }
 
@@ -386,7 +386,7 @@ namespace Lanes
         // Estimate fragmentation percentage (gaps / total capacity)
         public int EstimateFragmentation()
         {
-            return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount, Capacity);
+            return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount);
         }
 
         /// <summary>

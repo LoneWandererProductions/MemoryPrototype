@@ -27,13 +27,13 @@ namespace MemoryManagerTests
             GC.Collect();
             GC.WaitForPendingFinalizers();
 
-            var afterGc = GC.GetTotalMemory(forceFullCollection: true);
+            var afterGc = GC.GetTotalMemory(true);
 
-            Trace.WriteLine($"Managed LOH fragmentation simulated");
+            Trace.WriteLine("Managed LOH fragmentation simulated");
             Trace.WriteLine($"GC Memory usage: {afterGc / 1024.0 / 1024.0:F2} MB");
 
             // SlowLane equivalent
-            using var slowLane = new SlowLane((size * count) + 50 * 1024 * 1024);
+            using var slowLane = new SlowLane(size * count + 50 * 1024 * 1024);
             var handles = new MemoryHandle[count];
 
             for (var i = 0; i < count; i++)
@@ -138,7 +138,7 @@ namespace MemoryManagerTests
 
         [TestMethod]
         [TestCategory("Performance")]
-        public void HighReuseWithNoGC()
+        public void HighReuseWithNoGc()
         {
             const int size = 1024;
             var count = 10;
