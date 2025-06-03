@@ -51,7 +51,38 @@ namespace MemoryManagerTests
 
         [TestMethod]
         [TestCategory("RealWorld")]
-        public void DeterministicVsFinalizerTiming()
+        public void DeterministicVsFinalizerFastLaneTiming()
+        {
+            var sw = Stopwatch.StartNew();
+            var refs = new WeakReference[5000];
+
+            for (var i = 0; i < refs.Length; i++)
+                refs[i] = new WeakReference(new byte[1024 * 100]); // 100KB
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            sw.Stop();
+
+            Trace.WriteLine($"GC cleanup time: {sw.ElapsedMilliseconds} ms");
+
+            // FastLane version
+            using var fastLane = new FastLane(600 * 1024 * 1024, null);
+            var handles = new MemoryHandle[refs.Length];
+
+            sw.Restart();
+            for (var i = 0; i < refs.Length; i++)
+                handles[i] = fastLane.Allocate(100 * 1024);
+
+            for (var i = 0; i < refs.Length; i++)
+                fastLane.Free(handles[i]);
+            sw.Stop();
+
+            Trace.WriteLine($"FastLane cleanup time: {sw.ElapsedMilliseconds} ms");
+        }
+
+        [TestMethod]
+        [TestCategory("RealWorld")]
+        public void DeterministicVsFinalizerSlowLaneTiming()
         {
             var sw = Stopwatch.StartNew();
             var refs = new WeakReference[5000];
