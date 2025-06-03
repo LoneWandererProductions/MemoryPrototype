@@ -160,30 +160,65 @@ namespace Lanes
 
             var validEntries = entries
                 .Take(entryCount)
-                .Where(e => !e.IsStub && e.HandleId != -1) // Exclude stubs and system-reserved entries
+                .Where(e => !e.IsStub && e.HandleId != -1)
                 .OrderBy(e => e.Offset)
                 .ToArray();
 
             sb.AppendLine("--- Dump Start ---");
 
-            // Visual map with shading
             const int barWidth = 80;
             var visual = new char[barWidth];
-            Array.Fill(visual, '░'); // Light shade for free space
+
+            double[] allocationCoverage = new double[barWidth];
+            double scale = barWidth / (double)capacity;
 
             foreach (var e in validEntries)
             {
-                var scale = barWidth / (double)capacity;
-                var start = (int)(e.Offset * scale);
-                var end = (int)((e.Offset + e.Size) * scale);
-                end = Math.Max(start + 1, end);
-                end = Math.Min(barWidth, end);
+                double startByte = e.Offset;
+                double endByte = e.Offset + e.Size;
+                int startIdx = (int)(startByte * scale);
+                int endIdx = (int)(endByte * scale);
+                endIdx = Math.Max(startIdx + 1, endIdx);
+                endIdx = Math.Min(barWidth, endIdx);
 
-                for (var i = start; i < end; i++)
-                    visual[i] = '▓'; // Dark shade for allocations
+                for (int i = startIdx; i < endIdx; i++)
+                {
+                    double cellStart = i / scale;
+                    double cellEnd = (i + 1) / scale;
+
+                    double overlap = Math.Min(endByte, cellEnd) - Math.Max(startByte, cellStart);
+                    double cellSize = cellEnd - cellStart;
+
+                    if (overlap > 0)
+                    {
+                        allocationCoverage[i] += overlap / cellSize;
+                    }
+                }
             }
 
-            sb.AppendLine("Visual Map (▓ = allocated, ░ = gap):");
+            // Define partial blocks (8 levels + dot)
+            char[] blocks = { '░', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█' };
+
+            for (int i = 0; i < barWidth; i++)
+            {
+                double coverage = allocationCoverage[i];
+                if (coverage <= 0.0)
+                {
+                    visual[i] = '░'; // free
+                }
+                else if (coverage < 0.125)
+                {
+                    visual[i] = '.'; // very small allocation
+                }
+                else
+                {
+                    int blockIndex = (int)Math.Round(coverage * 8);
+                    blockIndex = Math.Min(8, blockIndex);
+                    visual[i] = blocks[blockIndex];
+                }
+            }
+
+            sb.AppendLine("Visual Map (░ = gap, . = very small allocation, ▏ to █ = partial/full allocation):");
             sb.AppendLine(new string(visual));
             sb.AppendLine($"Capacity: {capacity} bytes");
             sb.AppendLine();
