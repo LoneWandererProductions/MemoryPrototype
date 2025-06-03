@@ -37,7 +37,7 @@ namespace Lanes
         /// <summary>
         ///     The allocated entries
         /// </summary>
-        private readonly AllocationEntry[] _entries;
+        private AllocationEntry[] _entries;
 
         /// <summary>
         ///     The free ids
@@ -129,6 +129,7 @@ namespace Lanes
             //TODO  Optimize
             var offset = FindFreeSpot(size);
             var slotIndex = _freeSlots.Count > 0 ? _freeSlots.Pop() : EntryCount++;
+            EnsureEntryCapacity(slotIndex);
 
             //So we reuse freed handles here
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
@@ -150,9 +151,6 @@ namespace Lanes
             };
 
             _handleIndex[id] = slotIndex;
-
-            //TODO  Optimize huge bottleneck
-            SortEntriesByOffset();
 
             return new MemoryHandle(id, this);
         }
@@ -239,6 +237,7 @@ namespace Lanes
                 entry.Offset = offset;
                 offset += entry.Size;
 
+                EnsureEntryCapacity(writeIndex);
                 _entries[writeIndex] = entry;
                 newHandleIndex[entry.HandleId] = writeIndex;
 
@@ -279,7 +278,6 @@ namespace Lanes
             return MemoryLaneUtils.HasHandle(handle, _handleIndex);
         }
 
-
         /// <summary>
         ///     Gets the entry.
         /// </summary>
@@ -315,9 +313,16 @@ namespace Lanes
         public event Action<string>? OnCompaction;
 
         /// <summary>
+        /// Occurs when [on allocation extension].
+        /// </summary>
+        public event Action<string, int, int>? OnAllocationExtension;
+
+        /// <summary>
         /// Gets the handles.
         /// </summary>
-        /// <returns>List of handles.</returns>
+        /// <returns>
+        /// List of handles.
+        /// </returns>
         public IEnumerable<MemoryHandle> GetHandles()
         {
             return _handleIndex.Select(kv => new MemoryHandle(kv.Key, this));
@@ -339,22 +344,24 @@ namespace Lanes
         }
 
         /// <summary>
-        ///     Sorts the entries by offset.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void SortEntriesByOffset()
-        {
-            // Simple insertion sort for small arrays, else replace with more efficient if needed
-            Array.Sort(_entries, 0, EntryCount, new AllocationEntryOffsetComparer());
-        }
-
-        /// <summary>
         ///     Frees the space.
         /// </summary>
         /// <returns>The Free space</returns>
         public int FreeSpace()
         {
             return MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+        }
+
+        /// <summary>
+        /// Ensures the entry capacity.
+        /// </summary>
+        /// <param name="requiredSlotIndex">Index of the required slot.</param>
+        private void EnsureEntryCapacity(int requiredSlotIndex)
+        {
+            var oldSize = _entries.Count();
+            var newSize = MemoryLaneUtils.EnsureEntryCapacity(ref _entries, requiredSlotIndex);
+            // Allocation Entriesmust be extended
+            OnAllocationExtension?.Invoke(nameof(SlowLane), oldSize, newSize);
         }
 
         /// <summary>

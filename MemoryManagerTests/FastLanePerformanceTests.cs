@@ -7,7 +7,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace MemoryManagerTests
 {
     [TestClass]
-    public class SlowLanePerformanceTests
+    public class FastLanePerformanceTests
     {
         /// <summary>
         /// The object size
@@ -21,7 +21,7 @@ namespace MemoryManagerTests
 
         [TestMethod]
         [TestCategory("Performance")]
-        public void CompareGCAndSlowLane()
+        public void CompareGCAndFastLane()
         {
             var gcBefore = GC.GetTotalMemory(true);
 
@@ -38,78 +38,78 @@ namespace MemoryManagerTests
 
             var log = string.Empty;
 
-            var swSlow = Stopwatch.StartNew();
-            using (var slowLane = new SlowLane(ObjectSize * AllocationCount + 100 * 1024 * 1024))
+            var swFast = Stopwatch.StartNew();
+            using (var FastLane = new FastLane(ObjectSize * AllocationCount + 100 * 1024 * 1024, null))
             {
                 var handles = new MemoryHandle[AllocationCount];
                 for (var i = 0; i < AllocationCount; i++)
-                    handles[i] = slowLane.Allocate(ObjectSize);
+                    handles[i] = FastLane.Allocate(ObjectSize);
 
-                log = slowLane.DebugVisualMap();
+                log = FastLane.DebugVisualMap();
             }
 
-            swSlow.Stop();
+            swFast.Stop();
 
-            Trace.WriteLine($"[SlowLane] Time: {swSlow.ElapsedMilliseconds} ms");
-            Trace.WriteLine("[SlowLane] GC Memory Increase: Negligible (unmanaged)");
+            Trace.WriteLine($"[FastLane] Time: {swFast.ElapsedMilliseconds} ms");
+            Trace.WriteLine("[FastLane] GC Memory Increase: Negligible (unmanaged)");
 
             Trace.WriteLine(log);
         }
 
         [TestMethod]
         [TestCategory("Performance")]
-        public void SlowLaneAllocations()
+        public void FastLaneAllocations()
         {
-            using var slowLane = new SlowLane(ObjectSize * AllocationCount + 100 * 1024 * 1024);
+            using var FastLane = new FastLane(ObjectSize * AllocationCount + 100 * 1024 * 1024, null);
             var log = string.Empty;
 
             var stopwatch = Stopwatch.StartNew();
 
             var handles = new MemoryHandle[AllocationCount];
-            for (var i = 0; i < AllocationCount; i++) handles[i] = slowLane.Allocate(ObjectSize);
-            log = slowLane.DebugVisualMap();
+            for (var i = 0; i < AllocationCount; i++) handles[i] = FastLane.Allocate(ObjectSize);
+            log = FastLane.DebugVisualMap();
 
             stopwatch.Stop();
-            Trace.WriteLine($"SlowLane Allocation Time: {stopwatch.ElapsedMilliseconds} ms");
+            Trace.WriteLine($"FastLane Allocation Time: {stopwatch.ElapsedMilliseconds} ms");
             Trace.WriteLine(log);
 
             // Cleanup
             foreach (var handle in handles)
-                slowLane.Free(handle);
+                FastLane.Free(handle);
         }
 
         [TestMethod]
         [TestCategory("Performance")]
-        public void SlowLaneCompactPerformanceBenchmark()
+        public void FastLaneCompactPerformanceBenchmark()
         {
             //ensures that the AllocationArray must be extended
             const int count = 750;
             const int size = 64 * 1024;
             var log = string.Empty;
 
-            using var slowLane = new SlowLane(size * count + 20 * 1024 * 1024);
+            using var FastLane = new FastLane(size * count + 20 * 1024 * 1024, null);
             var handles = new MemoryHandle[count];
 
             for (var i = 0; i < count; i++)
-                handles[i] = slowLane.Allocate(size);
+                handles[i] = FastLane.Allocate(size);
 
             // Fragmentierung erzeugen
             for (var i = 0; i < count; i += 4)
-                slowLane.Free(handles[i]);
+                FastLane.Free(handles[i]);
 
-            log = slowLane.DebugVisualMap();
+            log = FastLane.DebugVisualMap();
             Trace.WriteLine(log);
-            var fragBefore = slowLane.EstimateFragmentation();
+            var fragBefore = FastLane.EstimateFragmentation();
             Trace.WriteLine($"Fragmentation before: {fragBefore}%");
 
             var sw = Stopwatch.StartNew();
-            slowLane.Compact();
+            FastLane.Compact();
             sw.Stop();
 
-            var fragAfter = slowLane.EstimateFragmentation();
+            var fragAfter = FastLane.EstimateFragmentation();
             Trace.WriteLine($"Compaction took: {sw.ElapsedMilliseconds} ms");
             Trace.WriteLine($"Fragmentation after: {fragAfter}%");
-            log = slowLane.DebugVisualMap();
+            log = FastLane.DebugVisualMap();
             Trace.WriteLine(log);
 
             Assert.IsTrue(fragAfter < fragBefore, "Fragmentation should decrease");

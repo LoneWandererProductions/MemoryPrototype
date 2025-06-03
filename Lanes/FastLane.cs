@@ -151,8 +151,9 @@ namespace Lanes
             if (offset + size > Capacity)
                 throw new OutOfMemoryException("FastLane: Not enough memory");
 
-            if (EntryCount >= _entries.Length)
-                Array.Resize(ref _entries, _entries.Length * 2);
+            EnsureEntryCapacity(EntryCount);
+            //if (EntryCount >= _entries.Length)
+            //    Array.Resize(ref _entries, _entries.Length * 2);
 
             //So we reuse freed handles here
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
@@ -290,6 +291,13 @@ namespace Lanes
             OnCompaction?.Invoke(nameof(FastLane));
         }
 
+        /// <summary>
+        /// Retrieves the full allocation entry metadata for a given handle.
+        /// </summary>
+        /// <param name="handle">The handle identifying the allocation.</param>
+        /// <returns>
+        /// The allocation entry associated with the handle.
+        /// </returns>
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
             return MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(FastLane));
@@ -332,23 +340,17 @@ namespace Lanes
         public event Action<string>? OnCompaction;
 
         /// <summary>
+        /// Occurs when [on allocation extension].
+        /// </summary>
+        public event Action<string, int, int>? OnAllocationExtension;
+
+        /// <summary>
         ///     Gets the handles.
         /// </summary>
         /// <returns></returns>
         public IEnumerable<MemoryHandle> GetHandles()
         {
             return _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
-        }
-
-        /// <summary>
-        ///     Should the move to slow lane.
-        /// </summary>
-        /// <param name="entry">The entry.</param>
-        /// <returns>Status if a move is necessary.</returns>
-        private static bool ShouldMoveToSlowLane(AllocationEntry entry)
-        {
-            // Basic example: offload low-priority entries
-            return entry.Priority == AllocationPriority.Low;
         }
 
         /// <summary>
@@ -372,6 +374,35 @@ namespace Lanes
             Redirects[fastHandle.Id] = slowHandle;
         }
 
+        /// <summary>
+        ///     Should the move to slow lane.
+        /// </summary>
+        /// <param name="entry">The entry.</param>
+        /// <returns>Status if a move is necessary.</returns>
+        private static bool ShouldMoveToSlowLane(AllocationEntry entry)
+        {
+            // Basic example: offload low-priority entries
+            return entry.Priority == AllocationPriority.Low;
+        }
+
+        /// <summary>
+        /// Ensures the entry capacity.
+        /// </summary>
+        /// <param name="requiredSlotIndex">Index of the required slot.</param>
+        private void EnsureEntryCapacity(int requiredSlotIndex)
+        {
+            var oldSize = _entries.Count();
+            var newSize = MemoryLaneUtils.EnsureEntryCapacity(ref _entries, requiredSlotIndex);
+            // Allocation Entriesmust be extended
+            OnAllocationExtension?.Invoke(nameof(SlowLane), oldSize, newSize);
+        }
+
+        /// <summary>
+        /// Finds the free spot.
+        /// </summary>
+        /// <param name="size">The size.</param>
+        /// <returns></returns>
+        /// <exception cref="System.InvalidOperationException">FastLane: Invalid memory.</exception>
         private int FindFreeSpot(int size)
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");

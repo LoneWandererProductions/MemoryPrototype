@@ -104,12 +104,13 @@ namespace Lanes
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int FindFreeSpot(int size, IEnumerable<AllocationEntry> entries, int entryCount)
         {
-            var sorted = entries.Take(entryCount).ToArray();
-            Array.Sort(sorted, (a, b) => a.Offset.CompareTo(b.Offset));
-
+            var sorted = entries
+                .Take(entryCount)
+                .Where(e => !e.IsStub) // Only valid entries
+                .ToArray();
             var offset = 0;
 
-            for (var i = 0; i < entryCount; i++)
+            for (var i = 0; i < sorted.Length; i++)
             {
                 var entry = sorted[i];
                 if (offset + size <= entry.Offset)
@@ -354,6 +355,24 @@ namespace Lanes
                 return entries[index].Size;
 
             throw new InvalidOperationException($"{lane}: Invalid handle");
+        }
+
+        /// <summary>
+        /// Ensures the entry capacity.
+        /// </summary>
+        /// <param name="entries">The entries.</param>
+        /// <param name="requiredSlotIndex">Index of the required slot.</param>
+        /// <returns>New size of Allocation array.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int EnsureEntryCapacity(ref AllocationEntry[] entries, int requiredSlotIndex)
+        {
+            if (requiredSlotIndex < entries.Length)
+                return entries.Length;
+
+            var newSize = Math.Max(entries.Length * 2, requiredSlotIndex + 1);
+            Array.Resize(ref entries, newSize);
+
+            return newSize;
         }
     }
 }
