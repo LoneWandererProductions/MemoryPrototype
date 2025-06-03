@@ -134,7 +134,7 @@ namespace Lanes
             for (var i = 0; i < entryCount; i++)
             {
                 var e = entries[i];
-                sb.Append("[FastLane] ID ").Append(e.HandleId)
+                sb.Append("[Lane] ID ").Append(e.HandleId)
                     .Append(" Offset ").Append(e.Offset)
                     .Append(" Size ").Append(e.Size)
                     .AppendLine();
@@ -160,54 +160,18 @@ namespace Lanes
 
             var validEntries = entries
                 .Take(entryCount)
-                .Where(e => !e.IsStub)
+                .Where(e => !e.IsStub && e.HandleId != -1) // Exclude stubs and system-reserved entries
+                .OrderBy(e => e.Offset)
                 .ToArray();
 
             sb.AppendLine("--- Dump Start ---");
 
-            // Dump all allocations (for reference)
-            foreach (var e in validEntries.OrderBy(e => e.HandleId))
-                sb.AppendLine($"[Lane] ID {e.HandleId} Offset {e.Offset} Size {e.Size}");
-
-            sb.AppendLine();
-
-            // Logical order by HandleId
-            sb.AppendLine("Logical Handle Order:");
-            foreach (var e in validEntries.OrderBy(e => e.HandleId))
-                sb.AppendLine($"[ID {e.HandleId,3}] Offset {e.Offset:D6}-{e.Offset + e.Size:D6} ({e.Size} bytes)"
-                              + (e.DebugName != null ? $" - {e.DebugName}" : ""));
-
-            sb.AppendLine();
-
-            // Memory Layout order by Offset
-            sb.AppendLine("Memory Layout (by Offset):");
-            var sortedByOffset = validEntries.OrderBy(e => e.Offset).ToArray();
-
-            // Debug info for entries
-            foreach (var e in sortedByOffset) sb.AppendLine($"[Check] Entry: Offset={e.Offset}, Size={e.Size}");
-
-            var lastEnd = 0;
-            foreach (var e in sortedByOffset)
-            {
-                if (e.Offset > lastEnd)
-                {
-                    var gap = e.Offset - lastEnd;
-                    sb.AppendLine($"[Gap ] {lastEnd:D6}-{e.Offset:D6} ({gap} bytes)");
-                }
-
-                sb.AppendLine($"[Used] {e.Offset:D6}-{e.Offset + e.Size:D6} (ID {e.HandleId}, {e.Size} bytes)");
-                lastEnd = e.Offset + e.Size;
-            }
-
-            if (lastEnd < capacity)
-                sb.AppendLine($"[Gap ] {lastEnd:D6}-{capacity:D6} ({capacity - lastEnd} bytes)");
-
             // Visual map with shading
             const int barWidth = 80;
             var visual = new char[barWidth];
-            Array.Fill(visual, '░'); // Light shade for gaps
+            Array.Fill(visual, '░'); // Light shade for free space
 
-            foreach (var e in sortedByOffset)
+            foreach (var e in validEntries)
             {
                 var scale = barWidth / (double)capacity;
                 var start = (int)(e.Offset * scale);
@@ -215,28 +179,14 @@ namespace Lanes
                 end = Math.Max(start + 1, end);
                 end = Math.Min(barWidth, end);
 
-                for (var i = start; i < end; i++) visual[i] = '▓'; // Dark shade for allocations
+                for (var i = start; i < end; i++)
+                    visual[i] = '▓'; // Dark shade for allocations
             }
 
-            sb.AppendLine();
             sb.AppendLine("Visual Map (▓ = allocated, ░ = gap):");
             sb.AppendLine(new string(visual));
             sb.AppendLine($"Capacity: {capacity} bytes");
-
             sb.AppendLine();
-
-            // Check for duplicate HandleIds
-            var duplicates = validEntries
-                .GroupBy(e => e.HandleId)
-                .Where(g => g.Count() > 1)
-                .ToList();
-
-            if (duplicates.Any())
-            {
-                sb.AppendLine("⚠️  WARNING: Duplicate HandleIds detected!");
-                foreach (var dup in duplicates)
-                    sb.AppendLine($" - HandleId {dup.Key} appears {dup.Count()} times");
-            }
 
             sb.AppendLine("--- Dump End ---");
 
