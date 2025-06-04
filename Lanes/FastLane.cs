@@ -10,13 +10,14 @@
 // ReSharper disable MemberCanBePrivate.Global
 
 #nullable enable
+using Core;
+using Core.MemoryArenaPrototype.Core;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Core;
-using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
@@ -31,7 +32,7 @@ namespace Lanes
         ///     The handle index
         ///     Maps handleId → index into _entries
         /// </summary>
-        private readonly Dictionary<int, int> _handleIndex = new();
+        private readonly ConcurrentDictionary<int, int> _handleIndex = new();
 
         /// <summary>
         ///     The slow lane
@@ -217,8 +218,8 @@ namespace Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Memory is corrupted.");
 
-            if (!_handleIndex.TryGetValue(handle.Id, out var index))
-                throw new InvalidOperationException("FastLane: Invalid handle");
+            if (!_handleIndex.TryRemove(handle.Id, out var index))
+                throw new InvalidOperationException($"SlowLane: Invalid handle {handle.Id}");
 
             var entry = _entries[index];
 
@@ -237,7 +238,6 @@ namespace Lanes
                 _handleIndex[_entries[index].HandleId] = index;
             }
 
-            _handleIndex.Remove(handle.Id);
             EntryCount--;
             _freeIds.Push(handle.Id);
         }

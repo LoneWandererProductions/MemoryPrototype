@@ -10,14 +10,15 @@
 // ReSharper disable EventNeverSubscribedTo.Global
 
 #nullable enable
+using Core;
+using Core.MemoryArenaPrototype.Core;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using Core;
-using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
@@ -47,7 +48,7 @@ namespace Lanes
         /// <summary>
         ///     The handle index
         /// </summary>
-        private readonly Dictionary<int, int> _handleIndex = new(); // handleId -> entries array index
+        private readonly ConcurrentDictionary<int, int> _handleIndex = new(); // handleId -> entries array index
 
         /// <summary>
         ///     The allocated entries
@@ -199,17 +200,39 @@ namespace Lanes
         /// <exception cref="InvalidOperationException">SlowLane: Invalid handle</exception>
         public void Free(MemoryHandle handle)
         {
-            if (!_handleIndex.TryGetValue(handle.Id, out var index))
-                throw new InvalidOperationException("SlowLane: Invalid handle");
+            if (!_handleIndex.TryRemove(handle.Id, out var index))
+                throw new InvalidOperationException($"SlowLane: Invalid handle {handle.Id}");
 
-            _handleIndex.Remove(handle.Id);
-
-            // Mark slot free, clear entry
             _entries[index] = default;
             _freeSlots.Push(index);
+            _freeIds.Push(handle.Id);
 
             EntryCount++;
-            _freeIds.Push(handle.Id);
+        }
+
+
+        /// <summary>
+        /// Frees the many.
+        /// </summary>
+        /// <param name="handles">The handles.</param>
+        /// <exception cref="System.InvalidOperationException">SlowLane: Invalid handle {handle.Id}</exception>
+        public void FreeMany(IEnumerable<MemoryHandle> handles)
+        {
+            int freedCount = 0;
+
+            foreach (var handle in handles)
+            {
+                if (!_handleIndex.TryRemove(handle.Id, out var index))
+                    throw new InvalidOperationException($"SlowLane: Invalid handle {handle.Id}");
+
+                _entries[index] = default;
+                _freeSlots.Push(index);
+                _freeIds.Push(handle.Id);
+
+                freedCount++;
+            }
+
+            EntryCount += freedCount;
         }
 
         /// <summary>

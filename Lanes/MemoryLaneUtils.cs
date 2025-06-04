@@ -7,13 +7,14 @@
  */
 
 #nullable enable
+using Core;
+using Core.MemoryArenaPrototype.Core;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using Core;
-using Core.MemoryArenaPrototype.Core;
 
 namespace Lanes
 {
@@ -301,7 +302,7 @@ namespace Lanes
         ///     <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
         /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool HasHandle(MemoryHandle handle, Dictionary<int, int> handleIndex)
+        internal static bool HasHandle(MemoryHandle handle, ConcurrentDictionary<int, int> handleIndex)
         {
             return handleIndex.ContainsKey(handle.Id);
         }
@@ -317,7 +318,7 @@ namespace Lanes
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static AllocationEntry GetEntry(MemoryHandle handle, Dictionary<int, int> handleIndex,
+        internal static AllocationEntry GetEntry(MemoryHandle handle, ConcurrentDictionary<int, int> handleIndex,
             AllocationEntry[] entries, string lane)
         {
             if (entries == null)
@@ -340,7 +341,7 @@ namespace Lanes
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int GetAllocationSize(MemoryHandle handle, Dictionary<int, int> handleIndex,
+        internal static int GetAllocationSize(MemoryHandle handle, ConcurrentDictionary<int, int> handleIndex,
             AllocationEntry[] entries, string lane)
         {
             if (entries == null)

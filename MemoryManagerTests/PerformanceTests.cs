@@ -112,6 +112,36 @@ namespace MemoryManagerTests
         }
 
         [TestMethod]
+        [TestCategory("RealWorld")]
+        public void DeterministicVsFinalizerSlowLaneTimingMassFree()
+        {
+            var sw = Stopwatch.StartNew();
+            var refs = new WeakReference[5000];
+
+            for (var i = 0; i < refs.Length; i++)
+                refs[i] = new WeakReference(new byte[1024 * 100]); // 100KB
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            sw.Stop();
+
+            Trace.WriteLine($"GC cleanup time: {sw.ElapsedMilliseconds} ms");
+
+            // SlowLane version
+            using var slowLane = new SlowLane(600 * 1024 * 1024);
+            var handles = new MemoryHandle[refs.Length];
+
+            sw.Restart();
+            for (var i = 0; i < refs.Length; i++)
+                handles[i] = slowLane.Allocate(100 * 1024);
+
+            slowLane.FreeMany(handles);
+            sw.Stop();
+
+            Trace.WriteLine($"SlowLane cleanup time: {sw.ElapsedMilliseconds} ms");
+        }
+
+        [TestMethod]
         [TestCategory("GCComparison")]
         public void ManagedVsUnmanagedPressure()
         {
@@ -174,6 +204,8 @@ namespace MemoryManagerTests
             stopwatch.Stop();
 
             Trace.WriteLine($"100 FastLane reuse cycles done in: {stopwatch.ElapsedMilliseconds} ms");
+
+            //TODO issue here is the Allocation Array must grow and that kills performance
 
             count = 1000;
 
