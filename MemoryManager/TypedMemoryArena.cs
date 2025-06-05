@@ -42,7 +42,7 @@ namespace MemoryManager
         /// <returns>A <see cref="MemoryHandle" /> referencing the allocated memory.</returns>
         public MemoryHandle Allocate<T>() where T : unmanaged
         {
-            var size = Marshal.SizeOf<T>();
+            int size = Unsafe.SizeOf<T>();
             return _arena.Allocate(size);
         }
 
@@ -54,7 +54,7 @@ namespace MemoryManager
         /// <returns>A <see cref="MemoryHandle" /> referencing the allocated memory.</returns>
         public MemoryHandle Allocate<T>(int count) where T : unmanaged
         {
-            var size = Marshal.SizeOf<T>() * count;
+            int size = Unsafe.SizeOf<T>() * count;
             return _arena.Allocate(size);
         }
 
