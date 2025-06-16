@@ -107,6 +107,7 @@ namespace Lanes
             EntryCount = 0;
             _handleIndex.Clear();
             _freeSlots.Clear();
+            _freeIds.Clear();
         }
 
         /// <summary>
@@ -211,7 +212,6 @@ namespace Lanes
 
             EntryCount++;
         }
-
 
         /// <summary>
         /// Frees the many.
