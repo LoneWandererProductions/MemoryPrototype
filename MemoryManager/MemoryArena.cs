@@ -6,6 +6,8 @@
  *              Mostly consists of FastLane, SlowLane, OnwayLane
  *              All configurable via Config and all internal actions are policy based.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
+ * SOURCES:     https://en.ittrip.xyz/c-sharp/custom-memory-allocator-csharp
+ *              https://blog.adamfurmanek.pl/2016/04/23/custom-memory-allocation-in-c-part-1/
  * REMARKS:     FastLane Policy
  *              When to Compact FastLane:
  *              Usage > 90% of FastLane and enough memory is wasted by stubs.
