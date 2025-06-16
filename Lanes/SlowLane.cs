@@ -189,7 +189,7 @@ namespace Lanes
                 throw new InvalidOperationException("SlowLane: Invalid handle");
 
             var entry = _entries[index];
-            if (entry.IsStub && entry.RedirectTo.HasValue)
+            if (entry.IsStub && !entry.RedirectTo.HasValue)
                 throw new InvalidOperationException("SlowLane: Cannot resolve stub entry without redirection");
 
             return Buffer + entry.Offset;
