@@ -49,6 +49,9 @@ namespace MemoryManagerTests
             Trace.WriteLine($"SlowLane fragmentation: {beforeFrag}% → {afterFrag}%");
         }
 
+        /// <summary>
+        /// Deterministics the vs finalizer fast lane timing.
+        /// </summary>
         [TestMethod]
         [TestCategory("RealWorld")]
         public void DeterministicVsFinalizerFastLaneTiming()

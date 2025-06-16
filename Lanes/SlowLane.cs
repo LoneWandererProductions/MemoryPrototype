@@ -14,7 +14,6 @@ using Core;
 using Core.MemoryArenaPrototype.Core;
 using ExtendedSystemObjects;
 using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -98,6 +97,7 @@ namespace Lanes
         /// </value>
         public int EntryCount { get; private set; }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
@@ -110,6 +110,7 @@ namespace Lanes
             _freeIds.Clear();
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Allocates the specified size.
         /// </summary>
@@ -119,7 +120,7 @@ namespace Lanes
         /// <param name="debugName">Name of the debug.</param>
         /// <param name="currentFrame">The current frame.</param>
         /// <returns>Allocated memory and a reference.</returns>
-        /// <exception cref="OutOfMemoryException">SlowLane: Cannot allocate</exception>
+        /// <exception cref="T:System.OutOfMemoryException">SlowLane: Cannot allocate</exception>
         public MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
@@ -159,6 +160,7 @@ namespace Lanes
             return new MemoryHandle(id, this);
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Determines whether this instance can allocate the specified size.
         /// </summary>
@@ -174,12 +176,13 @@ namespace Lanes
             return FindFreeSpot(size) != -1;
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Resolves the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <returns>Pointer to the stored data.</returns>
-        /// <exception cref="InvalidOperationException">
+        /// <exception cref="T:System.InvalidOperationException">
         ///     SlowLane: Invalid handle
         ///     or
         ///     SlowLane: Cannot resolve stub entry without redirection
@@ -196,11 +199,12 @@ namespace Lanes
             return Buffer + entry.Offset;
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Frees the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
-        /// <exception cref="InvalidOperationException">SlowLane: Invalid handle</exception>
+        /// <exception cref="T:System.InvalidOperationException">SlowLane: Invalid handle</exception>
         public void Free(MemoryHandle handle)
         {
             if (!_handleIndex.TryRemove(handle.Id, out var index))
@@ -220,7 +224,7 @@ namespace Lanes
         /// <exception cref="System.InvalidOperationException">SlowLane: Invalid handle {handle.Id}</exception>
         public void FreeMany(IEnumerable<MemoryHandle> handles)
         {
-            int freedCount = 0;
+            var freedCount = 0;
 
             foreach (var handle in handles)
             {
@@ -237,6 +241,7 @@ namespace Lanes
             EntryCount += freedCount;
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Compacts this instance.
         /// </summary>
@@ -291,6 +296,7 @@ namespace Lanes
             OnCompaction?.Invoke(nameof(SlowLane));
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Determines whether the specified handle has handle.
         /// </summary>
@@ -303,6 +309,7 @@ namespace Lanes
             return MemoryLaneUtils.HasHandle(handle, _handleIndex);
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Gets the entry.
         /// </summary>
@@ -313,6 +320,7 @@ namespace Lanes
             return MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(SlowLane));
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Gets the size of the allocation.
         /// </summary>
@@ -323,6 +331,7 @@ namespace Lanes
             return MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(SlowLane));
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Debugs the dump.
         /// </summary>

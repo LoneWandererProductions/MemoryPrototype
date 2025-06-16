@@ -99,6 +99,7 @@ namespace Lanes
         /// </value>
         public IntPtr Buffer { get; private set; }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
@@ -110,6 +111,7 @@ namespace Lanes
             _entries = null;
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Determines whether this instance can allocate the specified size.
         /// </summary>
@@ -129,6 +131,7 @@ namespace Lanes
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Allocates the specified size.
         /// </summary>
@@ -138,8 +141,8 @@ namespace Lanes
         /// <param name="debugName">Name of the debug.</param>
         /// <param name="currentFrame">The current frame.</param>
         /// <returns>Handler to the reserved memory.</returns>
-        /// <exception cref="InvalidOperationException">FastLane: Memory not reserved</exception>
-        /// <exception cref="OutOfMemoryException">FastLane: Not enough memory</exception>
+        /// <exception cref="T:System.InvalidOperationException">FastLane: Memory not reserved</exception>
+        /// <exception cref="T:System.OutOfMemoryException">FastLane: Not enough memory</exception>
         public MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
@@ -178,12 +181,13 @@ namespace Lanes
             return new MemoryHandle(id, this);
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Resolves the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <returns>Pointer to the Memory.</returns>
-        /// <exception cref="InvalidOperationException">
+        /// <exception cref="T:System.InvalidOperationException">
         ///     FastLane: Memory is corrupted.
         ///     or
         ///     FastLane: Invalid handle
@@ -206,11 +210,12 @@ namespace Lanes
             return Buffer + entry.Offset;
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Frees the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
-        /// <exception cref="InvalidOperationException">
+        /// <exception cref="T:System.InvalidOperationException">
         ///     FastLane: Memory is corrupted.
         ///     or
         ///     FastLane: Invalid handle
@@ -243,6 +248,7 @@ namespace Lanes
             _freeIds.Push(handle.Id);
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Compacts this instance.
         /// </summary>
@@ -259,11 +265,14 @@ namespace Lanes
 
                 if (!entry.IsStub)
                 {
-                    if (OneWayLane != null && ShouldMoveToSlowLane(entry))
+                    //TODO improve this one
+                    if (ShouldMoveToSlowLane(entry))
                     {
                         var fastHandle = new MemoryHandle(entry.HandleId, this);
 
+#pragma warning disable 8602
                         if (OneWayLane.MoveFromFastToSlow(fastHandle))
+#pragma warning restore 8602
                         {
                             entry.IsStub = true;
                             entry.Size = 0;
@@ -292,6 +301,7 @@ namespace Lanes
             OnCompaction?.Invoke(nameof(FastLane));
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Retrieves the full allocation entry metadata for a given handle.
         /// </summary>
@@ -304,6 +314,7 @@ namespace Lanes
             return MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(FastLane));
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Gets the size of the allocation.
         /// </summary>
@@ -314,6 +325,7 @@ namespace Lanes
             return MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(FastLane));
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Determines whether the specified handle has handle.
         /// </summary>

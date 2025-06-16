@@ -6,18 +6,23 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+// ReSharper disable UnusedMember.Global
+// ReSharper disable UnusedType.Global
+// ReSharper disable MemberCanBePrivate.Global
+
 using System;
 using System.Runtime.InteropServices;
 
 namespace ExtendedSystemObjects
 {
+    /// <inheritdoc />
     /// <summary>
     /// A high-performance list of integers backed by unmanaged memory.
     /// Supports fast adding, popping, and random access with minimal overhead.
     /// Designed for scenarios where manual memory management is needed.
     /// </summary>
-    /// <seealso cref="System.IDisposable" />
-    public unsafe class IntList : IDisposable
+    /// <seealso cref="T:System.IDisposable" />
+    public sealed unsafe class IntList : IDisposable
     {
         /// <summary>
         /// The buffer
@@ -83,6 +88,7 @@ namespace ExtendedSystemObjects
         {
             if (_count == 0)
                 throw new InvalidOperationException("Stack empty");
+
             return _ptr[--_count];
         }
 
@@ -95,6 +101,7 @@ namespace ExtendedSystemObjects
         {
             if (_count == 0)
                 throw new InvalidOperationException("Stack empty");
+
             return _ptr[_count - 1];
         }
 
@@ -131,7 +138,7 @@ namespace ExtendedSystemObjects
         {
             if (min <= _capacity) return;
 
-            int newCapacity = _capacity * 2;
+            var newCapacity = _capacity * 2;
             if (newCapacity < min)
                 newCapacity = min;
 

@@ -6,18 +6,22 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+// ReSharper disable UnusedMember.Global
+// ReSharper disable UnusedType.Global
+
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace ExtendedSystemObjects
 {
+    /// <inheritdoc />
     /// <summary>
     /// Represents a high-performance, low-overhead array of integers
     /// backed by unmanaged memory. Designed for performance-critical
     /// scenarios where garbage collection overhead must be avoided.
     /// </summary>
-    /// <seealso cref="System.IDisposable" />
+    /// <seealso cref="T:System.IDisposable" />
     public unsafe class IntArray : IDisposable
     {
         /// <summary>
@@ -87,9 +91,9 @@ namespace ExtendedSystemObjects
 #if DEBUG
             if (index < 0 || index >= _length) throw new IndexOutOfRangeException();
 #endif
-            int* ptr = (int*)_buffer;
+            var ptr = (int*)_buffer;
 
-            for (int i = index; i < _length - 1; i++)
+            for (var i = index; i < _length - 1; i++)
             {
                 ptr[i] = ptr[i + 1];
             }
@@ -114,8 +118,8 @@ namespace ExtendedSystemObjects
         /// </summary>
         public void Clear()
         {
-            int* ptr = (int*)_buffer;
-            for (int i = 0; i < _length; i++)
+            var ptr = (int*)_buffer;
+            for (var i = 0; i < _length; i++)
             {
                 ptr[i] = 0;
             }
