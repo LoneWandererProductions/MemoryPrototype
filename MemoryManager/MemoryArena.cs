@@ -171,7 +171,7 @@ namespace MemoryManager
         /// <summary>
         ///     Gets the specified handle.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="T">Generic Type</typeparam>
         /// <param name="handle">The handle.</param>
         /// <returns>Get handle to the type.</returns>
         public unsafe ref T Get<T>(MemoryHandle handle) where T : unmanaged
