@@ -12,6 +12,7 @@
 #nullable enable
 using Core;
 using Core.MemoryArenaPrototype.Core;
+using ExtendedSystemObjects;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -26,7 +27,7 @@ namespace Lanes
         /// <summary>
         ///     The free ids
         /// </summary>
-        private readonly Stack<int> _freeIds = new();
+        private readonly IntList _freeIds = new(128);
 
         /// <summary>
         ///     The handle index

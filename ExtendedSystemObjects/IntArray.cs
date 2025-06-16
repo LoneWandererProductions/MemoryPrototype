@@ -2,7 +2,7 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     ExtendedSystemObjects
  * FILE:        ExtendedSystemObjects/IntArray.cs
- * PURPOSE:     A high-performance array implementation with reduced features.
+ * PURPOSE:     A high-performance array implementation with reduced features. Limited to integer Values.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
@@ -30,6 +30,9 @@ namespace ExtendedSystemObjects
         /// </summary>
         private int _length;
 
+        /// <summary>
+        /// The pointer
+        /// </summary>
         private int* _ptr;
 
         /// <summary>
@@ -123,6 +126,14 @@ namespace ExtendedSystemObjects
         /// </summary>
         /// <returns>A <see cref="Span{Int32}"/> over the internal buffer.</returns>
         public Span<int> AsSpan() => new((void*)_buffer, _length);
+
+        /// <summary>
+        /// Finalizes an instance of the <see cref="IntArray"/> class.
+        /// </summary>
+        ~IntArray()
+        {
+            Dispose();
+        }
 
         /// <summary>
         /// Frees the unmanaged memory held by the array.

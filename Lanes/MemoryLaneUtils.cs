@@ -9,6 +9,7 @@
 #nullable enable
 using Core;
 using Core.MemoryArenaPrototype.Core;
+using ExtendedSystemObjects;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -234,7 +235,7 @@ namespace Lanes
         /// <param name="nextHandleId">The next handle identifier.</param>
         /// <returns>First free next Id for Handler.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int GetNextId(Stack<int> freeIds, ref int nextHandleId)
+        internal static int GetNextId(IntList freeIds, ref int nextHandleId)
         {
             if (freeIds.Count > 0)
                 return freeIds.Pop();
