@@ -133,7 +133,7 @@ namespace Lanes
 
             //TODO  Optimize
             var offset = FindFreeSpot(size);
-            var slotIndex = _freeSlots.Count > 0 ? _freeSlots.Pop() : EntryCount++;
+            var slotIndex = _freeSlots.Length > 0 ? _freeSlots.Pop() : EntryCount++;
             EnsureEntryCapacity(slotIndex);
 
             //So we reuse freed handles here

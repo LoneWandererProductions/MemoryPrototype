@@ -237,7 +237,7 @@ namespace Lanes
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int GetNextId(IntList freeIds, ref int nextHandleId)
         {
-            if (freeIds.Count > 0)
+            if (freeIds.Length > 0)
                 return freeIds.Pop();
 
             return nextHandleId >= 0 ? nextHandleId++ : nextHandleId--;
