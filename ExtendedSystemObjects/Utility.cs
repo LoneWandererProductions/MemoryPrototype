@@ -88,6 +88,57 @@ namespace ExtendedSystemObjects
         }
 
         /// <summary>
+        ///     Performs binary search on a sorted span of integers.
+        /// </summary>
+        /// <param name="sortedKeys">The sorted span of integers.</param>
+        /// <param name="target">The value to search for.</param>
+        /// <returns>
+        ///     Index of the element if found; otherwise, the bitwise complement of the insertion index.
+        /// </returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int BinarySearch(ReadOnlySpan<int> sortedKeys, int target)
+        {
+            return BinarySearch(sortedKeys, sortedKeys.Length, target);
+        }
+
+        /// <summary>
+        ///     Internal binary search method using a specified count of elements.
+        /// </summary>
+        /// <param name="sortedKeys">The sorted span of integers.</param>
+        /// <param name="count">The number of elements to consider from the start of the span.</param>
+        /// <param name="target">The value to search for.</param>
+        /// <returns>
+        ///     Index of the element if found; otherwise, the bitwise complement of the insertion index.
+        /// </returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static int BinarySearch(ReadOnlySpan<int> sortedKeys, int count, int target)
+        {
+            int left = 0, right = count - 1;
+
+            while (left <= right)
+            {
+                var mid = left + ((right - left) >> 1);
+                var midKey = sortedKeys[mid];
+
+                if (midKey == target)
+                {
+                    return mid;
+                }
+
+                if (midKey < target)
+                {
+                    left = mid + 1;
+                }
+                else
+                {
+                    right = mid - 1;
+                }
+            }
+
+            return ~left;
+        }
+
+        /// <summary>
         ///     Gets the next element.
         /// </summary>
         /// <param name="position">The position.</param>
@@ -256,7 +307,9 @@ namespace ExtendedSystemObjects
         public static List<KeyValuePair<int, int>> Sequencer(List<int> numbers, int stepWidth, int sequenceLength)
         {
             if (numbers == null || numbers.Count == 0 || sequenceLength <= 1)
+            {
                 return null;
+            }
 
             numbers.Sort();
             var numberSet = new HashSet<int>(numbers);
@@ -267,10 +320,12 @@ namespace ExtendedSystemObjects
             foreach (var num in numbers)
             {
                 if (visited.Contains(num))
+                {
                     continue;
+                }
 
-                int current = num;
-                int streak = 1;
+                var current = num;
+                var streak = 1;
 
                 // Try to build sequence by jumping stepWidth repeatedly
                 while (numberSet.Contains(current + stepWidth))
@@ -284,8 +339,10 @@ namespace ExtendedSystemObjects
                     result.Add(new KeyValuePair<int, int>(num, current));
 
                     // Mark all in this sequence as visited to avoid duplicates
-                    for (int val = num; val <= current; val += stepWidth)
+                    for (var val = num; val <= current; val += stepWidth)
+                    {
                         visited.Add(val);
+                    }
                 }
             }
 

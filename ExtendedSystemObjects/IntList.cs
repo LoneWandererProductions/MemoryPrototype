@@ -13,6 +13,7 @@
 
 using System;
 using System.Runtime.InteropServices;
+using ExtendedSystemObjects.Interfaces;
 
 namespace ExtendedSystemObjects
 {
@@ -23,7 +24,7 @@ namespace ExtendedSystemObjects
     ///     Designed for scenarios where manual memory management is needed.
     /// </summary>
     /// <seealso cref="T:System.IDisposable" />
-    public sealed unsafe class IntList : IDisposable
+    public sealed unsafe class IntList : IUnmanagedArray<int>
     {
         /// <summary>
         ///     The buffer
@@ -34,6 +35,11 @@ namespace ExtendedSystemObjects
         ///     The capacity
         /// </summary>
         private int _capacity;
+
+        /// <summary>
+        ///     The disposed
+        /// </summary>
+        private bool _disposed;
 
         /// <summary>
         ///     Pointer to the unmanaged buffer holding the integer elements.
@@ -54,7 +60,7 @@ namespace ExtendedSystemObjects
         /// <summary>
         ///     Gets the number of elements contained in the <see cref="IntList" />.
         /// </summary>
-        public int Count { get; private set; }
+        public int Length { get; private set; }
 
         /// <summary>
         ///     Gets or sets the element at the specified index.
@@ -67,7 +73,7 @@ namespace ExtendedSystemObjects
             get
             {
 #if DEBUG
-                if (i < 0 || i >= Count)
+                if (i < 0 || i >= Length)
                 {
                     throw new IndexOutOfRangeException();
                 }
@@ -77,12 +83,63 @@ namespace ExtendedSystemObjects
             set
             {
 #if DEBUG
-                if (i < 0 || i >= Count)
+                if (i < 0 || i >= Length)
                 {
                     throw new IndexOutOfRangeException();
                 }
 #endif
                 _ptr[i] = value;
+            }
+        }
+
+        /// <summary>
+        ///     Removes at.
+        /// </summary>
+        /// <param name="index">The index.</param>
+        /// <exception cref="System.ArgumentOutOfRangeException">index</exception>
+        public void RemoveAt(int index)
+        {
+#if DEBUG
+            if (index < 0 || index >= Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+#endif
+            if (index < Length - 1)
+            {
+                Buffer.MemoryCopy(_ptr + index + 1, _ptr + index, (Length - index - 1) * sizeof(int),
+                    (Length - index - 1) * sizeof(int));
+            }
+
+            Length--;
+        }
+
+        /// <summary>
+        ///     Resizes the specified new size.
+        /// </summary>
+        /// <param name="newSize">The new size.</param>
+        /// <exception cref="System.ArgumentOutOfRangeException">newSize</exception>
+        public void Resize(int newSize)
+        {
+            if (newSize < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(newSize));
+            }
+
+            EnsureCapacity(newSize);
+            Length = newSize;
+        }
+
+        /// <summary>
+        ///     Removes all elements from the list. The capacity remains unchanged.
+        /// </summary>
+        public void Clear()
+        {
+            Length = 0;
+
+            for (var i = 0; i < Length; i++)
+            {
+                _ptr[i] = 0;
             }
         }
 
@@ -93,14 +150,8 @@ namespace ExtendedSystemObjects
         /// </summary>
         public void Dispose()
         {
-            if (_buffer != IntPtr.Zero)
-            {
-                Marshal.FreeHGlobal(_buffer);
-                _buffer = IntPtr.Zero;
-            }
-
-            Count = 0;
-            _capacity = 0;
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
         /// <summary>
@@ -118,8 +169,8 @@ namespace ExtendedSystemObjects
         /// <param name="value">The integer value to add.</param>
         public void Add(int value)
         {
-            EnsureCapacity(Count + 1);
-            _ptr[Count++] = value;
+            EnsureCapacity(Length + 1);
+            _ptr[Length++] = value;
         }
 
         /// <summary>
@@ -129,12 +180,12 @@ namespace ExtendedSystemObjects
         /// <exception cref="InvalidOperationException">Thrown when the list is empty.</exception>
         public int Pop()
         {
-            if (Count == 0)
+            if (Length == 0)
             {
                 throw new InvalidOperationException("Stack empty");
             }
 
-            return _ptr[--Count];
+            return _ptr[--Length];
         }
 
         /// <summary>
@@ -144,12 +195,98 @@ namespace ExtendedSystemObjects
         /// <exception cref="InvalidOperationException">Thrown when the list is empty.</exception>
         public int Peek()
         {
-            if (Count == 0)
+            if (Length == 0)
             {
                 throw new InvalidOperationException("Stack empty");
             }
 
-            return _ptr[Count - 1];
+            return _ptr[Length - 1];
+        }
+
+        /// <summary>
+        ///     Inserts at.
+        /// </summary>
+        /// <param name="index">The index.</param>
+        /// <param name="value">The value.</param>
+        /// <param name="count">The count.</param>
+        /// <exception cref="System.ArgumentOutOfRangeException">index</exception>
+        public void InsertAt(int index, int value, int count = 1)
+        {
+#if DEBUG
+            if (index < 0 || index > Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+#endif
+            if (count <= 0)
+            {
+                return;
+            }
+
+            EnsureCapacity(Length + count);
+
+            // Shift elements to the right
+            Buffer.MemoryCopy(_ptr + index, _ptr + index + count, (_capacity - index - count) * sizeof(int),
+                (Length - index) * sizeof(int));
+
+            // Fill with value
+            for (var i = 0; i < count; i++)
+            {
+                _ptr[index + i] = value;
+            }
+
+            Length += count;
+        }
+
+        /// <summary>
+        ///     Returns a span over the valid elements of the list.
+        ///     Allows fast, safe access to the underlying data.
+        /// </summary>
+        /// <returns>A <see cref="Span{Int32}" /> representing the list's contents.</returns>
+        public Span<int> AsSpan()
+        {
+            return new Span<int>((void*)_buffer, Length);
+        }
+
+        /// <summary>
+        ///     Finalizes an instance of the <see cref="IntList" /> class, releasing unmanaged resources.
+        /// </summary>
+        ~IntList()
+        {
+            Dispose(false);
+        }
+
+        /// <summary>
+        ///     Releases unmanaged and - optionally - managed resources.
+        /// </summary>
+        /// <param name="disposing">
+        ///     <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only
+        ///     unmanaged resources.
+        /// </param>
+        private void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            // Free unmanaged resources
+            if (_buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(_buffer);
+                _buffer = IntPtr.Zero;
+                _ptr = null;
+                _capacity = 0;
+                Length = 0;
+            }
+
+            // If you had managed disposable members and disposing is true,
+            // dispose them here. None exist for now.
+
+            _disposed = true; // Always set to true after dispose
+
+            // Suppress unused parameter warning
+            _ = disposing;
         }
 
         /// <summary>
@@ -173,32 +310,6 @@ namespace ExtendedSystemObjects
             _buffer = Marshal.ReAllocHGlobal(_buffer, (IntPtr)(newCapacity * sizeof(int)));
             _ptr = (int*)_buffer;
             _capacity = newCapacity;
-        }
-
-        /// <summary>
-        ///     Removes all elements from the list. The capacity remains unchanged.
-        /// </summary>
-        public void Clear()
-        {
-            Count = 0;
-        }
-
-        /// <summary>
-        ///     Returns a span over the valid elements of the list.
-        ///     Allows fast, safe access to the underlying data.
-        /// </summary>
-        /// <returns>A <see cref="Span{Int32}" /> representing the list's contents.</returns>
-        public Span<int> AsSpan()
-        {
-            return new((void*)_buffer, Count);
-        }
-
-        /// <summary>
-        ///     Finalizes an instance of the <see cref="IntList" /> class, releasing unmanaged resources.
-        /// </summary>
-        ~IntList()
-        {
-            Dispose();
         }
     }
 }

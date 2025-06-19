@@ -1,74 +1,151 @@
-﻿using System;
+﻿/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     ExtendedSystemObjects
+ * FILE:        ExtendedSystemObjects/IUnmanagedArray.cs
+ * PURPOSE:     A high-performance array implementation with reduced features. Limited to unmanaged Types, very similiar to IntArray.
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
+ */
+
+// ReSharper disable MemberCanBeInternal
+// ReSharper disable UnusedMember.Global
+// ReSharper disable MemberCanBePrivate.Global
+
+using System;
 using System.Runtime.InteropServices;
+using ExtendedSystemObjects.Interfaces;
 
 namespace ExtendedSystemObjects
 {
+    /// <inheritdoc cref="IDisposable" />
     /// <summary>
-    /// Unsafe array
+    ///     Unsafe array
     /// </summary>
     /// <typeparam name="T">Generic Type, must be unmanaged</typeparam>
-    /// <seealso cref="System.IDisposable" />
-    public unsafe class UnmanagedArray<T> : IUnmanagedArray<T>, IDisposable where T : unmanaged
+    /// <seealso cref="T:System.IDisposable" />
+    public sealed unsafe class UnmanagedArray<T> : IUnmanagedArray<T> where T : unmanaged
     {
+        /// <summary>
+        ///     The buffer
+        /// </summary>
         private IntPtr _buffer;
-        private T* _ptr;
-        private int _length;
-
-        public int Length => _length;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="UnmanagedArray{T}"/> class.
+        ///     The capacity
+        /// </summary>
+        private int _capacity;
+
+        /// <summary>
+        ///     The disposed
+        /// </summary>
+        private bool _disposed;
+
+        /// <summary>
+        ///     The pointer
+        /// </summary>
+        private T* _ptr;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="UnmanagedArray{T}" /> class.
         /// </summary>
         /// <param name="size">The size.</param>
         public UnmanagedArray(int size)
         {
-            _length = size;
+            _capacity = size;
+            Length = size;
             _buffer = Marshal.AllocHGlobal(size * sizeof(T));
             _ptr = (T*)_buffer;
+            Clear();
         }
 
         /// <summary>
-        /// Gets or sets the <see cref="T"/> at the specified index.
+        ///     Gets the length.
         /// </summary>
         /// <value>
-        /// The <see cref="T"/>.
+        ///     The length.
+        /// </value>
+        public int Length { get; private set; }
+
+        /// <inheritdoc />
+        /// <summary>
+        ///     Gets or sets the <see cref="!:T" /> at the specified index.
+        /// </summary>
+        /// <value>
+        ///     The <see cref="!:T" />.
         /// </value>
         /// <param name="index">The index.</param>
         /// <returns>The value at the specified index.</returns>
-        /// <exception cref="System.IndexOutOfRangeException"></exception>
+        /// <exception cref="T:System.IndexOutOfRangeException"></exception>
         public T this[int index]
         {
             get
             {
 #if DEBUG
-                if (index < 0 || index >= _length) throw new IndexOutOfRangeException();
+                if (index < 0 || index >= Length)
+                {
+                    throw new IndexOutOfRangeException();
+                }
 #endif
                 return _ptr[index];
             }
             set
             {
 #if DEBUG
-                if (index < 0 || index >= _length) throw new IndexOutOfRangeException();
+                if (index < 0 || index >= Length)
+                {
+                    throw new IndexOutOfRangeException();
+                }
 #endif
                 _ptr[index] = value;
             }
         }
 
-
+        /// <inheritdoc />
         /// <summary>
-        /// Resizes the internal array to the specified new size.
-        /// Contents will be preserved up to the minimum of old and new size.
+        ///     Removes at.
+        /// </summary>
+        /// <param name="index">The index.</param>
+        /// <exception cref="T:System.ArgumentOutOfRangeException">index</exception>
+        public void RemoveAt(int index)
+        {
+            if (index < 0 || index >= Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            var elementsToShift = Length - index - 1;
+            if (elementsToShift > 0)
+            {
+                // Shift elements left by one to overwrite removed item
+                Buffer.MemoryCopy(
+                    _ptr + index + 1,
+                    _ptr + index,
+                    (_capacity - index - 1) * sizeof(T),
+                    elementsToShift * sizeof(T));
+            }
+
+            Length--;
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        ///     Resizes the internal array to the specified new size.
+        ///     Contents will be preserved up to the minimum of old and new size.
         /// </summary>
         /// <param name="newSize">The new size of the array.</param>
         public void Resize(int newSize)
         {
             _buffer = Marshal.ReAllocHGlobal(_buffer, (IntPtr)(newSize * sizeof(T)));
             _ptr = (T*)_buffer;
-            _length = newSize;
+            _capacity = newSize;
+            if (Length > newSize)
+            {
+                Length = newSize;
+            }
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Clears the array by setting all elements to zero.
+        ///     Clears the array by setting all elements to zero.
         /// </summary>
         public void Clear()
         {
@@ -76,17 +153,131 @@ namespace ExtendedSystemObjects
             AsSpan().Clear();
         }
 
-        public Span<T> AsSpan() => new Span<T>(_ptr, _length);
-
+        /// <inheritdoc />
+        /// <summary>
+        ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
         public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        ///     Inserts at.
+        /// </summary>
+        /// <param name="index">The index.</param>
+        /// <param name="value">The value.</param>
+        /// <param name="count">The count.</param>
+        /// <exception cref="System.ArgumentOutOfRangeException">
+        ///     index
+        ///     or
+        ///     count
+        /// </exception>
+        public void InsertAt(int index, T value, int count = 1)
+        {
+            if (index < 0 || index > Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count));
+            }
+
+            if (count == 0)
+            {
+                return;
+            }
+
+            EnsureCapacity(Length + count);
+
+            var elementsToShift = Length - index;
+            if (elementsToShift > 0)
+            {
+                // Shift existing elements right by 'count'
+                Buffer.MemoryCopy(
+                    _ptr + index,
+                    _ptr + index + count,
+                    (_capacity - index - count) * sizeof(T),
+                    elementsToShift * sizeof(T));
+            }
+
+            // Fill inserted region with 'value'
+            for (var i = 0; i < count; i++)
+            {
+                _ptr[index + i] = value;
+            }
+
+            Length += count;
+        }
+
+        /// <summary>
+        ///     Ensures the capacity.
+        /// </summary>
+        /// <param name="minCapacity">The minimum capacity.</param>
+        public void EnsureCapacity(int minCapacity)
+        {
+            if (minCapacity <= _capacity)
+            {
+                return;
+            }
+
+            var newCapacity = _capacity == 0 ? 4 : _capacity;
+            while (newCapacity < minCapacity)
+            {
+                newCapacity *= 2;
+            }
+
+            Resize(newCapacity);
+        }
+
+        /// <summary>
+        ///     Access the span.
+        /// </summary>
+        /// <returns>Return all Values as Span</returns>
+        public Span<T> AsSpan()
+        {
+            return new Span<T>(_ptr, Length);
+        }
+
+        /// <summary>
+        ///     Finalizes an instance of the <see cref="UnmanagedArray{T}" /> class.
+        /// </summary>
+        ~UnmanagedArray()
+        {
+            Dispose(false);
+        }
+
+        /// <summary>
+        ///     Releases unmanaged and - optionally - managed resources.
+        /// </summary>
+        /// <param name="disposing">
+        ///     <c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only
+        ///     unmanaged resources.
+        /// </param>
+        private void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            // Only unmanaged cleanup here.
             if (_buffer != IntPtr.Zero)
             {
                 Marshal.FreeHGlobal(_buffer);
                 _buffer = IntPtr.Zero;
                 _ptr = null;
-                _length = 0;
+                Length = 0;
+                _capacity = 0;
             }
+
+            _disposed = true;
+
+            // 'disposing' parameter unused but required by pattern.
+            _ = disposing;
         }
     }
 }
