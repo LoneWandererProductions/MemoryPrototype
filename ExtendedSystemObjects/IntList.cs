@@ -12,19 +12,22 @@
 // ReSharper disable MemberCanBeInternal
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using ExtendedSystemObjects.Helper;
 using ExtendedSystemObjects.Interfaces;
 
 namespace ExtendedSystemObjects
 {
-    /// <inheritdoc />
+    /// <inheritdoc cref="IUnmanagedArray" />
     /// <summary>
     ///     A high-performance list of integers backed by unmanaged memory.
     ///     Supports fast adding, popping, and random access with minimal overhead.
     ///     Designed for scenarios where manual memory management is needed.
     /// </summary>
     /// <seealso cref="T:System.IDisposable" />
-    public sealed unsafe class IntList : IUnmanagedArray<int>
+    public sealed unsafe class IntList : IUnmanagedArray<int>, IEnumerable<int>
     {
         /// <summary>
         ///     The buffer
@@ -57,11 +60,13 @@ namespace ExtendedSystemObjects
             _ptr = (int*)_buffer;
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Gets the number of elements contained in the <see cref="IntList" />.
         /// </summary>
         public int Length { get; private set; }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Gets or sets the element at the specified index.
         /// </summary>
@@ -92,6 +97,7 @@ namespace ExtendedSystemObjects
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Removes at.
         /// </summary>
@@ -114,6 +120,31 @@ namespace ExtendedSystemObjects
             Length--;
         }
 
+        /// <inheritdoc />
+        /// <summary>
+        /// Returns an enumerator that iterates through the collection.
+        /// </summary>
+        /// <returns>
+        /// An enumerator that can be used to iterate through the collection.
+        /// </returns>
+        public IEnumerator<int> GetEnumerator()
+        {
+            return new Enumerator<int>(_ptr, Length);
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        /// Returns an enumerator that iterates through a collection.
+        /// </summary>
+        /// <returns>
+        /// An <see cref="T:System.Collections.IEnumerator" /> object that can be used to iterate through the collection.
+        /// </returns>
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        /// <inheritdoc />
         /// <summary>
         ///     Resizes the specified new size.
         /// </summary>
@@ -130,6 +161,7 @@ namespace ExtendedSystemObjects
             Length = newSize;
         }
 
+        /// <inheritdoc />
         /// <summary>
         ///     Removes all elements from the list. The capacity remains unchanged.
         /// </summary>
@@ -245,7 +277,7 @@ namespace ExtendedSystemObjects
         /// <returns>A <see cref="Span{Int32}" /> representing the list's contents.</returns>
         public Span<int> AsSpan()
         {
-            return new Span<int>((void*)_buffer, Length);
+            return new((void*)_buffer, Length);
         }
 
         /// <summary>

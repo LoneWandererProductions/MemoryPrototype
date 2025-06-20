@@ -11,7 +11,10 @@
 // ReSharper disable MemberCanBePrivate.Global
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using ExtendedSystemObjects.Helper;
 using ExtendedSystemObjects.Interfaces;
 
 namespace ExtendedSystemObjects
@@ -22,7 +25,7 @@ namespace ExtendedSystemObjects
     /// </summary>
     /// <typeparam name="T">Generic Type, must be unmanaged</typeparam>
     /// <seealso cref="T:System.IDisposable" />
-    public sealed unsafe class UnmanagedArray<T> : IUnmanagedArray<T> where T : unmanaged
+    public sealed unsafe class UnmanagedArray<T> : IUnmanagedArray<T>, IEnumerable<T> where T : unmanaged
     {
         /// <summary>
         ///     The buffer
@@ -56,7 +59,8 @@ namespace ExtendedSystemObjects
             _ptr = (T*)_buffer;
             Clear();
         }
-
+        /// <inheritdoc />
+        /// <inheritdoc />
         /// <summary>
         ///     Gets the length.
         /// </summary>
@@ -124,6 +128,30 @@ namespace ExtendedSystemObjects
             }
 
             Length--;
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        /// Returns an enumerator that iterates through the collection.
+        /// </summary>
+        /// <returns>
+        /// An enumerator that can be used to iterate through the collection.
+        /// </returns>
+        public IEnumerator<T> GetEnumerator()
+        {
+            return new Enumerator<T>(_ptr, Length);
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        /// Returns an enumerator that iterates through a collection.
+        /// </summary>
+        /// <returns>
+        /// An <see cref="T:System.Collections.IEnumerator" /> object that can be used to iterate through the collection.
+        /// </returns>
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
 
         /// <inheritdoc />
@@ -239,7 +267,7 @@ namespace ExtendedSystemObjects
         /// <returns>Return all Values as Span</returns>
         public Span<T> AsSpan()
         {
-            return new Span<T>(_ptr, Length);
+            return new(_ptr, Length);
         }
 
         /// <summary>

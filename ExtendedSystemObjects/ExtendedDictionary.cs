@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using ExtendedSystemObjects.Helper;
 using ExtendedSystemObjects.Interfaces;
 
 namespace ExtendedSystemObjects
@@ -21,7 +22,6 @@ namespace ExtendedSystemObjects
     ///     The dictionary extensions class.
     /// </summary>
     public static class DictionaryExtensions
-
     {
         /// <summary>
         ///     Adds the specified key to the Value, that is a list.

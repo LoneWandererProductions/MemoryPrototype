@@ -9,8 +9,11 @@
 // ReSharper disable MemberCanBeInternal
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using ExtendedSystemObjects.Helper;
 using ExtendedSystemObjects.Interfaces;
 
 namespace ExtendedSystemObjects
@@ -21,7 +24,7 @@ namespace ExtendedSystemObjects
     ///     backed by unmanaged memory. Designed for performance-critical
     ///     scenarios where garbage collection overhead must be avoided.
     /// </summary>
-    public sealed unsafe class IntArray : IUnmanagedArray<int>
+    public sealed unsafe class IntArray : IUnmanagedArray<int>, IEnumerable<int>
     {
         /// <summary>
         ///     The buffer
@@ -56,7 +59,7 @@ namespace ExtendedSystemObjects
         /// <summary>
         ///     Gets the current allocated capacity.
         /// </summary>
-        private int Capacity { get; set; }
+        public int Capacity { get; set; }
 
         /// <inheritdoc />
         /// <summary>
@@ -137,6 +140,29 @@ namespace ExtendedSystemObjects
             }
         }
 
+        /// <inheritdoc />
+        /// <summary>
+        /// Returns an enumerator that iterates through the collection.
+        /// </summary>
+        /// <returns>
+        /// An enumerator that can be used to iterate through the collection.
+        /// </returns>
+        public IEnumerator<int> GetEnumerator()
+        {
+            return new Enumerator<int>(_ptr, Length);
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        /// Returns an enumerator that iterates through a collection.
+        /// </summary>
+        /// <returns>
+        /// An <see cref="T:System.Collections.IEnumerator" /> object that can be used to iterate through the collection.
+        /// </returns>
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
 
         /// <inheritdoc />
         /// <summary>
@@ -285,7 +311,7 @@ namespace ExtendedSystemObjects
         /// </summary>
         public Span<int> AsSpan()
         {
-            return new Span<int>(_ptr, Length);
+            return new(_ptr, Length);
         }
 
         /// <summary>
