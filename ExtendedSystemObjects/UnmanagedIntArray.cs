@@ -1,7 +1,7 @@
 ﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     ExtendedSystemObjects
- * FILE:        ExtendedSystemObjects/IntArray.cs
+ * FILE:        ExtendedSystemObjects/UnmanagedIntArray.cs
  * PURPOSE:     A high-performance array implementation with reduced features. Limited to integer Values.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
@@ -11,6 +11,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ExtendedSystemObjects.Helper;
@@ -24,7 +25,7 @@ namespace ExtendedSystemObjects
     ///     backed by unmanaged memory. Designed for performance-critical
     ///     scenarios where garbage collection overhead must be avoided.
     /// </summary>
-    public sealed unsafe class IntArray : IUnmanagedArray<int>, IEnumerable<int>
+    public sealed unsafe class UnmanagedIntArray : IUnmanagedArray<int>, IEnumerable<int>
     {
         /// <summary>
         ///     The buffer
@@ -37,10 +38,17 @@ namespace ExtendedSystemObjects
         private int* _ptr;
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="IntArray" /> class with the specified size.
+        ///     Check if we disposed the object
+        /// </summary>
+        private bool _disposed;
+
+        private static bool UseSimd => Vector.IsHardwareAccelerated;
+
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="UnmanagedIntArray" /> class with the specified size.
         /// </summary>
         /// <param name="size">The number of elements to allocate.</param>
-        public IntArray(int size)
+        public UnmanagedIntArray(int size)
         {
             if (size < 0)
             {
@@ -101,6 +109,54 @@ namespace ExtendedSystemObjects
 #endif
                 _ptr[i] = value;
             }
+        }
+
+        /// <summary>
+        /// Indexes the of.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns>Value at the index.</returns>
+        public int IndexOf(int value)
+        {
+            var span = AsSpan();
+            var vectorSize = Vector<int>.Count;
+
+            if (UseSimd && span.Length >= vectorSize)
+            {
+                var vTarget = new Vector<int>(value);
+                var i = 0;
+
+                for (; i <= span.Length - vectorSize; i += vectorSize)
+                {
+                    var vData = new Vector<int>(span.Slice(i, vectorSize));
+                    var vCmp = Vector.Equals(vData, vTarget);
+
+                    if (Vector.EqualsAll(vCmp, Vector<int>.Zero)) continue;
+
+                    for (var j = 0; j < vectorSize; j++)
+                    {
+                        if (vCmp[j] != 0)
+                            return i + j;
+                    }
+                }
+
+                // Scalar fallback
+                for (; i < span.Length; i++)
+                {
+                    if (span[i] == value)
+                        return i;
+                }
+
+                return -1;
+            }
+
+            for (var i = 0; i < span.Length; i++)
+            {
+                if (span[i] == value)
+                    return i;
+            }
+
+            return -1;
         }
 
         /// <inheritdoc />
@@ -166,32 +222,12 @@ namespace ExtendedSystemObjects
 
         /// <inheritdoc />
         /// <summary>
-        ///     Clears all elements to zero.
+        ///     Clears the array by setting all elements to zero.
         /// </summary>
         public void Clear()
         {
-            for (var i = 0; i < Length; i++)
-            {
-                _ptr[i] = 0;
-            }
-        }
-
-        /// <inheritdoc />
-        /// <summary>
-        ///     Frees unmanaged memory.
-        /// </summary>
-        public void Dispose()
-        {
-            if (_buffer != IntPtr.Zero)
-            {
-                Marshal.FreeHGlobal(_buffer);
-                _buffer = IntPtr.Zero;
-                _ptr = null;
-                Length = 0;
-                Capacity = 0;
-            }
-
-            GC.SuppressFinalize(this);
+            // Use Span<T>.Clear for safety and type correctness
+            AsSpan().Clear();
         }
 
         /// <inheritdoc />
@@ -326,6 +362,7 @@ namespace ExtendedSystemObjects
             }
 
             var newCapacity = Capacity == 0 ? 4 : Capacity;
+
             while (newCapacity < minCapacity)
             {
                 newCapacity *= 2;
@@ -335,11 +372,49 @@ namespace ExtendedSystemObjects
         }
 
         /// <summary>
-        ///     Finalizes an instance of the <see cref="IntArray" /> class.
+        ///     Finalizes an instance of the <see cref="UnmanagedIntArray" /> class.
         /// </summary>
-        ~IntArray()
+        ~UnmanagedIntArray()
         {
-            Dispose();
+            Dispose(false);
         }
+
+
+        /// <inheritdoc />
+        /// <summary>
+        ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        ///     Frees unmanaged memory.
+        /// </summary>
+        private void Dispose(bool disposing)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(_buffer);
+                _buffer = IntPtr.Zero;
+                _ptr = null;
+                Length = 0;
+                Capacity = 0;
+            }
+
+            _disposed = true;
+
+            // 'disposing' parameter unused but required by pattern.
+            _ = disposing;
+        }
+
     }
 }

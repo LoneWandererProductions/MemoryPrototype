@@ -349,7 +349,7 @@ namespace ExtendedSystemObjects
         /// <returns>All active elements as Key Value pair.</returns>
         public IEnumerator<KeyValuePair<int, int>> GetEnumerator()
         {
-            for (int i = 0; i < Count; i++)
+            for (var i = 0; i < Count; i++)
             {
                 if (_occupied[i] != 0)
                 {

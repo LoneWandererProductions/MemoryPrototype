@@ -13,6 +13,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using ExtendedSystemObjects.Helper;
 
 namespace ExtendedSystemObjects
 {
@@ -23,15 +24,6 @@ namespace ExtendedSystemObjects
     public sealed class ImmutableLookupMap<TKey, TValue> : IEnumerable<KeyValuePair<TKey, TValue>>
         where TKey : struct, IEquatable<TKey>
     {
-        /// <summary>
-        ///     The small primes
-        /// </summary>
-        private static readonly int[] SmallPrimes =
-        {
-            2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101,
-            103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199
-        };
-
         /// <summary>
         ///     The key presence
         /// </summary>
@@ -84,7 +76,7 @@ namespace ExtendedSystemObjects
 
                     if (_keys[hash].Equals(key))
                     {
-                        throw new InvalidOperationException($"Duplicate key detected: {key}");
+                        throw new InvalidOperationException(string.Format(SharedResources.ErrorDuplicateKey, key));
                     }
                 }
             }
@@ -92,8 +84,9 @@ namespace ExtendedSystemObjects
 
         /// <inheritdoc />
         /// <summary>
-        ///     Returns an enumerator for iterating over the key-value pairs in the map.
+        /// Returns an enumerator that iterates through the key-value pairs in the map.
         /// </summary>
+        /// <returns>An enumerator for the map.</returns>
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
             for (var i = 0; i < _keys.Length; i++)
@@ -118,11 +111,11 @@ namespace ExtendedSystemObjects
         }
 
         /// <summary>
-        ///     Retrieves the value associated with the specified key.
+        /// Gets the value associated with the specified key.
         /// </summary>
-        /// <param name="key">The key.</param>
-        /// <returns></returns>
-        /// <exception cref="KeyNotFoundException">The key {key} was not found in the lookup map.</exception>
+        /// <param name="key">The key to lookup.</param>
+        /// <returns>The value associated with the key.</returns>
+        /// <exception cref="KeyNotFoundException">Thrown if the key is not found in the map.</exception>
         public TValue Get(TKey key)
         {
             var hash = GetHash(key, _keys.Length);
@@ -142,15 +135,15 @@ namespace ExtendedSystemObjects
                 }
             }
 
-            throw new KeyNotFoundException(ExtendedSystemObjectsResources.ErrorValueNotFound);
+            throw new KeyNotFoundException(SharedResources.ErrorValueNotFound);
         }
 
         /// <summary>
-        ///     Attempts to retrieve the value associated with the specified key.
+        /// Attempts to retrieve the value associated with the specified key.
         /// </summary>
-        /// <param name="key">The key.</param>
-        /// <param name="value">The value.</param>
-        /// <returns>The value amd bool check if it exists.</returns>
+        /// <param name="key">The key to lookup.</param>
+        /// <param name="value">When this method returns, contains the value associated with the key, if found; otherwise, the default value.</param>
+        /// <returns><c>true</c> if the key was found; otherwise, <c>false</c>.</returns>
         public bool TryGetValue(TKey key, out TValue value)
         {
             var hash = GetHash(key, _keys.Length);
@@ -219,7 +212,7 @@ namespace ExtendedSystemObjects
                 return false;
             }
 
-            foreach (var prime in SmallPrimes)
+            foreach (var prime in SharedResources.SmallPrimes)
             {
                 if (number == prime)
                 {

@@ -39,12 +39,12 @@ namespace Lanes
         /// <summary>
         ///     The free ids
         /// </summary>
-        private readonly IntList _freeIds = new(128);
+        private readonly UnmanagedIntList _freeIds = new(128);
 
         /// <summary>
         ///     The free slots, we reuse freed slots
         /// </summary>
-        private readonly IntList _freeSlots = new(128);
+        private readonly UnmanagedIntList _freeSlots = new(128);
 
         /// <summary>
         ///     The handle index

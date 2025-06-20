@@ -1,17 +1,17 @@
 ﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
- * PROJECT:     ExtendedSystemObjects
- * FILE:        ExtendedSystemObjects/ExtendedSystemObjectsResources.cs
- * PURPOSE:     Generic System Functions for ListsCollection of Strings
+ * PROJECT:     ExtendedSystemObjects.Helper
+ * FILE:        ExtendedSystemObjects.Helper/SharedResources.cs
+ * PURPOSE:     Generic System Functions for ListsCollection of Strings and constants.
  * PROGRAMER:   Peter Geinitz (Wayfarer)
  */
 
-namespace ExtendedSystemObjects
+namespace ExtendedSystemObjects.Helper
 {
     /// <summary>
     ///     The extended system objects Resources class.
     /// </summary>
-    internal static class ExtendedSystemObjectsResources
+    internal static class SharedResources
     {
         /// <summary>
         ///     Error value not found (const). "Value not found in the dictionary".
@@ -39,6 +39,11 @@ namespace ExtendedSystemObjects
         internal const string ErrorValueExists = "Value already exists: ";
 
         /// <summary>
+        /// The error duplicate key (const). "Duplicate key detected: {key}".
+        /// </summary>
+        internal const string ErrorDuplicateKey = "Duplicate key detected: {key}";
+
+        /// <summary>
         ///     Separator(const). Value: " , ".
         /// </summary>
         internal const string Separator = " , ";
@@ -62,5 +67,14 @@ namespace ExtendedSystemObjects
         ///     The key category value format (const). Value:  "Key: {0}, Category: {1}, Value: {2}".
         /// </summary>
         internal const string KeyCategoryValueFormat = "Key: {0}, Category: {1}, Value: {2}";
+
+        /// <summary>
+        ///     The small primes
+        /// </summary>
+        internal static readonly int[] SmallPrimes =
+        {
+            2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101,
+            103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199
+        };
     }
 }

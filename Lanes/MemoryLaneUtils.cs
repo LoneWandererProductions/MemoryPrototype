@@ -235,7 +235,7 @@ namespace Lanes
         /// <param name="nextHandleId">The next handle identifier.</param>
         /// <returns>First free next Id for Handler.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int GetNextId(IntList freeIds, ref int nextHandleId)
+        internal static int GetNextId(UnmanagedIntList freeIds, ref int nextHandleId)
         {
             if (freeIds.Length > 0)
                 return freeIds.Pop();
