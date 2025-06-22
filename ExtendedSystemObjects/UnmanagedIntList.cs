@@ -35,11 +35,6 @@ namespace ExtendedSystemObjects
         private IntPtr _buffer;
 
         /// <summary>
-        ///     The capacity
-        /// </summary>
-        private int _capacity;
-
-        /// <summary>
         ///     The disposed
         /// </summary>
         private bool _disposed;
@@ -55,9 +50,39 @@ namespace ExtendedSystemObjects
         /// <param name="initialCapacity">The initial number of elements the list can hold without resizing. Default is 16.</param>
         public UnmanagedIntList(int initialCapacity = 16)
         {
-            _capacity = initialCapacity > 0 ? initialCapacity : 16;
-            _buffer = Marshal.AllocHGlobal(_capacity * sizeof(int));
+            Capacity = initialCapacity > 0 ? initialCapacity : 16;
+            _buffer = UnmanagedMemoryHelper.Allocate<int>(Capacity);
             _ptr = (int*)_buffer;
+            Clear();
+        }
+
+        /// <summary>
+        ///     The capacity
+        /// </summary>
+        public int Capacity { get; private set; }
+
+        /// <inheritdoc />
+        /// <summary>
+        ///     Returns an enumerator that iterates through the collection.
+        /// </summary>
+        /// <returns>
+        ///     An enumerator that can be used to iterate through the collection.
+        /// </returns>
+        public IEnumerator<int> GetEnumerator()
+        {
+            return new Enumerator<int>(_ptr, Length);
+        }
+
+        /// <inheritdoc />
+        /// <summary>
+        ///     Returns an enumerator that iterates through a collection.
+        /// </summary>
+        /// <returns>
+        ///     An <see cref="T:System.Collections.IEnumerator" /> object that can be used to iterate through the collection.
+        /// </returns>
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
 
         /// <inheritdoc />
@@ -102,8 +127,9 @@ namespace ExtendedSystemObjects
         ///     Removes at.
         /// </summary>
         /// <param name="index">The index.</param>
+        /// <param name="count">The count we want to remove. Optional.</param>
         /// <exception cref="System.ArgumentOutOfRangeException">index</exception>
-        public void RemoveAt(int index)
+        public void RemoveAt(int index, int count = 1)
         {
 #if DEBUG
             if (index < 0 || index >= Length)
@@ -111,37 +137,14 @@ namespace ExtendedSystemObjects
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 #endif
+
             if (index < Length - 1)
             {
-                Buffer.MemoryCopy(_ptr + index + 1, _ptr + index, (Length - index - 1) * sizeof(int),
-                    (Length - index - 1) * sizeof(int));
+                // Shift elements left by 1 to fill the gap
+                UnmanagedMemoryHelper.ShiftLeft(_ptr, index, 1, Length);
             }
 
             Length--;
-        }
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Returns an enumerator that iterates through the collection.
-        /// </summary>
-        /// <returns>
-        /// An enumerator that can be used to iterate through the collection.
-        /// </returns>
-        public IEnumerator<int> GetEnumerator()
-        {
-            return new Enumerator<int>(_ptr, Length);
-        }
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Returns an enumerator that iterates through a collection.
-        /// </summary>
-        /// <returns>
-        /// An <see cref="T:System.Collections.IEnumerator" /> object that can be used to iterate through the collection.
-        /// </returns>
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
         }
 
         /// <inheritdoc />
@@ -169,8 +172,8 @@ namespace ExtendedSystemObjects
         {
             Length = 0;
 
-            // Use Span<T>.Clear for safety and type correctness
-            AsSpan().Clear();
+            // Clear the entire allocated capacity, not just Length items
+            UnmanagedMemoryHelper.Clear<int>(_buffer, Capacity);
         }
 
         /// <inheritdoc />
@@ -182,6 +185,26 @@ namespace ExtendedSystemObjects
         {
             Dispose(true);
             GC.SuppressFinalize(this);
+        }
+
+
+        /// <summary>
+        ///     Binaries the search.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        /// <returns>Index of value in the list.</returns>
+        public int BinarySearch(int value)
+        {
+            var span = AsSpan();
+            return span.BinarySearch(value);
+        }
+
+        /// <summary>
+        ///     Sorts this instance.
+        /// </summary>
+        public void Sort()
+        {
+            AsSpan().Sort(); // Uses Array.Sort internally
         }
 
         /// <summary>
@@ -256,8 +279,7 @@ namespace ExtendedSystemObjects
             EnsureCapacity(Length + count);
 
             // Shift elements to the right
-            Buffer.MemoryCopy(_ptr + index, _ptr + index + count, (_capacity - index - count) * sizeof(int),
-                (Length - index) * sizeof(int));
+            UnmanagedMemoryHelper.ShiftRight(_ptr, index, count, Length, Capacity);
 
             // Fill with value
             for (var i = 0; i < count; i++)
@@ -275,7 +297,7 @@ namespace ExtendedSystemObjects
         /// <returns>A <see cref="Span{Int32}" /> representing the list's contents.</returns>
         public Span<int> AsSpan()
         {
-            return new((void*)_buffer, Length);
+            return new Span<int>(_ptr, Capacity);
         }
 
         /// <summary>
@@ -306,7 +328,7 @@ namespace ExtendedSystemObjects
                 Marshal.FreeHGlobal(_buffer);
                 _buffer = IntPtr.Zero;
                 _ptr = null;
-                _capacity = 0;
+                Capacity = 0;
                 Length = 0;
             }
 
@@ -326,20 +348,20 @@ namespace ExtendedSystemObjects
         /// <param name="min">The minimum capacity required.</param>
         private void EnsureCapacity(int min)
         {
-            if (min <= _capacity)
+            if (min <= Capacity)
             {
                 return;
             }
 
-            var newCapacity = _capacity * 2;
+            var newCapacity = Capacity * 2;
             if (newCapacity < min)
             {
                 newCapacity = min;
             }
 
-            _buffer = Marshal.ReAllocHGlobal(_buffer, (IntPtr)(newCapacity * sizeof(int)));
+            _buffer = UnmanagedMemoryHelper.Reallocate<int>(_buffer, newCapacity);
             _ptr = (int*)_buffer;
-            _capacity = newCapacity;
+            Capacity = newCapacity;
         }
     }
 }
