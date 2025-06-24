@@ -431,7 +431,11 @@ namespace Lanes
             return MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
         }
 
-        // Returns count of stub entries
+        /// <summary>
+        /// Stubs the count.
+        /// </summary>
+        /// <returns>Returns count of stub entries</returns>
+        /// <exception cref="System.InvalidOperationException">FastLane: Invalid memory.</exception>
         public int StubCount()
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
@@ -439,7 +443,11 @@ namespace Lanes
             return MemoryLaneUtils.StubCount(EntryCount, _entries);
         }
 
-        // Estimate fragmentation percentage (gaps / total capacity)
+        /// <summary>
+        /// Estimates the fragmentation.
+        /// </summary>
+        /// <returns>Estimate fragmentation percentage (gaps / total capacity)</returns>
+        /// <exception cref="System.InvalidOperationException">FastLane: Invalid memory.</exception>
         public int EstimateFragmentation()
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
