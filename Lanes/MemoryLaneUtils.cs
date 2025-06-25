@@ -303,7 +303,7 @@ namespace Lanes
         ///     <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
         /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static bool HasHandle(MemoryHandle handle, ConcurrentDictionary<int, int> handleIndex)
+        internal static bool HasHandle(MemoryHandle handle, UnmanagedIntMap handleIndex)
         {
             return handleIndex.ContainsKey(handle.Id);
         }
@@ -319,7 +319,7 @@ namespace Lanes
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static AllocationEntry GetEntry(MemoryHandle handle, ConcurrentDictionary<int, int> handleIndex,
+        internal static AllocationEntry GetEntry(MemoryHandle handle, UnmanagedIntMap handleIndex,
             AllocationEntry[] entries, string lane)
         {
             if (entries == null)
@@ -342,7 +342,7 @@ namespace Lanes
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="InvalidOperationException"></exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int GetAllocationSize(MemoryHandle handle, ConcurrentDictionary<int, int> handleIndex,
+        internal static int GetAllocationSize(MemoryHandle handle, UnmanagedIntMap handleIndex,
             AllocationEntry[] entries, string lane)
         {
             if (entries == null)

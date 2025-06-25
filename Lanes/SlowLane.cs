@@ -49,7 +49,7 @@ namespace Lanes
         /// <summary>
         ///     The handle index
         /// </summary>
-        private readonly ConcurrentDictionary<int, int> _handleIndex = new(); // handleId -> entries array index
+        private readonly UnmanagedIntMap _handleIndex = new(7); // handleId -> entries array index
 
         /// <summary>
         ///     The allocated entries

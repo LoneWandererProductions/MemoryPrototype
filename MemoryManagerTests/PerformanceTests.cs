@@ -50,7 +50,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        /// Deterministics the vs finalizer fast lane timing.
+        ///  Deterministic vs finalizer fast lane timing.
         /// </summary>
         [TestMethod]
         [TestCategory("RealWorld")]

@@ -1,27 +1,34 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ExtendedSystemObjects.Helper;
 
 namespace ExtendedSystemObjects
 {
-    public sealed unsafe class UnmanagedIntMap : IEnumerator<Entry>
+    public sealed unsafe class UnmanagedIntMap : IEnumerable<Entry>, IDisposable
     {
         private const int Invalid = -1;
         private int _capacity;
         private Entry* _entries;
         private int _index;
 
-        public UnmanagedIntMap(int capacityPowerOf2 = 8)
-        {
-            if (capacityPowerOf2 < 1 || capacityPowerOf2 > 30)
-            {
-                throw new ArgumentOutOfRangeException(nameof(capacityPowerOf2));
-            }
+        private int _capacityPowerOf2;
 
-            _capacity = 1 << capacityPowerOf2;
+        private const int MinPowerOf2 = 4;  // 16 entries minimum
+        private const int MaxPowerOf2 = 20; // ~1 million entries max
+
+        public UnmanagedIntMap(int? capacityPowerOf2 = null)
+        {
+            var power = capacityPowerOf2 ?? 8;
+            if (power < MinPowerOf2)
+                power = MinPowerOf2;
+
+            _capacity = 1 << power;
+            _capacityPowerOf2 = power;
+
             var size = sizeof(Entry) * _capacity;
             _entries = (Entry*)Marshal.AllocHGlobal(size);
             Unsafe.InitBlock(_entries, 0, (uint)size);
@@ -31,98 +38,7 @@ namespace ExtendedSystemObjects
 
         public int Count { get; private set; }
 
-        public Entry Current
-        {
-            get
-            {
-                if (_index < 0 || _index >= _capacity)
-                {
-                    throw new InvalidOperationException();
-                }
-
-                return _entries[_index];
-            }
-        }
-
-        object IEnumerator.Current => Current;
-
-
-        public bool MoveNext()
-        {
-            while (++_index < _capacity)
-            {
-                if (_entries[_index].Used == SharedResources.Occupied)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        public void Reset()
-        {
-            _index = -1;
-        }
-
-        public void Dispose()
-        {
-            Free();
-            GC.SuppressFinalize(this);
-        }
-
-        public void Set(int key, int value)
-        {
-            if (Count >= _capacity * 0.7f)
-            {
-                Resize();
-            }
-
-            var mask = _capacity - 1;
-            var index = key & mask;
-            var firstTombstone = -1;
-
-            for (var i = 0; i < _capacity; i++)
-            {
-                ref var slot = ref _entries[(index + i) & mask];
-
-                if (slot.Used == SharedResources.Empty)
-                {
-                    if (firstTombstone != -1)
-                    {
-                        ref var tomb = ref _entries[firstTombstone];
-                        tomb.Key = key;
-                        tomb.Value = value;
-                        tomb.Used = SharedResources.Occupied;
-                    }
-                    else
-                    {
-                        slot.Key = key;
-                        slot.Value = value;
-                        slot.Used = SharedResources.Occupied;
-                    }
-
-                    Count++;
-                    return;
-                }
-
-                if (slot.Used == SharedResources.Tombstone)
-                {
-                    if (firstTombstone == -1)
-                    {
-                        firstTombstone = (index + i) & mask;
-                    }
-                }
-                else if (slot.Key == key)
-                {
-                    slot.Value = value;
-                    return;
-                }
-            }
-
-            throw new InvalidOperationException("UnmanagedIntMap full");
-        }
-
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool ContainsKey(int key)
         {
             var mask = _capacity - 1;
@@ -132,20 +48,126 @@ namespace ExtendedSystemObjects
             {
                 ref var slot = ref _entries[(index + i) & mask];
 
-                if (slot.Used == SharedResources.Empty)
+                switch (slot.Used)
                 {
-                    return false;
-                }
-
-                if (slot.Used == SharedResources.Occupied && slot.Key == key)
-                {
-                    return true;
+                    case SharedResources.Empty:
+                        return false;
+                    case SharedResources.Occupied when slot.Key == key:
+                        return true;
                 }
             }
 
             return false;
         }
 
+        public int this[int key]
+        {
+            get => Get(key);
+            set => Set(key, value);
+        }
+
+        public IEnumerable<int> Keys
+        {
+            get
+            {
+                foreach (var key in GetKeysSnapshot())
+                    yield return key;
+            }
+        }
+
+        public int Get(int key)
+        {
+            var mask = _capacity - 1;
+            var index = key & mask;
+
+            for (var i = 0; i < _capacity; i++)
+            {
+                ref var slot = ref _entries[(index + i) & mask];
+
+                if (slot.Used == SharedResources.Empty)
+                    break;
+
+                if (slot.Used == SharedResources.Occupied && slot.Key == key)
+                    return slot.Value;
+            }
+
+            throw new KeyNotFoundException($"Key {key} not found.");
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Set(int key, int value)
+        {
+            var compactTried = false;
+            var resizeTried = false;
+
+            while (true)
+            {
+                if (Count >= _capacity * 0.7f)
+                {
+                    if (!compactTried)
+                    {
+                        Compact();
+                        compactTried = true;
+
+                        // Retry after compaction only if it helped
+                        if (Count < _capacity * 0.7f)
+                            continue;
+                    }
+
+                    if (!resizeTried)
+                    {
+                        Resize();
+                        resizeTried = true;
+                        compactTried = false; // allow compact again later
+                        continue;
+                    }
+
+                    throw new InvalidOperationException("UnmanagedIntMap full after compact and resize");
+                }
+
+                var mask = _capacity - 1;
+                var index = key & mask;
+                var firstTombstone = -1;
+
+                for (var i = 0; i < _capacity; i++)
+                {
+                    ref var slot = ref _entries[(index + i) & mask];
+
+                    if (slot.Used == SharedResources.Empty)
+                    {
+                        if (firstTombstone != -1)
+                        {
+                            ref var tomb = ref _entries[firstTombstone];
+                            tomb.Key = key;
+                            tomb.Value = value;
+                            tomb.Used = SharedResources.Occupied;
+                        }
+                        else
+                        {
+                            slot.Key = key;
+                            slot.Value = value;
+                            slot.Used = SharedResources.Occupied;
+                        }
+
+                        Count++;
+                        return;
+                    }
+
+                    if (slot.Used == SharedResources.Tombstone && firstTombstone == -1)
+                        firstTombstone = (index + i) & mask;
+                    else if (slot.Key == key)
+                    {
+                        slot.Value = value;
+                        return;
+                    }
+                }
+
+                // Should not be reached, retry
+                continue;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryGetValue(int key, out int value)
         {
             var mask = _capacity - 1;
@@ -156,9 +178,7 @@ namespace ExtendedSystemObjects
                 ref var slot = ref _entries[(index + i) & mask];
 
                 if (slot.Used == SharedResources.Empty)
-                {
                     break;
-                }
 
                 if (slot.Used == SharedResources.Occupied && slot.Key == key)
                 {
@@ -171,6 +191,7 @@ namespace ExtendedSystemObjects
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool TryRemove(int key)
         {
             var mask = _capacity - 1;
@@ -181,14 +202,10 @@ namespace ExtendedSystemObjects
                 ref var slot = ref _entries[(index + i) & mask];
 
                 if (slot.Used == SharedResources.Empty)
-                {
                     break;
-                }
 
                 if (slot.Used != SharedResources.Occupied || slot.Key != key)
-                {
                     continue;
-                }
 
                 slot.Used = SharedResources.Tombstone;
                 Count--;
@@ -198,38 +215,88 @@ namespace ExtendedSystemObjects
             return false;
         }
 
-        public void Compact()
+        public bool TryRemove(int key, out int value)
         {
-            var targetCapacity = _capacity;
-            var loadFactor = Count / (float)_capacity;
+            var mask = _capacity - 1;
+            var startIndex = key & mask;
 
-            // Optional: shrink if too sparse
-            if (loadFactor < 0.25f && _capacity > 16)
+            for (var i = 0; i < _capacity; i++)
             {
-                targetCapacity = Math.Max(16, _capacity / 2);
+                var probeIndex = (startIndex + i) & mask;
+                ref var slot = ref _entries[probeIndex];
+
+                if (slot.Used == SharedResources.Empty)
+                    break;
+
+                if (slot.Used == SharedResources.Occupied && slot.Key == key)
+                {
+                    value = slot.Value;
+                    slot.Used = SharedResources.Tombstone;
+                    Count--;
+                    return true;
+                }
             }
 
-            var newMap = new UnmanagedIntMap((int)Math.Log2(targetCapacity));
+            value = default;
+            return false;
+        }
+
+        public void Resize()
+        {
+            if (_capacityPowerOf2 >= MaxPowerOf2)
+                return;
+
+            _capacityPowerOf2++;
+            var newMap = new UnmanagedIntMap(_capacityPowerOf2);
 
             for (var i = 0; i < _capacity; i++)
             {
                 ref var entry = ref _entries[i];
                 if (entry.Used == SharedResources.Occupied)
-                {
                     newMap.Set(entry.Key, entry.Value);
-                }
             }
 
-            Free(); // Dispose old entries
+            Free();
+
             _entries = newMap._entries;
             _capacity = newMap._capacity;
+            _capacityPowerOf2 = newMap._capacityPowerOf2;
             Count = newMap.Count;
+
+            // Prevent double free
+            newMap._entries = null;
         }
 
-
-        public EntryEnumerator GetEnumerator()
+        public void Compact()
         {
-            return new(_entries, _capacity);
+            var loadFactor = Count / (float)_capacity;
+
+            if (loadFactor >= 0.25f || _capacity <= (1 << MinPowerOf2))
+                return;
+
+            int targetPowerOf2 = Math.Max(MinPowerOf2, _capacityPowerOf2 - 1);
+            var newMap = new UnmanagedIntMap(targetPowerOf2);
+
+            for (var i = 0; i < _capacity; i++)
+            {
+                ref var entry = ref _entries[i];
+                if (entry.Used == SharedResources.Occupied)
+                    newMap.Set(entry.Key, entry.Value);
+            }
+
+            Free();
+            _entries = newMap._entries;
+            _capacity = newMap._capacity;
+            _capacityPowerOf2 = targetPowerOf2;
+            Count = newMap.Count;
+
+            newMap._entries = null; // prevent double free
+        }
+
+        public void EnsureCapacity(int expectedCount)
+        {
+            while (expectedCount > _capacity * 0.7f && _capacityPowerOf2 < MaxPowerOf2)
+                Resize();
         }
 
         public void Free()
@@ -244,26 +311,6 @@ namespace ExtendedSystemObjects
             Count = 0;
         }
 
-        public void Resize()
-        {
-            var newCapacity = _capacity * 2;
-            var newMap = new UnmanagedIntMap((int)Math.Log2(newCapacity));
-
-            for (var i = 0; i < _capacity; i++)
-            {
-                ref var entry = ref _entries[i];
-                if (entry.Used == SharedResources.Occupied)
-                {
-                    newMap.Set(entry.Key, entry.Value);
-                }
-            }
-
-            Free(); // old buffer
-            _entries = newMap._entries;
-            _capacity = newMap._capacity;
-            Count = newMap.Count;
-        }
-
         public void Clear()
         {
             if (_entries != null)
@@ -275,9 +322,50 @@ namespace ExtendedSystemObjects
             Count = 0;
         }
 
-        ~UnmanagedIntMap()
+        public IEnumerator<Entry> GetEnumerator()
+        {
+            return new EntryEnumerator(_entries, _capacity);
+        }
+
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public void Dispose()
         {
             Free();
+            GC.SuppressFinalize(this);
+        }
+
+        [Conditional("DEBUG")]
+        public void DebugValidate()
+        {
+            var seen = new HashSet<int>();
+            for (int i = 0; i < _capacity; i++)
+            {
+                var entry = _entries[i];
+                if (entry.Used == SharedResources.Occupied)
+                {
+                    Debug.Assert(seen.Add(entry.Key), $"Duplicate key {entry.Key} found.");
+                }
+            }
+        }
+
+        private List<int> GetKeysSnapshot()
+        {
+            var keys = new List<int>(Count);
+            for (var i = 0; i < _capacity; i++)
+            {
+                var entry = _entries[i];
+                if (entry.Used == SharedResources.Occupied)
+                    keys.Add(entry.Key);
+            }
+
+            return keys;
+        }
+
+        ~UnmanagedIntMap()
+        {
+            if (_entries != null)
+                Free();
         }
     }
 }

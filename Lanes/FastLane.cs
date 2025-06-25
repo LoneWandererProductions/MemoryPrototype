@@ -33,7 +33,7 @@ namespace Lanes
         ///     The handle index
         ///     Maps handleId → index into _entries
         /// </summary>
-        private readonly ConcurrentDictionary<int, int> _handleIndex = new();
+        private readonly UnmanagedIntMap _handleIndex = new(7);
 
         /// <summary>
         ///     The slow lane
