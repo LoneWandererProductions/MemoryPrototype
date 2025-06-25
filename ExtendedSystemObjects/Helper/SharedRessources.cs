@@ -68,6 +68,11 @@ namespace ExtendedSystemObjects.Helper
         /// </summary>
         internal const string KeyCategoryValueFormat = "Key: {0}, Category: {1}, Value: {2}";
 
+
+        internal const byte Empty = 0;
+        internal const byte Occupied = 1;
+        internal const byte Tombstone = 2;
+
         /// <summary>
         ///     The small primes
         /// </summary>
