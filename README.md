@@ -7,7 +7,7 @@
 **Known Limitations**
 - Does not manage C# objects directly — only unmanaged memory blocks.
 - No garbage collection integration.
-- No automatic bounds checking — accessing memory via MemoryHandle is safe in most cases (untested) only if used through the provided API correctly.
+- No automatic bounds checking — accessing memory via `MemoryHandle` is safe in most cases (untested) only if used through the provided API correctly.
 - Designed for low-level experimentation, not high-level safety.
 
 ---
@@ -35,6 +35,9 @@
   - `OneWayLane` component moves memory entries from `FastLane` to `SlowLane` using an internal buffer and `Marshal.Copy`.
   - Useful for offloading memory that is better suited for long-term storage.
   - Plugged into the compaction cycle or invoked manually.
+
+- ✅ **Robust Unit Tests**
+  - Planned: automatic tests for correctness, safety, and basic performance characteristics.
 
 ---
 
@@ -71,14 +74,13 @@ The following are planned features or experimental directions for further explor
   - Expose migration cost/heuristics to caller or policies.
 
 - [ ] **Lane Improvements**  
-  - Change the way the Lanes allocate the Memory
-  - Improve performance in generell
+  - Change the way the lanes allocate memory.
+  - Improve performance in general.
 
 - [ ] **Memory Usage Tracking (SQL Server-inspired)**  
   Collect per-user, per-program statistics:
   - Track access frequency, allocation lifetime, and promotion history.
   - Use this data to recommend compaction avoidance, slow-lane promotion, or preallocation.
-  - Useful for long-running applications and plug-and-play optimization.
   - Developer can assign debug tags to allocations for diagnostics.
 
 - [ ] **Allocation Tags / Groups**  
@@ -88,11 +90,11 @@ The following are planned features or experimental directions for further explor
   Add `AlignTo(int boundary)` in `FindFreeSpot()` for SIMD/cache safety.
 
 - [ ] **Failover Policies**  
-  If `FastLane` fails, automatically fall back to `SlowLane` + stub.
+  If `FastLane` fails, automatically fall back to `SlowLane` + stub.  
   (In general: allow plug-and-play memory strategies.)
 
 - [ ] **Multithreaded Allocator**  
-  Add concurrency support via spinlocks or lock-free front-end.
+  Add concurrency support via spinlocks or a lock-free front-end.
 
 - [ ] **Object Lifecycle Management**  
   Auto-clear or evict stale/old objects based on access time.
@@ -101,45 +103,51 @@ The following are planned features or experimental directions for further explor
   Support runtime expansion of internal memory buffers.
 
 - [ ] **Memory Compression**  
-  Compress rarely accessed data in the SlowLane to reclaim space (with a performance tradeoff).
+  Compress rarely accessed data in the `SlowLane` to reclaim space (with a performance tradeoff).
 
-- [ ] **Robust unit tests**  
-  Add automatic tests for correctness, safety, and basic performance characteristics.
+- [ ] **Block-Based Memory Allocation & Reuse (Freelist + Tombstones)**  
+  Refactor both `FastLane` and `SlowLane` to operate on **fixed-size memory blocks** (e.g., 8 bytes).  
+  - Memory is divided into uniform blocks, and all allocations are rounded up to fit full blocks.  
+  - Freed blocks are **tombstoned** and tracked using a **freelist**.  
+  - Future allocations first consult the freelist to reuse previously freed space.  
+  - Improves allocation and deallocation performance, reduces fragmentation, and simplifies compaction.  
+  - Enables efficient bulk movement and pooling strategies.  
+  - Maintains memory stability through `MemoryHandle` indirection.
 
 ---
 
 ## 🧩 Example Usage
 
 ```csharp
-            var config = new MemoryManagerConfig
-            {
-                FastLaneSize = 1024 * 1024,       // 1 MB
-                SlowLaneSize = 10 * 1024 * 1024, // 10 MB
-                Threshold = 4096,                 // Switch threshold between lanes
-                EnableAutoCompaction = true,
-                CompactionThreshold = 0.90,
-                SlowLaneUsageThreshold = 0.85,
-                SlowLaneSafetyMargin = 0.10,
-                PolicyCheckInterval = TimeSpan.FromSeconds(10)
-            };
+var config = new MemoryManagerConfig
+{
+    FastLaneSize = 1024 * 1024,       // 1 MB
+    SlowLaneSize = 10 * 1024 * 1024,  // 10 MB
+    Threshold = 4096,                 // Switch threshold between lanes
+    EnableAutoCompaction = true,
+    CompactionThreshold = 0.90,
+    SlowLaneUsageThreshold = 0.85,
+    SlowLaneSafetyMargin = 0.10,
+    PolicyCheckInterval = TimeSpan.FromSeconds(10)
+};
 
-            var arena = new MemoryArena(config);
+var arena = new MemoryArena(config);
 
-            // --- Raw MemoryArena usage (more control, more verbose) ---
-            var size = Marshal.SizeOf<MyStruct>();
-            var handleRaw = arena.Allocate(size);
-            ref var dataRaw = ref arena.Get<MyStruct>(handleRaw);
-            dataRaw.Value = 123;
-            Console.WriteLine($"Raw arena Value: {dataRaw.Value}");
-            arena.Free(handleRaw);
+// --- Raw MemoryArena usage (more control, more verbose) ---
+var size = Marshal.SizeOf<MyStruct>();
+var handleRaw = arena.Allocate(size);
+ref var dataRaw = ref arena.Get<MyStruct>(handleRaw);
+dataRaw.Value = 123;
+Console.WriteLine($"Raw arena Value: {dataRaw.Value}");
+arena.Free(handleRaw);
 
-            // --- TypedMemoryArena usage (simpler, more abstract) ---
-            var typedArena = new TypedMemoryArena(arena);
-            var handleTyped = typedArena.Allocate<MyStruct>();
-            typedArena.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
-            ref var dataTyped = ref typedArena.Get<MyStruct>(handleTyped);
-            Console.WriteLine($"Typed arena Value: {dataTyped.Value}");
-            typedArena.Free(handleTyped);
+// --- TypedMemoryArena usage (simpler, more abstract) ---
+var typedArena = new TypedMemoryArena(arena);
+var handleTyped = typedArena.Allocate<MyStruct>();
+typedArena.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
+ref var dataTyped = ref typedArena.Get<MyStruct>(handleTyped);
+Console.WriteLine($"Typed arena Value: {dataTyped.Value}");
+typedArena.Free(handleTyped);
 
-            // Optionally run manual compaction
-            arena.RunMaintenanceCycle();
+// Optionally run manual compaction
+arena.RunMaintenanceCycle();
