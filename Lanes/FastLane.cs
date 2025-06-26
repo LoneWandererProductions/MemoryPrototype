@@ -14,7 +14,6 @@ using Core;
 using Core.MemoryArenaPrototype.Core;
 using ExtendedSystemObjects;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -49,6 +48,8 @@ namespace Lanes
         ///     The next handle identifier
         /// </summary>
         private int _nextHandleId = 1;
+
+        //_blockManager = new BlockMemoryManager(Buffer, Capacity, blockSize);
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="FastLane" /> class.
@@ -181,6 +182,46 @@ namespace Lanes
             return new MemoryHandle(id, this);
         }
 
+        //public MemoryHandle Allocate(
+        //    int size,
+        //    AllocationPriority priority = AllocationPriority.Normal,
+        //    AllocationHints hints = AllocationHints.None,
+        //    string? debugName = null,
+        //    int currentFrame = 0)
+        //{
+        //    if (_entries == null)
+        //        throw new InvalidOperationException("FastLane: Memory not reserved");
+
+        //    int blocksNeeded = (size + _blockManager.BlockSize - 1) / _blockManager.BlockSize;
+
+        //    if (!_blockManager.TryAllocateContiguous(blocksNeeded, out int startBlock))
+        //        throw new OutOfMemoryException("FastLane: Not enough memory");
+
+        //    EnsureEntryCapacity(EntryCount);
+
+        //    var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
+        //    int offset = startBlock * _blockManager.BlockSize;
+
+        //    _entries[EntryCount] = new AllocationEntry
+        //    {
+        //        Offset = offset,
+        //        Size = blocksNeeded * _blockManager.BlockSize,
+        //        HandleId = id,
+        //        Priority = priority,
+        //        Hints = hints,
+        //        DebugName = debugName,
+        //        AllocationFrame = currentFrame,
+        //        LastAccessFrame = currentFrame
+        //    };
+
+        //    _handleIndex[id] = EntryCount;
+        //    EntryCount++;
+
+        //    return new MemoryHandle(id, this);
+        //}
+
+
+
         /// <inheritdoc />
         /// <summary>
         ///     Resolves the specified handle.
@@ -248,6 +289,37 @@ namespace Lanes
             _freeIds.Push(handle.Id);
         }
 
+        //public void Free(MemoryHandle handle)
+        //{
+        //    if (_entries == null) throw new InvalidOperationException("FastLane: Memory is corrupted.");
+
+        //    if (!_handleIndex.TryRemove(handle.Id, out var index))
+        //        throw new InvalidOperationException($"FastLane: Invalid handle {handle.Id}");
+
+        //    var entry = _entries[index];
+
+        //    if (entry.IsStub && entry.RedirectTo.HasValue)
+        //    {
+        //        _slowLane.Free(entry.RedirectTo.Value);
+        //        Redirects.Remove(handle.Id);
+        //    }
+
+        //    int startBlock = entry.Offset / _blockManager.BlockSize;
+        //    int blockCount = entry.Size / _blockManager.BlockSize;
+
+        //    _blockManager.FreeContiguous(startBlock, blockCount);
+
+        //    var last = EntryCount - 1;
+        //    if (index != last)
+        //    {
+        //        _entries[index] = _entries[last];
+        //        _handleIndex[_entries[index].HandleId] = index;
+        //    }
+
+        //    EntryCount--;
+        //    _freeIds.Push(handle.Id);
+        //}
+
         /// <inheritdoc />
         /// <summary>
         ///     Compacts this instance.
@@ -300,6 +372,15 @@ namespace Lanes
             Buffer = newBuffer;
             OnCompaction?.Invoke(nameof(FastLane));
         }
+
+        //public unsafe void Compact()
+        //{
+        //    if (_entries == null) return;
+
+        //    _blockManager.CompactAllocations(_entries, EntryCount);
+        //    OnCompaction?.Invoke(nameof(FastLane));
+        //}
+
 
         /// <inheritdoc />
         /// <summary>
