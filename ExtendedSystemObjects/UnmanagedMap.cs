@@ -10,6 +10,7 @@ using ExtendedSystemObjects.Helper;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -42,6 +43,15 @@ namespace ExtendedSystemObjects
         }
 
         public int Capacity => _capacity;
+
+        public IEnumerable<int> Keys
+        {
+            get
+            {
+                foreach (var key in GetKeysSnapshot())
+                    yield return key;
+            }
+        }
 
         public TValue this[int key]
         {
@@ -155,6 +165,33 @@ namespace ExtendedSystemObjects
             return false;
         }
 
+        public bool TryRemove(int key, out TValue value)
+        {
+            var mask = _capacity - 1;
+            var startIndex = key & mask;
+
+            for (var i = 0; i < _capacity; i++)
+            {
+                var probeIndex = (startIndex + i) & mask;
+                ref var slot = ref _entries[probeIndex];
+
+                if (slot.Used == SharedResources.Empty)
+                    break;
+
+                if (slot.Used == SharedResources.Occupied && slot.Key == key)
+                {
+                    value = slot.Value;
+                    slot.Used = SharedResources.Tombstone;
+                    Count--;
+                    return true;
+                }
+            }
+
+            value = default;
+            return false;
+        }
+
+
         public bool TryRemove(int key)
         {
             var mask = _capacity - 1;
@@ -183,15 +220,6 @@ namespace ExtendedSystemObjects
         
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 
-        public IEnumerable<int> Keys
-        {
-            get
-            {
-                foreach (var key in GetKeysSnapshot())
-                    yield return key;
-            }
-        }
-
         public void Resize()
         {
             if (_capacityPowerOf2 >= MaxPowerOf2)
@@ -217,6 +245,13 @@ namespace ExtendedSystemObjects
             // Prevent double free
             newMap._entries = null;
         }
+
+        public void EnsureCapacity(int expectedCount)
+        {
+            while (expectedCount > _capacity * 0.7f && _capacityPowerOf2 < MaxPowerOf2)
+                Resize();
+        }
+
 
         public void Compact()
         {
@@ -263,6 +298,20 @@ namespace ExtendedSystemObjects
 
             _capacity = 0;
             Count = 0;
+        }
+
+        [Conditional("DEBUG")]
+        public void DebugValidate()
+        {
+            var seen = new HashSet<int>();
+            for (int i = 0; i < _capacity; i++)
+            {
+                var entry = _entries[i];
+                if (entry.Used == SharedResources.Occupied)
+                {
+                    Debug.Assert(seen.Add(entry.Key), $"Duplicate key {entry.Key} found.");
+                }
+            }
         }
 
         public void Dispose()

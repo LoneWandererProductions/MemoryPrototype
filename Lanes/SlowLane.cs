@@ -48,7 +48,7 @@ namespace Lanes
         /// <summary>
         ///     The handle index
         /// </summary>
-        private readonly UnmanagedIntMap _handleIndex = new(7); // handleId -> entries array index
+        private readonly UnmanagedMap<int> _handleIndex = new(7); // handleId -> entries array index
 
         /// <summary>
         ///     The allocated entries
@@ -358,7 +358,7 @@ namespace Lanes
         /// </returns>
         public IEnumerable<MemoryHandle> GetHandles()
         {
-            return _handleIndex.Select(kv => new MemoryHandle(kv.Key, this));
+            return _handleIndex.Select(kv => new MemoryHandle(kv.Item1, this));
         }
 
         /// <summary>

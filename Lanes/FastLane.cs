@@ -32,7 +32,7 @@ namespace Lanes
         ///     The handle index
         ///     Maps handleId → index into _entries
         /// </summary>
-        private readonly UnmanagedIntMap _handleIndex = new(7);
+        private readonly UnmanagedMap<int> _handleIndex = new(7);
 
         /// <summary>
         ///     The slow lane
