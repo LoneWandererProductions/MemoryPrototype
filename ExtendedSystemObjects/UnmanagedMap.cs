@@ -147,5 +147,49 @@ namespace ExtendedSystemObjects
                 _entries = null;
             }
         }
+
+        public IEnumerable<int> Keys
+        {
+            get
+            {
+                foreach (var key in GetKeysSnapshot())
+                    yield return key;
+            }
+        }
+
+        public bool ContainsKey(int key)
+        {
+            var mask = _capacity - 1;
+            var index = key & mask;
+
+            for (var i = 0; i < _capacity; i++)
+            {
+                ref var slot = ref _entries[(index + i) & mask];
+
+                switch (slot.Used)
+                {
+                    case SharedResources.Empty:
+                        return false;
+                    case SharedResources.Occupied when slot.Key == key:
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+
+        private List<int> GetKeysSnapshot()
+        {
+            var keys = new List<int>(Count);
+            for (var i = 0; i < _capacity; i++)
+            {
+                var entry = _entries[i];
+                if (entry.Used == SharedResources.Occupied)
+                    keys.Add(entry.Key);
+            }
+
+            return keys;
+        }
     }
 }
