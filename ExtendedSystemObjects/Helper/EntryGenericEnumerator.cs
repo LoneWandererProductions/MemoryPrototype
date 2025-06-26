@@ -1,4 +1,12 @@
-﻿using System.Collections;
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     ExtendedSystemObjects.Helper
+ * FILE:        EntryGenericEnumerator.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
+ */
+
+using System.Collections;
 using System.Collections.Generic;
 
 namespace ExtendedSystemObjects.Helper
@@ -9,6 +17,11 @@ namespace ExtendedSystemObjects.Helper
         private readonly int _capacity;
         private int _index;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="EntryGenericEnumerator{TValue}"/> struct.
+        /// </summary>
+        /// <param name="entries">The entries.</param>
+        /// <param name="capacity">The capacity.</param>
         public EntryGenericEnumerator(EntryGeneric<TValue>* entries, int capacity)
         {
             _entries = entries;

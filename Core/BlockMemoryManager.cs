@@ -1,37 +1,56 @@
-﻿using ExtendedSystemObjects;
-using ExtendedSystemObjects.Interfaces;
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     Core
+ * FILE:        BlockMemoryManager.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
+ */
+
+using ExtendedSystemObjects;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
 namespace Core
 {
-    public sealed partial class BlockMemoryManager
+    public sealed class BlockMemoryManager
     {
-        private readonly IntPtr _buffer;
-        private readonly int _blockSize;
-        private readonly int _blockCount;
+        public int GetUsedBlockCount() => Capacity - _freeBlocks.Count;
+
+        public int GetFreeBlockCount() => _freeBlocks.Count;
+
+        public int Capacity { get; }
+
+        public int BlockSize { get; }
+
+        public IntPtr Buffer { get; }
+
         private readonly UnmanagedArray<BlockState> _states;
 
         private readonly SortedSet<int> _freeBlocks = new();
+
         private readonly UnmanagedMap<BlockAllocation> _allocations = new(); // id -> allocation
+
         private int _nextId = 1;
 
-        public int Capacity => _blockCount;
-        public int BlockSize => _blockSize;
-        public IntPtr Buffer => _buffer;
-
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BlockMemoryManager"/> class.
+        /// </summary>
+        /// <param name="buffer">The buffer.</param>
+        /// <param name="totalSize">The total size.</param>
+        /// <param name="blockSize">Size of the block.</param>
+        /// <exception cref="System.ArgumentException">Block size must evenly divide total size</exception>
         public BlockMemoryManager(IntPtr buffer, int totalSize, int blockSize)
         {
             if (blockSize <= 0 || totalSize % blockSize != 0)
                 throw new ArgumentException("Block size must evenly divide total size");
 
-            _buffer = buffer;
-            _blockSize = blockSize;
-            _blockCount = totalSize / blockSize;
-            _states = new UnmanagedArray<BlockState>(_blockCount);
+            Buffer = buffer;
+            BlockSize = blockSize;
+            Capacity = totalSize / blockSize;
+            _states = new UnmanagedArray<BlockState>(Capacity);
 
-            for (int i = 0; i < _blockCount; i++)
+            for (int i = 0; i < Capacity; i++)
             {
                 _states[i] = BlockState.Free;
                 _freeBlocks.Add(i);
@@ -41,10 +60,11 @@ namespace Core
         public bool TryAllocateBySize(int sizeInBytes, out int allocationId)
         {
             allocationId = -1;
-            int blocksNeeded = (sizeInBytes + _blockSize - 1) / _blockSize;
+            int blocksNeeded = (sizeInBytes + BlockSize - 1) / BlockSize;
             if (!TryAllocateContiguous(blocksNeeded, out int startBlockIndex)) return false;
 
             allocationId = _nextId++;
+
             _allocations[allocationId] = new BlockAllocation { StartIndex = startBlockIndex, BlockCount = blocksNeeded };
             return true;
         }
@@ -64,14 +84,6 @@ namespace Core
             _allocations.TryRemove(allocationId);
         }
 
-        public IntPtr GetPointer(int allocationId)
-        {
-            if (!_allocations.TryGetValue(allocationId, out var alloc))
-                throw new ArgumentException("Invalid allocation ID");
-
-            return _buffer + alloc.StartIndex * _blockSize;
-        }
-
         public void Compact()
         {
             int writeIndex = 0;
@@ -82,12 +94,12 @@ namespace Core
                 {
                     for (int i = 0; i < alloc.BlockCount; i++)
                     {
-                        IntPtr src = _buffer + (alloc.StartIndex + i) * _blockSize;
-                        IntPtr dst = _buffer + (writeIndex + i) * _blockSize;
+                        IntPtr src = Buffer + (alloc.StartIndex + i) * BlockSize;
+                        IntPtr dst = Buffer + (writeIndex + i) * BlockSize;
 
                         unsafe
                         {
-                            Unsafe.CopyBlockUnaligned((void*)dst, (void*)src, (uint)_blockSize);
+                            Unsafe.CopyBlockUnaligned((void*)dst, (void*)src, (uint)BlockSize);
                         }
 
                         _states[alloc.StartIndex + i] = BlockState.Free;
@@ -103,9 +115,13 @@ namespace Core
             }
         }
 
-        public int GetUsedBlockCount() => _blockCount - _freeBlocks.Count;
+        public IntPtr GetPointer(int allocationId)
+        {
+            if (!_allocations.TryGetValue(allocationId, out var alloc))
+                throw new ArgumentException("Invalid allocation ID");
 
-        public int GetFreeBlockCount() => _freeBlocks.Count;
+            return Buffer + (alloc.StartIndex * BlockSize);
+        }
 
         public void Dispose()
         {
@@ -116,9 +132,11 @@ namespace Core
         private bool TryAllocateContiguous(int count, out int startIndex)
         {
             startIndex = -1;
-            for (int i = 0; i <= _blockCount - count; i++)
+
+            for (int i = 0; i <= Capacity - count; i++)
             {
                 bool allFree = true;
+
                 for (int j = 0; j < count; j++)
                 {
                     if (_states[i + j] != BlockState.Free)
