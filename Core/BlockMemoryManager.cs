@@ -19,47 +19,55 @@ namespace Core
         private readonly object _lock = new();
 
         public int Capacity { get; }
-
         public int BlockSize { get; }
-
         public IntPtr Buffer { get; }
 
         private readonly UnmanagedArray<BlockState> _states;
-        private readonly SortedSet<int> _freeBlocks = new();
         private readonly UnmanagedMap<BlockAllocation> _allocations = new();
+        private readonly Queue<int> _freeIds = new();
 
         private int _nextId = 1;
+        private bool _disposed;
 
         public int GetUsedBlockCount()
         {
-            lock (_lock) return Capacity - _freeBlocks.Count;
+            lock (_lock)
+            {
+                int count = 0;
+                for (int i = 0; i < Capacity; i++)
+                    if (_states[i] == BlockState.Allocated)
+                        count++;
+                return count;
+            }
         }
 
         public int GetFreeBlockCount()
         {
-            lock (_lock) return _freeBlocks.Count;
-        }
-
-        public int UsedBytes
-        {
-            get
+            lock (_lock)
             {
-                lock (_lock) return (Capacity - _freeBlocks.Count) * BlockSize;
+                int count = 0;
+                for (int i = 0; i < Capacity; i++)
+                    if (_states[i] == BlockState.Free)
+                        count++;
+                return count;
             }
         }
 
-        public float UsageRatio
-        {
-            get
-            {
-                lock (_lock) return UsedBytes / (float)(Capacity * BlockSize);
-            }
-        }
+        public int UsedBytes => GetUsedBlockCount() * BlockSize;
 
-        public BlockMemoryManager(IntPtr buffer, int totalSize, int blockSize)
+        public float UsageRatio => UsedBytes / (float)(Capacity * BlockSize);
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BlockMemoryManager"/> class.
+        /// </summary>
+        /// <param name="buffer">The buffer.</param>
+        /// <param name="totalSize">The total size.</param>
+        /// <param name="blockSize">Size of the block. Optional, 16 is on the safe side.</param>
+        /// <exception cref="System.ArgumentException">Block size must evenly divide total size</exception>
+        public BlockMemoryManager(IntPtr buffer, int totalSize, int blockSize = 16)
         {
-            if (blockSize <= 0 || totalSize % blockSize != 0)
-                throw new ArgumentException("Block size must evenly divide total size");
+            if(blockSize < 16 || blockSize % 16 != 0)
+                throw new ArgumentException("Block size must be >= 16 and a multiple of 16 for alignment safety.");
 
             Buffer = buffer;
             BlockSize = blockSize;
@@ -67,10 +75,7 @@ namespace Core
             _states = new UnmanagedArray<BlockState>(Capacity);
 
             for (int i = 0; i < Capacity; i++)
-            {
                 _states[i] = BlockState.Free;
-                _freeBlocks.Add(i);
-            }
         }
 
         public bool TryAllocate(int sizeInBytes, out int allocationId)
@@ -79,12 +84,42 @@ namespace Core
             {
                 allocationId = -1;
                 int blocksNeeded = (sizeInBytes + BlockSize - 1) / BlockSize;
-                if (!TryAllocateContiguous(blocksNeeded, out int startBlockIndex)) return false;
+                if (!TryAllocateContiguous(blocksNeeded, out int startBlockIndex))
+                    return false;
 
                 allocationId = GetNextAvailableId();
                 _allocations[allocationId] = new BlockAllocation { StartIndex = startBlockIndex, BlockCount = blocksNeeded };
                 return true;
             }
+        }
+
+        public bool TryAllocate(int sizeInBytes, out int allocationId, out IntPtr ptr)
+        {
+            if (TryAllocate(sizeInBytes, out allocationId))
+            {
+                ptr = GetPointer(allocationId);
+                return true;
+            }
+            ptr = IntPtr.Zero;
+            return false;
+        }
+
+        public bool TryAllocateArray<T>(int count, out int allocationId) where T : unmanaged
+        {
+            int totalBytes = count * Unsafe.SizeOf<T>();
+            return TryAllocate(totalBytes, out allocationId);
+        }
+
+        public unsafe ref T Resolve<T>(int allocationId) where T : unmanaged
+        {
+            var ptr = (T*)GetPointer(allocationId);
+            return ref *ptr;
+        }
+
+        public unsafe Span<T> ResolveArray<T>(int allocationId, int count) where T : unmanaged
+        {
+            var ptr = (T*)GetPointer(allocationId);
+            return new Span<T>(ptr, count);
         }
 
         public void Free(int allocationId)
@@ -102,11 +137,10 @@ namespace Core
                         throw new InvalidOperationException($"Block {block} is not allocated");
 
                     _states[block] = BlockState.Free;
-                    ZeroBlock(block);
-                    _freeBlocks.Add(block);
                 }
 
                 _allocations.TryRemove(allocationId);
+                _freeIds.Enqueue(allocationId);
             }
         }
 
@@ -139,12 +173,13 @@ namespace Core
 
                             _states[readIndex] = BlockState.Free;
                             _states[writeBlock] = BlockState.Allocated;
-
-                            _freeBlocks.Add(readIndex);
-                            _freeBlocks.Remove(writeBlock);
                         }
 
-                        _allocations[id] = new BlockAllocation { StartIndex = writeIndex, BlockCount = alloc.BlockCount };
+                        _allocations[id] = new BlockAllocation
+                        {
+                            StartIndex = writeIndex,
+                            BlockCount = alloc.BlockCount
+                        };
                     }
 
                     writeIndex += alloc.BlockCount;
@@ -166,9 +201,7 @@ namespace Core
         public BlockAllocation? GetAllocation(int allocationId)
         {
             lock (_lock)
-            {
                 return _allocations.TryGetValue(allocationId, out var alloc) ? alloc : null;
-            }
         }
 
         public bool IsAllocated(int blockIndex)
@@ -184,17 +217,19 @@ namespace Core
         public bool IsValidId(int allocationId)
         {
             lock (_lock)
-            {
                 return _allocations.ContainsKey(allocationId);
-            }
         }
 
         public void Dispose()
         {
             lock (_lock)
             {
+                if (_disposed) return;
+                _disposed = true;
+
                 _states.Dispose();
                 _allocations.Dispose();
+                _freeIds.Clear();
             }
         }
 
@@ -209,7 +244,7 @@ namespace Core
                     if (_states[i + j] != BlockState.Free)
                     {
                         allFree = false;
-                        i += j;
+                        i += j; // skip to after the last checked
                         break;
                     }
                 }
@@ -217,10 +252,7 @@ namespace Core
                 if (allFree)
                 {
                     for (int j = 0; j < count; j++)
-                    {
                         _states[i + j] = BlockState.Allocated;
-                        _freeBlocks.Remove(i + j);
-                    }
 
                     startIndex = i;
                     return true;
@@ -233,6 +265,9 @@ namespace Core
 
         private int GetNextAvailableId()
         {
+            if (_freeIds.Count > 0)
+                return _freeIds.Dequeue();
+
             while (_allocations.ContainsKey(_nextId))
             {
                 _nextId++;
@@ -241,15 +276,6 @@ namespace Core
             }
 
             return _nextId++;
-        }
-
-        private void ZeroBlock(int blockIndex)
-        {
-            unsafe
-            {
-                var ptr = Buffer + blockIndex * BlockSize;
-                Unsafe.InitBlockUnaligned((void*)ptr, 0, (uint)BlockSize);
-            }
         }
     }
 }
