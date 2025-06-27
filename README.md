@@ -151,3 +151,64 @@ typedArena.Free(handleTyped);
 
 // Optionally run manual compaction
 arena.RunMaintenanceCycle();
+
+
+### 📌 Future Architectural Goals
+
+## 📐 Architecture Overview
+
+`MemoryLane` is split into two primary tiers — the **FastLane** and **SlowLane** — each optimized for different lifecycles and access patterns. This multi-tier architecture allows efficient handling of short-lived and long-lived memory allocations, with internal support for promotion, redirection, and compaction.
+
+```
+┌─────────────────────────────────────────────┐
+│                MemoryLane                   │
+│                                             │
+│  ┌────────────┐     ⟶ (via OneWayLane)      │
+│  │ FastLane   │ ─────────────────────────┐  │
+│  │            │  ⟶ Small, fast           │  │
+│  │  BlockMgr  │     allocations          │  │
+│  └────────────┘                           ▼  │
+│                                     ┌──────────────┐
+│                                     │  SlowLane    │
+│                                     │              │
+│                                     │ ┌──────────┐ │
+│                                     │ │ BlockMgr │ │ → Medium-sized persistent data
+│                                     │ └──────────┘ │
+│                                     │ ┌──────────┐ │
+│                                     │ │ BlobMgr  │ │ → Huge unpredictable blobs
+│                                     │ └──────────┘ │
+│                                     └──────────────┘
+└─────────────────────────────────────────────┘
+```
+
+### 🔧 Memory Lane Tiering
+
+#### ✅ **FastLane**
+- **Use Case**: Short-lived, frame-local, high-performance allocations.
+- **Backed by**: `BlockMemoryManager`.
+- **Alloc IDs**: Positive.
+- **Special**: Can redirect stale/oversized items to `SlowLane` using a `OneWayLane`.
+
+#### ✅ **SlowLane**
+- **Use Case**: Long-lived or oversized data that doesn't fit FastLane.
+- **Alloc IDs**: Negative.
+- **Internals**:
+  - **Block Region**: Reuses `BlockMemoryManager` for midsize data.
+  - **Blob Region**: New `BlobManager` for large, variable-sized allocations.
+  - **Dynamic Repartitioning**: Adjusts % split between block/blob based on usage pressure.
+
+#### ✅ **OneWayLane**
+- **Purpose**: Promotes memory from `FastLane` → `SlowLane` when:
+  - Allocation fails.
+  - Entry is stale.
+  - Manual flush or auto-compaction triggers.
+- **Handles redirection** using stub indirection (no dangling pointers).
+
+---
+
+### 📌 Future Architectural Goals
+
+- Support **dynamic blob/block partitioning** in `SlowLane` (adaptive to pressure).
+- Implement **freelist tracking** and **tombstones** for blob reuse.
+- Allow **asynchronous migration** or **thread-aware promotion** paths.
+- Add **telemetry**: per-region usage, pressure feedback, access tracking.
