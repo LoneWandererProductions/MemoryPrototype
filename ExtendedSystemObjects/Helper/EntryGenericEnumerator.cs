@@ -1,8 +1,8 @@
-/*
+﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     ExtendedSystemObjects.Helper
  * FILE:        EntryGenericEnumerator.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     Custom enumerator for my unsage ManagedMap
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
@@ -11,14 +11,14 @@ using System.Collections.Generic;
 
 namespace ExtendedSystemObjects.Helper
 {
-    public unsafe struct EntryGenericEnumerator<TValue> : IEnumerator<(int, TValue)>
+    public unsafe struct EntryGenericEnumerator<TValue> : IEnumerator<(int, TValue)> where TValue : unmanaged
     {
         private readonly EntryGeneric<TValue>* _entries;
         private readonly int _capacity;
         private int _index;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="EntryGenericEnumerator{TValue}"/> struct.
+        ///     Initializes a new instance of the <see cref="EntryGenericEnumerator{TValue}" /> struct.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="capacity">The capacity.</param>
@@ -38,17 +38,22 @@ namespace ExtendedSystemObjects.Helper
             while (++_index < _capacity)
             {
                 var entry = _entries[_index];
-                if (entry.Used == SharedResources.Occupied)
+                if (entry.Used != SharedResources.Occupied)
                 {
-                    Current = (entry.Key, entry.Value);
-                    return true;
+                    continue;
                 }
+
+                Current = (entry.Key, entry.Value);
+                return true;
             }
 
             return false;
         }
 
-        public void Reset() => _index = -1;
+        public void Reset()
+        {
+            _index = -1;
+        }
 
         public void Dispose() { }
     }
