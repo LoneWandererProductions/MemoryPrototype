@@ -91,7 +91,6 @@ These are conceptual features or areas for future exploration:
 
 `MemoryLane` is split into two tiers — **FastLane** and **SlowLane** — optimized for different lifetimes and access patterns. This enables efficient management of both transient and long-lived memory, with built-in support for migration and indirection.
 
----
 
 ### 🔧 Tier Responsibilities
 
