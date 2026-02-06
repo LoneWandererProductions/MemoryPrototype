@@ -221,23 +221,35 @@ namespace Lanes
         /// </summary>
         /// <param name="handles">The handles.</param>
         /// <exception cref="System.InvalidOperationException">SlowLane: Invalid handle {handle.Id}</exception>
-        public void FreeMany(IEnumerable<MemoryHandle> handles)
+        public unsafe void FreeMany(MemoryHandle[] handles) // Or ReadOnlySpan<MemoryHandle>
         {
-            var freedCount = 0;
+            var span = handles.AsSpan();
+            int count = span.Length;
 
-            foreach (var handle in handles)
+            // We'll collect the IDs and Indices in temporary buffers to batch-push
+            // Using stackalloc for small-to-medium batches avoids GC pressure
+            int* ids = stackalloc int[count];
+            int* indices = stackalloc int[count];
+
+            for (int i = 0; i < count; i++)
             {
-                if (!_handleIndex.TryRemove(handle.Id, out var index))
-                    throw new InvalidOperationException($"SlowLane: Invalid handle {handle.Id}");
+                int id = span[i].Id;
 
+                if (!_handleIndex.TryRemove(id, out var index))
+                    throw new InvalidOperationException($"SlowLane: Invalid handle {id}");
+
+                // Clear entry data
                 _entries[index] = default;
-                _freeSlots.Push(index);
-                _freeIds.Push(handle.Id);
 
-                freedCount++;
+                ids[i] = id;
+                indices[i] = index;
             }
 
-            EntryCount += freedCount;
+            // Batch add to our unmanaged lists
+            _freeIds.PushRange(new ReadOnlySpan<int>(ids, count));
+            _freeSlots.PushRange(new ReadOnlySpan<int>(indices, count));
+
+            EntryCount += count;
         }
 
         /// <inheritdoc />
