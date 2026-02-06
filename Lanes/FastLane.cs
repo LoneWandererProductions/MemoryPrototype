@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Lanes
@@ -261,31 +262,36 @@ namespace Lanes
         ///     or
         ///     FastLane: Invalid handle
         /// </exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Free(MemoryHandle handle)
         {
-            if (_entries == null) throw new InvalidOperationException("FastLane: Memory is corrupted.");
-
+            // 1. Remove from index first
             if (!_handleIndex.TryRemove(handle.Id, out var index))
                 throw new InvalidOperationException($"SlowLane: Invalid handle {handle.Id}");
 
+            // 2. Handle SlowLane/Redirects (This is your cold path)
             var entry = _entries[index];
-
             if (entry.IsStub && entry.RedirectTo.HasValue)
             {
                 _slowLane.Free(entry.RedirectTo.Value);
-                //cleanup our Dictionary
                 Redirects.Remove(handle.Id);
             }
 
-            // Remove by shifting tail and updating map
-            var last = EntryCount - 1;
-            if (index != last)
+            // 3. Swap-with-tail removal
+            int lastIdx = --EntryCount; // Decrement first to get the last valid index
+            if (index != lastIdx)
             {
-                _entries[index] = _entries[last];
-                _handleIndex[_entries[index].HandleId] = index;
+                // Move the last entry into the hole
+                var movedEntry = _entries[lastIdx];
+                _entries[index] = movedEntry;
+
+                // Update the map to point to the new location
+                // OPTIMIZATION: Use a direct 'Set' or 'Update' if your map allows 
+                // to avoid tombstone buildup during updates.
+                _handleIndex[movedEntry.HandleId] = index;
             }
 
-            EntryCount--;
+            // 4. Return ID to pool
             _freeIds.Push(handle.Id);
         }
 

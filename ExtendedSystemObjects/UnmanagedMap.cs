@@ -263,31 +263,59 @@ namespace ExtendedSystemObjects
         public bool TryRemove(int key, out TValue value)
         {
             var mask = Capacity - 1;
-            var startIndex = key & mask;
+            var i = key & mask;
 
-            for (var i = 0; i < Capacity; i++)
+            // 1. Find the key
+            while (true)
             {
-                var probeIndex = (startIndex + i) & mask;
-                ref var slot = ref _entries[probeIndex];
-
+                ref var slot = ref _entries[i];
                 if (slot.Used == SharedResources.Empty)
                 {
-                    break;
+                    value = default;
+                    return false;
                 }
 
                 if (slot.Used == SharedResources.Occupied && slot.Key == key)
                 {
                     value = slot.Value;
-                    slot.Used = SharedResources.Tombstone;
-                    Count--;
-                    return true;
+                    break; // Found it, 'i' is the index to remove
+                }
+                i = (i + 1) & mask;
+            }
+
+            // 2. Perform the backward shift
+            // This fills the hole at 'i' by shifting subsequent entries
+            int j = i;
+            while (true)
+            {
+                j = (j + 1) & mask;
+                ref var nextSlot = ref _entries[j];
+
+                if (nextSlot.Used == SharedResources.Empty)
+                {
+                    break;
+                }
+
+                // Calculate the "ideal" position for the key at j
+                int ideal = nextSlot.Key & mask;
+
+                // Check if the current position 'j' is "out of order" 
+                // relative to the hole at 'i'
+                if ((j > i && (ideal <= i || ideal > j)) ||
+                    (j < i && (ideal <= i && ideal > j)))
+                {
+                    _entries[i] = nextSlot; // Move entry at j to hole at i
+                    i = j;                  // The hole is now at j
                 }
             }
 
-            value = default;
-            return false;
+            // 3. Mark the final hole as truly empty
+            _entries[i].Used = SharedResources.Empty;
+            _entries[i].Key = 0;
+            _entries[i].Value = default;
+            Count--;
+            return true;
         }
-
 
         public bool TryRemove(int key)
         {
