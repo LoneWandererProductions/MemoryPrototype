@@ -6,14 +6,15 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+using Core.MemoryArenaPrototype.Core;
 using System;
 using System.Collections.Generic;
 
-namespace Core.MemoryArenaPrototype.Core
+namespace Core
 {
     public sealed class BlobManager : IMemoryLane
     {
-        private readonly IntPtr _buffer;
+        private readonly nint _buffer;
         private readonly int _capacity;
 
         private int _nextId = -10000;
@@ -25,7 +26,7 @@ namespace Core.MemoryArenaPrototype.Core
         private readonly Dictionary<int, string> _debugNames = new();
 #endif
 
-        public BlobManager(IntPtr buffer, int capacity)
+        public BlobManager(nint buffer, int capacity)
         {
             _buffer = buffer;
             _capacity = capacity;
@@ -33,14 +34,14 @@ namespace Core.MemoryArenaPrototype.Core
 
         public bool CanAllocate(int size)
         {
-            return (_nextFreeOffset + size) <= _capacity;
+            return _nextFreeOffset + size <= _capacity;
         }
 
         public MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
             AllocationHints hints = AllocationHints.None,
-            string? debugName = null,
+            string debugName = null,
             int currentFrame = 0)
         {
             if (!CanAllocate(size))
@@ -80,7 +81,7 @@ namespace Core.MemoryArenaPrototype.Core
 #endif
         }
 
-        public IntPtr Resolve(MemoryHandle handle)
+        public nint Resolve(MemoryHandle handle)
         {
             if (!_entries.TryGetValue(handle.Id, out var entry))
                 throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
@@ -143,7 +144,7 @@ namespace Core.MemoryArenaPrototype.Core
 
         public double UsagePercentage()
         {
-            return (_nextFreeOffset / (double)_capacity) * 100.0;
+            return _nextFreeOffset / (double)_capacity * 100.0;
         }
 
         public IEnumerable<MemoryHandle> GetHandles()
@@ -152,8 +153,8 @@ namespace Core.MemoryArenaPrototype.Core
                 yield return new MemoryHandle(key, this);
         }
 
-        public event Action<string>? OnCompaction;
-        public event Action<string, int, int>? OnAllocationExtension;
+        public event Action<string> OnCompaction;
+        public event Action<string, int, int> OnAllocationExtension;
 
         public string DebugVisualMap() => "[BlobMap not implemented]";
         public string DebugRedirections() => "[BlobRedirects not applicable]";

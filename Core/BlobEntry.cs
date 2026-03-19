@@ -6,7 +6,7 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-namespace Core.MemoryArenaPrototype.Core
+namespace Core
 {
     // A separate struct for tracking Blob metadata
     public struct BlobEntry
