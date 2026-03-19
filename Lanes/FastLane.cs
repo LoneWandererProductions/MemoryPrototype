@@ -266,15 +266,17 @@ namespace Lanes
             if (_entries == null)
                 throw new InvalidOperationException("FastLane: Memory is corrupted.");
 
-            // First try redirect dictionary
-            // Redirection handles are stored separately for quick access.
-            if (Redirects.TryGetValue(handle.Id, out var redirectHandle))
-                return _slowLane.Resolve(redirectHandle);
-
             if (!_handleIndex.TryGetValue(handle.Id, out var index))
                 throw new InvalidOperationException("FastLane: Invalid handle");
 
             ref readonly var entry = ref _entries[index];
+
+            // If it's a stub, immediately resolve it via the SlowLane instead!
+            if (entry.IsStub && entry.RedirectToId != 0)
+            {
+                var slowHandle = new MemoryHandle(entry.RedirectToId, _slowLane);
+                return _slowLane.Resolve(slowHandle);
+            }
 
             return Buffer + entry.Offset;
         }
@@ -304,10 +306,11 @@ namespace Lanes
             var entry = _entries[index];
             MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
 
-            if (entry.IsStub && entry.RedirectTo.HasValue)
+            if (entry.IsStub && entry.RedirectToId != 0)
             {
-                _slowLane.Free(entry.RedirectTo.Value);
-                Redirects.Remove(handle.Id);
+                var slowHandle = new MemoryHandle(entry.RedirectToId, _slowLane);
+                _slowLane.Free(slowHandle);
+                // Redirects.Remove(handle.Id); // We are going to delete this dictionary entirely in a second!
             }
 
             // 3. Swap-with-tail removal
@@ -328,48 +331,52 @@ namespace Lanes
             _freeIds.Push(handle.Id);
         }
 
+
+        /// <summary>
+        /// Compacts the memory lane by consolidating free space and possibly rearranging allocations.
+        /// Useful to reduce fragmentation and improve allocation efficiency.
+        /// </summary>
+        public void Compact()
+        {
+            // Fallback if called blindly from the interface without Janitor context
+            Compact(0, new MemoryManagerConfig());
+        }
+
         /// <inheritdoc />
         /// <summary>
         ///     Compacts this instance.
         /// </summary>
-        public unsafe void Compact()
+        public unsafe void Compact(int currentFrame, MemoryManagerConfig config)
         {
             if (_entries == null || EntryCount == 0) return;
 
             var newBuffer = Marshal.AllocHGlobal(Capacity);
             var offset = 0;
 
-            // FIX: We must process the entries in order of their memory Offset!
-            // Otherwise, Swap-With-Tail removals will cause memory to be copied out of order,
-            // leading to overlapping writes and test failures.
-
-            // 1. Create a sorted copy of the active entries
             var sortedEntries = new AllocationEntry[EntryCount];
             Array.Copy(_entries, sortedEntries, EntryCount);
             Array.Sort(sortedEntries, (a, b) => a.Offset.CompareTo(b.Offset));
 
             for (var i = 0; i < EntryCount; i++)
             {
-                var entry = sortedEntries[i]; // Use the sorted entry!
+                var entry = sortedEntries[i];
 
                 if (!entry.IsStub)
                 {
-                    if (ShouldMoveToSlowLane(entry))
+                    // --- THE JANITOR AT WORK ---
+                    if (ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames, config.FastLaneLargeEntryThreshold))
                     {
                         var fastHandle = new MemoryHandle(entry.HandleId, this);
                         if (OneWayLane?.MoveFromFastToSlow(fastHandle) == true)
                         {
-                            // Update our sorted entry with the stub info
-                            // Since it's a struct, we have to re-fetch it from _entries to get the changes 
-                            // that OneWayLane.MoveFromFastToSlow just applied!
                             var actualIndex = _handleIndex[entry.HandleId];
                             entry = _entries[actualIndex];
-
-                            _entries[actualIndex] = entry; // Put it back
-                            continue;
+                            _entries[actualIndex] = entry;
+                            continue; // Skip the memory copy! It's gone to the SlowLane.
                         }
                     }
 
+                    // Normal compaction copy for surviving FastLane entries
                     void* source = (byte*)Buffer + entry.Offset;
                     void* target = (byte*)newBuffer + offset;
                     System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
@@ -377,7 +384,6 @@ namespace Lanes
                     offset += entry.Size;
                 }
 
-                // 2. Put the updated entry back into the MAIN _entries array
                 var originalIndex = _handleIndex[entry.HandleId];
                 _entries[originalIndex] = entry;
             }
@@ -495,10 +501,22 @@ namespace Lanes
         /// </summary>
         /// <param name="entry">The entry.</param>
         /// <returns>Status if a move is necessary.</returns>
-        private static bool ShouldMoveToSlowLane(AllocationEntry entry)
+        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, int maxAgeFrames, int largeThreshold)
         {
-            // Basic example: offload low-priority entries
-            return entry.Priority == AllocationPriority.Low;
+            // 1. Explicit Telemetry: Developer tagged it as cold
+            if (entry.Hints.HasFlag(AllocationHints.Cold))
+                return true;
+
+            // 2. Size Analytics: It's too big and clogging the FastLane
+            if (entry.Size > largeThreshold)
+                return true;
+
+            // 3. Lifetime Analytics: It has outstayed its welcome (The Janitor)
+            int age = currentFrame - entry.AllocationFrame;
+            if (age > maxAgeFrames)
+                return true;
+
+            return false;
         }
 
         /// <summary>
@@ -510,7 +528,7 @@ namespace Lanes
             var oldSize = _entries.Length;
             var newSize = MemoryLaneUtils.EnsureEntryCapacity(ref _entries, requiredSlotIndex);
             // Allocation Entriesmust be extended
-            OnAllocationExtension?.Invoke(nameof(SlowLane), oldSize, newSize);
+            OnAllocationExtension?.Invoke(nameof(FastLane), oldSize, newSize);
         }
 
         /// <summary>

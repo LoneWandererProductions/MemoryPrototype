@@ -7,6 +7,7 @@
  */
 
 using System;
+using Core;
 using MemoryManager;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 

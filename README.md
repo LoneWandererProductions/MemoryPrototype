@@ -2,7 +2,9 @@
 
 **MemoryLane** is a prototype memory allocation and handle system built to experiment with custom memory management in C#. Inspired by techniques found in game engines and real-time systems, it explores handle indirection, dual-tier memory lanes, and optional compaction.
 
-> ⚠️ **Note:** This is a **prototype for learning and experimentation**. It is **not production-ready** and remains **untested for real-world use cases**. Use at your own risk.
+
+> ⚠️ **Note:** This is a **prototype for learning and experimentation**. Use at your own risk.
+Validated via high-stress memory pressure tests and performance benchmarks against the .NET Garbage Collector.
 
 ---
 
@@ -36,11 +38,14 @@
 
 - 🛤️ **One-Way Lane Transfer**  
   - `OneWayLane` shifts data from `FastLane` to `SlowLane`.  
-  - Uses internal buffer and `Marshal.Copy` to avoid breaking references.  
+  - Uses `Span<T>` and `Buffer.MemoryCopy` to avoid breaking references.  
   - Can be plugged into compaction or run manually.
 
-- ✅ **Robust Unit Tests** *(planned)*  
-  - Will cover correctness, safety, and performance.
+- 🔤 Unmanaged String Support 
+   — Store strings as UTF-8 byte arrays to save 50% memory over C# UTF-16 strings and bypass the GC.
+
+- ✅ **Robust Unit Tests**  
+  — Includes structural validation, performance benchmarks, and multi-lane stress testing.
 
 ---
 
@@ -57,7 +62,7 @@ This project was created to:
 
 ## ⚙️ Requirements
 
-- **.NET 5.0** (or compatible runtime)
+- **.NET 9.0** (or compatible runtime)
 
 ---
 
@@ -65,97 +70,84 @@ This project was created to:
 
 These are conceptual features or areas for future exploration:
 
-- [ ] **Paging Support** – Evict memory to disk or secondary storage.  
-- [ ] **SlowLane Compaction Enhancements** – Reserve ~10% as scratch space.  
-- [ ] **Improved OneWayLane**  
-  - Use shared buffers or memory pools.  
-  - Add bidirectional transfer.  
-  - Expose migration cost/heuristics to callers.  
-- [ ] **Advanced Memory Tracking**  
-  - Allocation lifetime, usage frequency, promotion history.  
-  - Debug tags for diagnostics.  
-- [ ] **Allocation Groups** – Group handles for batch operations or diagnostics.  
-- [ ] **Alignment Support** – `AlignTo(int)` for cache-friendly access.  
-- [ ] **Failover Policies** – Automatically fall back to `SlowLane` when `FastLane` fails.  
-- [ ] **Multithreaded Allocator** – Concurrency support via locks or lock-free front-end.  
-- [ ] **Object Lifecycle Management** – Auto-eviction based on access time.  
-- [ ] **Dynamic Buffer Growth** – Allow runtime memory expansion.  
-- [ ] **Memory Compression** – Compress cold data in `SlowLane`.  
-- [ ] **Block-Based Allocation & Reuse**  
-  - Uniform block sizes, freelists, and tombstones.  
-  - Improves reuse, reduces fragmentation, simplifies compaction.
+[ ] Thread Safety — Replace global lock with ReaderWriterLockSlim for parallel Resolve operations.
+[ ] Handle ID Pooling — Implement a stack-based pool for MemoryHandle IDs to ensure $O(1)$ allocation without metadata overhead.
+[ ] SIMD Alignment — Add AlignTo(int boundary) to the allocation logic for cache-line and SIMD-friendly memory offsets.
+[ ] Visual Profiler — Export internal memory maps to a heatmap (JSON/HTML) for real-time fragmentation monitoring.
+[ ] Bidirectional Transfer — (Advanced) Allow the Janitor to "pull" frequently accessed data back into the `FastLane`.
 
 ---
 
 ## 📐 Planned Architecture Overview
 
-`MemoryLane` is split into two tiers — **FastLane** and **SlowLane** — optimized for different lifetimes and access patterns. This enables efficient management of both transient and long-lived memory, with built-in support for migration and indirection.
-
+MemoryLane utilizes a dual-tier strategy to bypass the .NET Garbage Collector for high-frequency or large-scale unmanaged data. By using Handle Indirection, the system can physically move memory (defragmentation) without breaking user-held references.
 
 ### 🔧 Tier Responsibilities
 
 #### ✅ FastLane
-- Short-lived, high-speed allocations.
-- Backed by `BlockMemoryManager`.
-- Positive allocation IDs.
-- Promotes stale/oversized entries to `SlowLane` via `OneWayLane`.
+Optimized for: High-frequency, short-lived "hot" data.
+
+Backend: High-speed Arena with a zero-allocation Free-List.
+
+Convention: Uses Positive Allocation IDs.
+
+The Janitor: Automatically promotes stale, oversized, or "Cold-tagged" entries to the SlowLane during maintenance cycles to keep the FastLane lean.
 
 #### ✅ SlowLane
-- Long-lived or oversized allocations.
-- Negative allocation IDs.
-- Internally split between:  
-  - `BlockMgr` for mid-sized data.  
-  - `BlobMgr` for large/unpredictable blobs.  
-- Dynamic repartitioning between block/blob regions.
+Optimized for: Large, persistent "cold" data or background assets.
 
-#### ✅ OneWayLane
-- Migrates memory from `FastLane` to `SlowLane`.
-- Triggered by allocation failure, compaction, or manual flush.
-- Uses stub-based redirection to maintain handle validity.
+Backend: Large-scale unmanaged buffer with defragmentation support.
 
----
+Convention: Uses Negative Allocation IDs.
 
-### 🧠 Planned Architecture Enhancements
+Maintenance: Performs deep compaction when fragmentation exceeds configured thresholds.
 
-- Adaptive block/blob partitioning in `SlowLane`.
-- Freelist and tombstone support for `BlobMgr`.
-- Thread-aware or asynchronous migration.
-- Telemetry for usage and pressure monitoring.
+#### ✅ OneWayLane (The Bridge)
+Responsibility: Seamlessly migrates memory from FastLane to SlowLane.
+
+Mechanism: Direct pointer-to-pointer Buffer.MemoryCopy.
+
+Stub System: Replaces the FastLane entry with a Stub that redirects all future Resolve calls to the new SlowLane address.
 
 ---
 
 ## 🧩 Example Usage
 
 ```csharp
-var config = new MemoryManagerConfig
+// Setup Configuration
+var config = new MemoryManagerConfig(slowLaneSize: 10 * 1024 * 1024) 
 {
-    FastLaneSize = 1024 * 1024,       // 1 MB
-    SlowLaneSize = 10 * 1024 * 1024,  // 10 MB
-    Threshold = 4096,                 // Switch threshold between lanes
     EnableAutoCompaction = true,
-    CompactionThreshold = 0.90,
-    SlowLaneUsageThreshold = 0.85,
-    SlowLaneSafetyMargin = 0.10,
-    PolicyCheckInterval = TimeSpan.FromSeconds(10)
+    FastLaneUsageThreshold = 0.90,
+    MaxFastLaneAgeFrames = 600 // Janitor evicts after 10 seconds at 60fps
 };
 
 var arena = new MemoryArena(config);
 
-// --- Raw MemoryArena usage (more control) ---
-var size = Marshal.SizeOf<MyStruct>();
-var handleRaw = arena.Allocate(size);
-ref var dataRaw = ref arena.Get<MyStruct>(handleRaw);
-dataRaw.Value = 123;
-Console.WriteLine($"Raw arena value: {dataRaw.Value}");
-arena.Free(handleRaw);
+// --- 1. Syntactic Sugar: Allocation & Storage ---
+// Stores an int directly. The handle is stable even if the memory moves!
+var intHandle = arena.AllocateAndStore(777);
 
-// --- TypedMemoryArena usage (simplified) ---
-var typedArena = new TypedMemoryArena(arena);
-var handleTyped = typedArena.Allocate<MyStruct>();
-typedArena.Set(handleTyped, new MyStruct { Value = 456, PositionX = 1.1f, PositionY = 2.2f });
-ref var dataTyped = ref typedArena.Get<MyStruct>(handleTyped);
-Console.WriteLine($"Typed arena value: {dataTyped.Value}");
-typedArena.Free(handleTyped);
+// --- 2. High-Performance Arrays & Bulk Operations ---
+int[] sourceData = { 10, 20, 30, 40, 50 };
+var arrayHandle = arena.AllocateArray<int>(sourceData.Length);
 
-// Optionally run manual compaction
-arena.RunMaintenanceCycle();
+// "Slam" managed data into unmanaged memory instantly
+arena.BulkSet(arrayHandle, sourceData);
+
+// --- 3. Pointer-Speed Access via Spans ---
+// Get a Span for zero-allocation, high-speed iteration
+var span = arena.GetSpan<int>(arrayHandle, sourceData.Length);
+foreach(ref var val in span) 
+{
+    val *= 2; // Direct memory manipulation
+}
+
+// --- 4. Policy-Driven Maintenance ---
+// Increments internal clock and triggers Janitor/Compaction if needed
+arena.TickFrame(); 
+arena.RunMaintenanceCycle(); 
+
+// --- 5. Manual Cleanup ---
+arena.Free(intHandle);
+arena.Free(arrayHandle);

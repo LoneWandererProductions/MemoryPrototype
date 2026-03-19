@@ -1,6 +1,6 @@
 /*
  * COPYRIGHT:   See COPYING in the top level directory
- * PROJECT:     MemoryManager
+ * PROJECT:     Core
  * FILE:        MemoryManagerConfig.cs
  * PURPOSE:     Your file purpose here
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
@@ -8,7 +8,7 @@
 
 using System;
 
-namespace MemoryManager
+namespace Core
 {
     /// <summary>
     ///     The config for the mm
@@ -60,6 +60,15 @@ namespace MemoryManager
             SlowLaneUsageThreshold = 0.85;
             SlowLaneSafetyMargin = 0.10;
         }
+
+        /// <summary>
+        /// How many frames an allocation can sit in the FastLane before being evicted
+        /// Gets the maximum fast lane age frames.
+        /// </summary>
+        /// <value>
+        /// The maximum fast lane age frames.
+        /// </value>
+        public int MaxFastLaneAgeFrames { get; init; } = 600;
 
         // Size of the fast memory lane (high-speed, limited capacity)
         // Rule of thumb: balance between fast allocations and available RAM,

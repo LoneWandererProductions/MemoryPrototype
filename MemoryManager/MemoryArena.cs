@@ -39,13 +39,13 @@
 // ReSharper disable NotAccessedField.Local
 
 #nullable enable
+using Core;
+using Core.MemoryArenaPrototype.Core;
+using Lanes;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading;
-using Core;
-using Lanes;
 
 namespace MemoryManager
 {
@@ -64,8 +64,49 @@ namespace MemoryManager
         /// </summary>
         private readonly object _lock;
 
-        // Optionally: background thread for policies
+        /// <summary>
+        /// The policy timer
+        /// Optionally: background thread for policies
+        /// </summary>
         private Timer? _policyTimer;
+
+        /// <summary>
+        /// Gets the current frame.
+        /// </summary>
+        /// <value>
+        /// The current frame.
+        /// </value>
+        public int CurrentFrame { get; private set; }
+
+        /// <summary>
+        /// Gets a Span over the memory region for high-speed bulk access.
+        /// </summary>
+        /// <typeparam name="T">Generic Type</typeparam>
+        /// <param name="handle">The handle.</param>
+        /// <param name="count">The count.</param>
+        /// <returns>Get array by start handle.</returns>
+        public unsafe Span<T> GetSpan<T>(MemoryHandle handle, int count) where T : unmanaged
+        {
+            // Resolve handles the stub-redirection automatically!
+            void* ptr = Resolve(handle).ToPointer();
+            return new Span<T>(ptr, count);
+        }
+
+        /// <summary>
+        /// Retrieves the full allocation entry metadata for a given handle by routing to the correct lane.
+        /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>Resolve entry by handle.</returns>
+        /// <exception cref="System.InvalidOperationException">Invalid handle</exception>
+        public AllocationEntry GetEntry(MemoryHandle handle)
+        {
+            if (handle.IsInvalid) throw new InvalidOperationException("Invalid handle");
+
+            // Route based on our ID convention (Positive = Fast, Negative = Slow)
+            return handle.Id > 0
+                ? FastLane.GetEntry(handle)
+                : SlowLane.GetEntry(handle);
+        }
 
         /// <summary>
         ///     Initializes a new instance of the <see cref="MemoryArena" /> class.
@@ -111,6 +152,22 @@ namespace MemoryManager
         ///     The threshold.
         /// </value>
         private int Threshold { get; }
+
+        /// <summary>
+        /// Increments the arena's internal clock and optionally runs maintenance.
+        /// This should be called once per application loop (e.g., once per frame).
+        /// </summary>
+        public void TickFrame()
+        {
+            CurrentFrame++;
+
+            // If background timer is disabled, we run policies here to ensure 
+            // the Janitor still does his work.
+            if (_policyTimer == null)
+            {
+                CheckPolicies();
+            }
+        }
 
         /// <summary>
         ///     Moves the fast to slow.
@@ -178,9 +235,37 @@ namespace MemoryManager
         {
             lock (_lock)
             {
+                // TryCompactFastLane() now just calls:
+                // FastLane.Compact(CurrentFrame, _config);
                 TryCompactFastLane();
                 TryCompactSlowLane();
             }
+        }
+
+        /// <summary>
+        /// Allocates space for type T and stores the provided value.
+        /// Avoids ambiguity with the size-based Allocate method.
+        /// </summary>
+        /// <typeparam name="T">Generic Type.</typeparam>
+        /// <param name="value">The value.</param>
+        /// <param name="priority">The priority.</param>
+        /// <param name="hints">The hints.</param>
+        /// <param name="debugName">Name of the debug.</param>
+        /// <returns>Handle to the memory area.</returns>
+        public unsafe MemoryHandle AllocateAndStore<T>(
+            T value,
+            AllocationPriority priority = AllocationPriority.Normal,
+            AllocationHints hints = AllocationHints.None,
+            string? debugName = null) where T : unmanaged
+        {
+            // We call the existing int-based Allocate for the size
+            var handle = Allocate(Unsafe.SizeOf<T>(), priority, hints, debugName, CurrentFrame);
+
+            // Write the value to the resolved pointer
+            void* dest = Resolve(handle).ToPointer();
+            Unsafe.Write(dest, value);
+
+            return handle;
         }
 
         /// <summary>
@@ -239,7 +324,7 @@ namespace MemoryManager
         /// </summary>
         public void CompactAll()
         {
-            FastLane.Compact();
+            FastLane.Compact(CurrentFrame, _config);
             SlowLane.Compact();
         }
 
@@ -288,26 +373,13 @@ namespace MemoryManager
         /// </summary>
         private void TryCompactFastLane()
         {
-            var fastLaneUsageThreshold = _config.FastLaneUsageThreshold;
-
-            if (FastLane.UsagePercentage() <= fastLaneUsageThreshold)
+            // Just check the threshold
+            if (FastLane.UsagePercentage() <= _config.FastLaneUsageThreshold)
                 return;
 
-            // Cache handles that should be moved first to avoid modifying collection during enumeration
-            var handlesToMove = new List<MemoryHandle>();
-
-            foreach (var handle in FastLane.GetHandles())
-            {
-                var entry = FastLane.GetEntry(handle);
-                if (entry.Size > _config.FastLaneLargeEntryThreshold ||
-                    entry.Hints.HasFlag(AllocationHints.Cold) ||
-                    entry.Hints.HasFlag(AllocationHints.Old))
-                    handlesToMove.Add(handle);
-            }
-
-            foreach (var handle in handlesToMove) MoveFastToSlow(handle);
-
-            FastLane.Compact();
+            // Let the Janitor inside FastLane.Compact do the heavy lifting 
+            // of deciding what to move based on Age, Size, and Hints.
+            FastLane.Compact(CurrentFrame, _config);
         }
 
         /// <summary>

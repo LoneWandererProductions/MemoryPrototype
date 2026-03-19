@@ -20,20 +20,32 @@ namespace Core
     public interface IMemoryLane
     {
         /// <summary>
-        ///     Allocates a memory block of the specified size with optional priority, hints, and debugging info.
+        /// Occurs when [on compaction].
+        /// </summary>
+        event Action<string>? OnCompaction;
+
+        /// <summary>
+        /// Occurs when [on allocation extension].
+        /// </summary>
+        event Action<string, int, int>? OnAllocationExtension;
+
+        /// <summary>
+        /// Allocates a memory block of the specified size with optional priority, hints, and debugging info.
         /// </summary>
         /// <param name="size">The size in bytes to allocate.</param>
         /// <param name="priority">Priority influencing allocation or eviction behavior.</param>
         /// <param name="hints">Additional hints that modify allocation behavior.</param>
         /// <param name="debugName">Optional debug name for identifying the allocation.</param>
         /// <param name="currentFrame">Current frame or timestamp for tracking allocation timing.</param>
-        /// <returns>A handle representing the allocated memory block.</returns>
+        /// <returns>
+        /// A handle representing the allocated memory block.
+        /// </returns>
         MemoryHandle Allocate(
-            int size,
-            AllocationPriority priority = AllocationPriority.Normal,
-            AllocationHints hints = AllocationHints.None,
-            string? debugName = null,
-            int currentFrame = 0);
+                    int size,
+                    AllocationPriority priority = AllocationPriority.Normal,
+                    AllocationHints hints = AllocationHints.None,
+                    string? debugName = null,
+                    int currentFrame = 0);
 
         /// <summary>
         ///     Resolves a memory handle to a raw pointer (IntPtr) to access the allocated memory.
@@ -45,9 +57,9 @@ namespace Core
         /// <summary>
         ///     Gets the size of the allocation identified by the specified handle.
         /// </summary>
-        /// <param name="fastHandle">The handle referencing the allocation.</param>
+        /// <param name="handle">The handle referencing the allocation.</param>
         /// <returns>The size in bytes of the allocation.</returns>
-        int GetAllocationSize(MemoryHandle fastHandle);
+        int GetAllocationSize(MemoryHandle handle);
 
         /// <summary>
         ///     Retrieves the full allocation entry metadata for a given handle.
@@ -88,5 +100,29 @@ namespace Core
         /// </summary>
         /// <returns>A string representation of the current memory lane state.</returns>
         string DebugDump();
+
+        /// <summary>
+        /// Frees the space.
+        /// </summary>
+        /// <returns>Free Memory</returns>
+        int FreeSpace();
+
+        /// <summary>
+        /// Stubs the count.
+        /// </summary>
+        /// <returns>Stub Count.</returns>
+        int StubCount();
+
+        /// <summary>
+        /// Estimates the fragmentation.
+        /// </summary>
+        /// <returns>Estimated Fragmentation.</returns>
+        int EstimateFragmentation();
+
+        /// <summary>
+        /// Usages the percentage.
+        /// </summary>
+        /// <returns>Used memory Percentage</returns>
+        double UsagePercentage();
     }
 }
