@@ -1,7 +1,13 @@
-﻿using System;
+/*
+ * COPYRIGHT:   See COPYING in the top level directory
+ * PROJECT:     Core.MemoryArenaPrototype.Core
+ * FILE:        BlobManager.cs
+ * PURPOSE:     Your file purpose here
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
+ */
+
+using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using Core;
 
 namespace Core.MemoryArenaPrototype.Core
 {
@@ -10,15 +16,24 @@ namespace Core.MemoryArenaPrototype.Core
         private readonly IntPtr _buffer;
         private readonly int _capacity;
 
-        private int _nextId = -10000; // Negative IDs reserved for blob allocations
+        private int _nextId = -10000;
         private int _nextFreeOffset = 0;
 
         private readonly Dictionary<int, BlobEntry> _entries = new();
+
+#if DEBUG
+        private readonly Dictionary<int, string> _debugNames = new();
+#endif
 
         public BlobManager(IntPtr buffer, int capacity)
         {
             _buffer = buffer;
             _capacity = capacity;
+        }
+
+        public bool CanAllocate(int size)
+        {
+            return (_nextFreeOffset + size) <= _capacity;
         }
 
         public MemoryHandle Allocate(
@@ -28,32 +43,41 @@ namespace Core.MemoryArenaPrototype.Core
             string? debugName = null,
             int currentFrame = 0)
         {
-            if (_nextFreeOffset + size > _capacity)
-                Compact();
-
-            if (_nextFreeOffset + size > _capacity)
-                throw new OutOfMemoryException("BlobManager: Out of memory");
+            if (!CanAllocate(size))
+                throw new OutOfMemoryException("BlobManager: Out of memory. Buffer is full.");
 
             int id = _nextId--;
+            int allocatedOffset = _nextFreeOffset;
 
             _entries[id] = new BlobEntry
             {
                 Id = id,
-                Offset = _nextFreeOffset,
+                Offset = allocatedOffset,
                 Size = size,
-                DebugName = debugName,
                 AllocationFrame = currentFrame
             };
 
-            var handle = new MemoryHandle(id, this);
+#if DEBUG
+            if (!string.IsNullOrEmpty(debugName))
+            {
+                _debugNames[id] = debugName;
+            }
+#endif
+
             _nextFreeOffset += size;
-            return handle;
+            return new MemoryHandle(id, this);
         }
 
         public void Free(MemoryHandle handle)
         {
+            // In a bump allocator, individual frees don't reclaim memory.
+            // We just invalidate the handle so it can't be used anymore.
             if (!_entries.Remove(handle.Id))
                 throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
+
+#if DEBUG
+            _debugNames.Remove(handle.Id);
+#endif
         }
 
         public IntPtr Resolve(MemoryHandle handle)
@@ -76,10 +100,9 @@ namespace Core.MemoryArenaPrototype.Core
                 HandleId = blob.Id,
                 Offset = blob.Offset,
                 Size = blob.Size,
-                DebugName = blob.DebugName,
                 AllocationFrame = blob.AllocationFrame,
                 IsStub = false,
-                RedirectTo = null,
+                RedirectToId = 0, // Updated for Blittable struct
                 Priority = AllocationPriority.Normal,
                 Hints = AllocationHints.None,
                 LastAccessFrame = blob.AllocationFrame
@@ -102,9 +125,15 @@ namespace Core.MemoryArenaPrototype.Core
 
         public void Compact()
         {
-            // Trivial "reset" for now — upgrade later if needed
+            // Only the owner of the BlobManager should call Compact 
+            // (e.g., at the end of a render frame).
+            // It completely wipes the arena.
             _entries.Clear();
+#if DEBUG
+            _debugNames.Clear();
+#endif
             _nextFreeOffset = 0;
+            OnCompaction?.Invoke(nameof(BlobManager));
         }
 
         public string DebugDump()
@@ -119,8 +148,8 @@ namespace Core.MemoryArenaPrototype.Core
 
         public IEnumerable<MemoryHandle> GetHandles()
         {
-            foreach (var kv in _entries)
-                yield return new MemoryHandle(kv.Key, this);
+            foreach (var key in _entries.Keys)
+                yield return new MemoryHandle(key, this);
         }
 
         public event Action<string>? OnCompaction;
@@ -131,12 +160,5 @@ namespace Core.MemoryArenaPrototype.Core
         public int FreeSpace() => _capacity - _nextFreeOffset;
         public int EstimateFragmentation() => 0;
         public int StubCount() => 0;
-
-        public bool CanAllocate(int size)
-        {
-            // Optionally add a small safety margin (e.g., 5–10%) if you want to avoid edge overflows
-            return (_nextFreeOffset + size) <= _capacity;
-        }
-
     }
 }

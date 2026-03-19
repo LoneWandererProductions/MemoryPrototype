@@ -10,7 +10,6 @@ using ExtendedSystemObjects;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Threading;
 
 namespace Core
 {
@@ -66,7 +65,7 @@ namespace Core
         /// <exception cref="System.ArgumentException">Block size must evenly divide total size</exception>
         public BlockMemoryManager(IntPtr buffer, int totalSize, int blockSize = 16)
         {
-            if(blockSize < 16 || blockSize % 16 != 0)
+            if (blockSize < 16 || blockSize % 16 != 0)
                 throw new ArgumentException("Block size must be >= 16 and a multiple of 16 for alignment safety.");
 
             Buffer = buffer;

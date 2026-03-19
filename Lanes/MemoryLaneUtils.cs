@@ -95,30 +95,74 @@ namespace Lanes
         }
 
         /// <summary>
-        ///     Finds the free spot.
+        /// Finds a free spot using a Free-List approach (Zero Allocation, O(N) over holes, not allocations)
         /// </summary>
-        /// <param name="size">The size.</param>
-        /// <param name="entries">The entries.</param>
-        /// <param name="entryCount">The entry count.</param>
-        /// <returns>Calculate free space.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int FindFreeSpot(int size, IEnumerable<AllocationEntry> entries, int entryCount)
+        internal static int FindFreeSpot(int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount)
         {
-            var sorted = entries
-                .Take(entryCount)
-                .Where(e => !e.IsStub) // Only valid entries
-                .ToArray();
-            var offset = 0;
-
-            foreach (var entry in sorted)
+            for (int i = 0; i < freeBlockCount; i++)
             {
-                if (offset + size <= entry.Offset)
-                    return offset;
+                if (freeBlocks[i].Size >= size)
+                {
+                    int assignedOffset = freeBlocks[i].Offset;
 
-                offset = entry.Offset + entry.Size;
+                    // Shrink the hole
+                    freeBlocks[i].Offset += size;
+                    freeBlocks[i].Size -= size;
+
+                    // If hole is fully consumed, remove it by swapping with the last item
+                    if (freeBlocks[i].Size == 0)
+                    {
+                        freeBlockCount--;
+                        freeBlocks[i] = freeBlocks[freeBlockCount];
+                    }
+
+                    return assignedOffset;
+                }
             }
 
-            return offset;
+            return -1; // -1 indicates Out of Memory
+        }
+
+        /// <summary>
+        /// Returns memory to the free list and merges adjacent blocks to prevent fragmentation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void ReturnFreeSpace(int offset, int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount)
+        {
+            if (freeBlockCount >= freeBlocks.Length)
+            {
+                Array.Resize(ref freeBlocks, freeBlocks.Length * 2);
+            }
+
+            var newHole = new FreeBlock { Offset = offset, Size = size };
+
+            // Insert sorted by offset
+            int insertIndex = freeBlockCount;
+            for (int i = 0; i < freeBlockCount; i++)
+            {
+                if (freeBlocks[i].Offset > offset)
+                {
+                    insertIndex = i;
+                    break;
+                }
+            }
+
+            Array.Copy(freeBlocks, insertIndex, freeBlocks, insertIndex + 1, freeBlockCount - insertIndex);
+            freeBlocks[insertIndex] = newHole;
+            freeBlockCount++;
+
+            // Merge adjacent holes
+            for (int i = 0; i < freeBlockCount - 1; i++)
+            {
+                if (freeBlocks[i].Offset + freeBlocks[i].Size == freeBlocks[i + 1].Offset)
+                {
+                    freeBlocks[i].Size += freeBlocks[i + 1].Size;
+                    Array.Copy(freeBlocks, i + 2, freeBlocks, i + 1, freeBlockCount - i - 2);
+                    freeBlockCount--;
+                    i--; // Re-check the merged block against the next one
+                }
+            }
         }
 
         /// <summary>
@@ -247,25 +291,36 @@ namespace Lanes
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
+        /// <param name="debugNames">Optional dictionary mapping HandleId to DebugName.</param>
         /// <returns>Display all information about stubs and forwarding.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static string DebugRedirections(AllocationEntry[] entries, int entryCount)
+        internal static string DebugRedirections(AllocationEntry[] entries, int entryCount, IReadOnlyDictionary<int, string>? debugNames = null)
         {
             var sb = new StringBuilder(entryCount * 64);
             for (var i = 0; i < entryCount; i++)
             {
                 var e = entries[i];
-                sb.Append("[FastLane] ID ").Append(e.HandleId)
+
+                // Changed [FastLane] to [Lane] since SlowLane uses this utility too!
+                sb.Append("[Lane] ID ").Append(e.HandleId)
                     .Append(" Offset ").Append(e.Offset)
                     .Append(" Size ").Append(e.Size);
 
                 if (e.IsStub)
-                    sb.Append(" [STUB -> ID ")
-                        .Append(e.RedirectTo?.Id.ToString() ?? "null")
-                        .Append("]");
+                {
+                    string redirectStr = e.RedirectToId != 0 ? e.RedirectToId.ToString() : "null";
 
-                if (!string.IsNullOrWhiteSpace(e.DebugName))
-                    sb.Append(" Name=").Append(e.DebugName);
+                    sb.Append(" [STUB -> ID ")
+                      .Append(redirectStr)
+                      .Append("]");
+                }
+
+                // Look up the name in the dictionary instead of the struct
+                if (debugNames != null && debugNames.TryGetValue(e.HandleId, out var name))
+                {
+                    if (!string.IsNullOrWhiteSpace(name))
+                        sb.Append(" Name=").Append(name);
+                }
 
                 sb.AppendLine();
             }

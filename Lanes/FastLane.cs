@@ -24,6 +24,13 @@ namespace Lanes
 {
     public sealed class FastLane : IMemoryLane, IDisposable
     {
+
+#if DEBUG
+        /// <summary>
+        /// The debug names
+        /// </summary>
+        private readonly Dictionary<int, string> _debugNames = new();
+#endif
         /// <summary>
         ///     The free ids
         /// </summary>
@@ -50,6 +57,10 @@ namespace Lanes
         /// </summary>
         private int _nextHandleId = 1;
 
+        private FreeBlock[] _freeBlocks = new FreeBlock[128];
+
+        private int _freeBlockCount = 0;
+
         //_blockManager = new BlockMemoryManager(Buffer, Capacity, blockSize);
 
         /// <summary>
@@ -57,11 +68,19 @@ namespace Lanes
         /// </summary>
         /// <param name="size">The size.</param>
         /// <param name="slowLane">The slow lane.</param>
-        public FastLane(int size, SlowLane slowLane)
+        public FastLane(int size, SlowLane slowLane, int maxEntries = 1024)
         {
             _slowLane = slowLane;
             Capacity = size;
             Buffer = Marshal.AllocHGlobal(size);
+
+            // PRE-ALLOCATE everything based on maxEntries
+            _entries = new AllocationEntry[maxEntries];
+            _freeBlocks = new FreeBlock[maxEntries]; // Free blocks can theoretically equal maxEntries
+
+            // INITIALIZATION: The entire lane starts as one giant free block
+            _freeBlocks[0] = new FreeBlock { Offset = 0, Size = Capacity };
+            _freeBlockCount = 1;
         }
 
         /// <summary>
@@ -123,14 +142,14 @@ namespace Lanes
         /// </returns>
         public bool CanAllocate(int size)
         {
-            try
+            // Fast, read-only check to see if a contiguous block exists
+            for (int i = 0; i < _freeBlockCount; i++)
             {
-                return FindFreeSpot(size) + size <= Capacity;
+                if (_freeBlocks[i].Size >= size)
+                    return true;
             }
-            catch
-            {
-                return false;
-            }
+
+            return false;
         }
 
         /// <inheritdoc />
@@ -154,9 +173,10 @@ namespace Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Memory not reserved");
 
-            var offset = FindFreeSpot(size);
-            if (offset + size > Capacity)
-                throw new OutOfMemoryException("FastLane: Not enough memory");
+            var offset = MemoryLaneUtils.FindFreeSpot(size, ref _freeBlocks, ref _freeBlockCount);
+
+            if (offset == -1)
+                throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough.");
 
             EnsureEntryCapacity(EntryCount);
             //if (EntryCount >= _entries.Length)
@@ -165,6 +185,13 @@ namespace Lanes
             //So we reuse freed handles here
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
 
+#if DEBUG
+            if (!string.IsNullOrEmpty(debugName))
+            {
+                _debugNames[id] = debugName;
+            }
+#endif
+
             _entries[EntryCount] = new AllocationEntry
             {
                 Offset = offset,
@@ -172,7 +199,7 @@ namespace Lanes
                 HandleId = id,
                 Priority = priority,
                 Hints = hints,
-                DebugName = debugName,
+                RedirectToId = 0,
                 AllocationFrame = currentFrame,
                 LastAccessFrame = currentFrame
             };
@@ -269,8 +296,14 @@ namespace Lanes
             if (!_handleIndex.TryRemove(handle.Id, out var index))
                 throw new InvalidOperationException($"SlowLane: Invalid handle {handle.Id}");
 
+#if DEBUG
+            _debugNames.Remove(handle.Id);
+#endif
+
             // 2. Handle SlowLane/Redirects (This is your cold path)
             var entry = _entries[index];
+            MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
+
             if (entry.IsStub && entry.RedirectTo.HasValue)
             {
                 _slowLane.Free(entry.RedirectTo.Value);
@@ -295,70 +328,44 @@ namespace Lanes
             _freeIds.Push(handle.Id);
         }
 
-        //public void Free(MemoryHandle handle)
-        //{
-        //    if (_entries == null) throw new InvalidOperationException("FastLane: Memory is corrupted.");
-
-        //    if (!_handleIndex.TryRemove(handle.Id, out var index))
-        //        throw new InvalidOperationException($"FastLane: Invalid handle {handle.Id}");
-
-        //    var entry = _entries[index];
-
-        //    if (entry.IsStub && entry.RedirectTo.HasValue)
-        //    {
-        //        _slowLane.Free(entry.RedirectTo.Value);
-        //        Redirects.Remove(handle.Id);
-        //    }
-
-        //    int startBlock = entry.Offset / _blockManager.BlockSize;
-        //    int blockCount = entry.Size / _blockManager.BlockSize;
-
-        //    _blockManager.FreeContiguous(startBlock, blockCount);
-
-        //    var last = EntryCount - 1;
-        //    if (index != last)
-        //    {
-        //        _entries[index] = _entries[last];
-        //        _handleIndex[_entries[index].HandleId] = index;
-        //    }
-
-        //    EntryCount--;
-        //    _freeIds.Push(handle.Id);
-        //}
-
         /// <inheritdoc />
         /// <summary>
         ///     Compacts this instance.
         /// </summary>
         public unsafe void Compact()
         {
-            if (_entries == null) return;
+            if (_entries == null || EntryCount == 0) return;
 
             var newBuffer = Marshal.AllocHGlobal(Capacity);
             var offset = 0;
 
+            // FIX: We must process the entries in order of their memory Offset!
+            // Otherwise, Swap-With-Tail removals will cause memory to be copied out of order,
+            // leading to overlapping writes and test failures.
+
+            // 1. Create a sorted copy of the active entries
+            var sortedEntries = new AllocationEntry[EntryCount];
+            Array.Copy(_entries, sortedEntries, EntryCount);
+            Array.Sort(sortedEntries, (a, b) => a.Offset.CompareTo(b.Offset));
+
             for (var i = 0; i < EntryCount; i++)
             {
-                var entry = _entries[i];
+                var entry = sortedEntries[i]; // Use the sorted entry!
 
                 if (!entry.IsStub)
                 {
-                    //TODO improve this one
                     if (ShouldMoveToSlowLane(entry))
                     {
                         var fastHandle = new MemoryHandle(entry.HandleId, this);
-
-#pragma warning disable 8602
-                        if (OneWayLane.MoveFromFastToSlow(fastHandle))
-#pragma warning restore 8602
+                        if (OneWayLane?.MoveFromFastToSlow(fastHandle) == true)
                         {
-                            entry.IsStub = true;
-                            entry.Size = 0;
-                            entry.Offset = 0;
-                            entry.RedirectTo = null;
-                            _entries[i] = entry;
-                            // still update handleIndex to keep consistent
-                            _handleIndex[entry.HandleId] = i;
+                            // Update our sorted entry with the stub info
+                            // Since it's a struct, we have to re-fetch it from _entries to get the changes 
+                            // that OneWayLane.MoveFromFastToSlow just applied!
+                            var actualIndex = _handleIndex[entry.HandleId];
+                            entry = _entries[actualIndex];
+
+                            _entries[actualIndex] = entry; // Put it back
                             continue;
                         }
                     }
@@ -370,23 +377,23 @@ namespace Lanes
                     offset += entry.Size;
                 }
 
-                _entries[i] = entry;
-                _handleIndex[entry.HandleId] = i;
+                // 2. Put the updated entry back into the MAIN _entries array
+                var originalIndex = _handleIndex[entry.HandleId];
+                _entries[originalIndex] = entry;
             }
 
             Marshal.FreeHGlobal(Buffer);
             Buffer = newBuffer;
+
+            _freeBlocks[0] = new FreeBlock
+            {
+                Offset = offset,
+                Size = Capacity - offset
+            };
+            _freeBlockCount = 1;
+
             OnCompaction?.Invoke(nameof(FastLane));
         }
-
-        //public unsafe void Compact()
-        //{
-        //    if (_entries == null) return;
-
-        //    _blockManager.CompactAllocations(_entries, EntryCount);
-        //    OnCompaction?.Invoke(nameof(FastLane));
-        //}
-
 
         /// <inheritdoc />
         /// <summary>
@@ -468,7 +475,16 @@ namespace Lanes
 
             var entry = _entries[index];
             entry.IsStub = true;
-            entry.RedirectTo = slowHandle;
+
+            // Fix: Save the integer ID, not the struct!
+            entry.RedirectToId = slowHandle.Id;
+
+            // Fix: We also agreed to zero out the ghost memory stats here!
+            // This is vital so the FastLane doesn't think this stub is consuming space.
+            MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
+            entry.Offset = 0;
+            entry.Size = 0;
+
             _entries[index] = entry;
 
             Redirects[fastHandle.Id] = slowHandle;
@@ -498,24 +514,20 @@ namespace Lanes
         }
 
         /// <summary>
-        ///     Finds the free spot.
+        /// Frees the space.
         /// </summary>
-        /// <param name="size">The size.</param>
-        /// <returns></returns>
+        /// <returns>Returns total free bytes in FastLane</returns>
         /// <exception cref="System.InvalidOperationException">FastLane: Invalid memory.</exception>
-        private int FindFreeSpot(int size)
-        {
-            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
-
-            return MemoryLaneUtils.FindFreeSpot(size, _entries, EntryCount);
-        }
-
-        // Returns total free bytes in FastLane
         public int FreeSpace()
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            return MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+            int totalFree = 0;
+            for (int i = 0; i < _freeBlockCount; i++)
+            {
+                totalFree += _freeBlocks[i].Size;
+            }
+            return totalFree;
         }
 
         /// <summary>
@@ -539,7 +551,13 @@ namespace Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount);
+            // A simple metric: If there's more than 1 free block, we have fragmentation.
+            // The higher the number of blocks relative to entry count, the worse it is.
+            if (_freeBlockCount <= 1) return 0;
+
+            // Simplistic percentage: (holes / total possible holes) * 100
+            // Adjust this heuristic as you see fit for your analytics
+            return (int)(((double)_freeBlockCount / (EntryCount > 0 ? EntryCount : 1)) * 100);
         }
 
         /// <summary>
@@ -550,7 +568,9 @@ namespace Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            return MemoryLaneUtils.UsagePercentage(EntryCount, _entries, Capacity);
+            int free = FreeSpace();
+            int used = Capacity - free;
+            return (double)used / Capacity;
         }
 
         /// <summary>
@@ -572,7 +592,13 @@ namespace Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            return MemoryLaneUtils.DebugRedirections(_entries, EntryCount);
+#if DEBUG
+            // Pass the debug names dictionary in Debug mode
+            return MemoryLaneUtils.DebugRedirections(_entries, EntryCount, _debugNames);
+#else
+    // Pass null in Release mode since the dictionary doesn't exist
+    return MemoryLaneUtils.DebugRedirections(_entries, EntryCount, null);
+#endif
         }
 
         /// <summary>

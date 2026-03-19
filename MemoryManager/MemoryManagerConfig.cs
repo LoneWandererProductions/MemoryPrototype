@@ -59,9 +59,6 @@ namespace MemoryManager
             // Set defaults for slow lane thresholds
             SlowLaneUsageThreshold = 0.85;
             SlowLaneSafetyMargin = 0.10;
-
-            //set Transfer Buffer
-            BufferSize = Math.Max(FastLaneSize / 4, 64 * 1024);
         }
 
         // Size of the fast memory lane (high-speed, limited capacity)
@@ -111,20 +108,13 @@ namespace MemoryManager
         public double SlowLaneSafetyMargin { get; init; } = 0.10;
 
         /// <summary>
-        ///     Gets or sets the size of the buffer.
-        /// </summary>
-        /// <value>
-        ///     The size of the buffer.
-        /// </value>
-        public int BufferSize { get; init; } = 1024 * 1024 / 4; // 256 KB
-
-        /// <summary>
         ///     Estimates the total reserved unmanaged memory (in bytes) this configuration will request,
         ///     not including minor overhead for handles and management structures.
         /// </summary>
         public double GetEstimatedReservedMegabytes()
         {
-            return (FastLaneSize + SlowLaneSize + BufferSize) / (1024.0 * 1024.0);
+            // BufferSize is gone! Just the raw unmanaged lane allocations.
+            return (FastLaneSize + SlowLaneSize) / (1024.0 * 1024.0);
         }
     }
 }

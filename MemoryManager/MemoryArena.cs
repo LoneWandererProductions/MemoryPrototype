@@ -81,7 +81,7 @@ namespace MemoryManager
             FastLane = new FastLane(config.FastLaneSize, SlowLane);
 
             // Now safe to construct OneWayLane
-            FastLane.OneWayLane = new OneWayLane(config.BufferSize, FastLane, SlowLane);
+            FastLane.OneWayLane = new OneWayLane(FastLane, SlowLane);
 
             if (config.PolicyCheckInterval > TimeSpan.Zero)
                 _policyTimer = new Timer(_ => CheckPolicies(), null, config.PolicyCheckInterval,
@@ -117,20 +117,10 @@ namespace MemoryManager
         ///     Leaves a Stub to the new location.
         /// </summary>
         /// <param name="fastHandle">The fast handle.</param>
-        public unsafe void MoveFastToSlow(MemoryHandle fastHandle)
+        public void MoveFastToSlow(MemoryHandle fastHandle)
         {
-            var fastEntry = FastLane.GetEntry(fastHandle);
-            var size = fastEntry.Size;
-
-            var slowHandle = SlowLane.Allocate(size);
-
-            Buffer.MemoryCopy(
-                (void*)(FastLane.Buffer + fastEntry.Offset),
-                (void*)SlowLane.Resolve(slowHandle),
-                size,
-                size);
-
-            FastLane.ReplaceWithStub(fastHandle, slowHandle);
+            // Let the dedicated Lane orchestrator handle the pointer math and stubs safely
+            FastLane.OneWayLane?.MoveFromFastToSlow(fastHandle);
         }
 
         /// <summary>
@@ -186,8 +176,11 @@ namespace MemoryManager
         /// </summary>
         public void RunMaintenanceCycle()
         {
-            TryCompactFastLane();
-            TryCompactSlowLane();
+            lock (_lock)
+            {
+                TryCompactFastLane();
+                TryCompactSlowLane();
+            }
         }
 
         /// <summary>
@@ -306,7 +299,7 @@ namespace MemoryManager
             foreach (var handle in FastLane.GetHandles())
             {
                 var entry = FastLane.GetEntry(handle);
-                if (entry.Size > _config.FastLaneUsageThreshold ||
+                if (entry.Size > _config.FastLaneLargeEntryThreshold ||
                     entry.Hints.HasFlag(AllocationHints.Cold) ||
                     entry.Hints.HasFlag(AllocationHints.Old))
                     handlesToMove.Add(handle);
@@ -329,7 +322,7 @@ namespace MemoryManager
                 return;
 
             // Estimated fragmentation fraction (0.0 - 1.0)
-            double fragmentation = SlowLane.EstimateFragmentation();
+            double fragmentationFraction = SlowLane.EstimateFragmentation() / 100.0;
 
             // Current free space in bytes
             double currentFreeSpace = SlowLane.FreeSpace();
@@ -338,7 +331,7 @@ namespace MemoryManager
             double totalSize = SlowLane.Capacity;
 
             // Predicted free space after compaction (current free + fragmented gaps)
-            var predictedFreeAfterCompaction = currentFreeSpace + fragmentation * totalSize;
+            var predictedFreeAfterCompaction = currentFreeSpace + (fragmentationFraction * totalSize);
 
             // Use slow lane specific safety margin to decide if compaction is worthwhile
             var safetyMargin = _config.SlowLaneSafetyMargin;
@@ -352,12 +345,14 @@ namespace MemoryManager
         /// </summary>
         private void CheckPolicies()
         {
-            var usage = FastLane.UsagePercentage();
-            if (!_config.EnableAutoCompaction || !(usage >= _config.CompactionThreshold)) return;
+            lock (_lock)
+            {
+                var usage = FastLane.UsagePercentage();
+                if (!_config.EnableAutoCompaction || !(usage >= _config.CompactionThreshold)) return;
 
-            TryCompactFastLane();
-            TryCompactSlowLane();
-            // Optional: log compaction stats or notify observers
+                TryCompactFastLane();
+                TryCompactSlowLane();
+            }
         }
     }
 }

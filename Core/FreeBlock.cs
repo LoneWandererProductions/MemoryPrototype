@@ -1,22 +1,16 @@
 /*
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     Core
- * FILE:        BlockState.cs
+ * FILE:        FreeBlock.cs
  * PURPOSE:     Your file purpose here
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 namespace Core
 {
-    public enum BlockState
+    public struct FreeBlock
     {
-        Free,
-        Allocated,
-        Deleted,
-        Cold,
-        Hot,
-        Aging,
-        Protected
+        public int Offset;
+        public int Size;
     }
-
 }

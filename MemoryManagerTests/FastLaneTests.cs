@@ -36,13 +36,12 @@ namespace MemoryManagerTests
         {
             var slowLane = new SlowLane(1024 * 1024); // 1MB for slow lane
             _fastLane = new FastLane(1024 * 1024, slowLane); // 1MB fast lane
-            _fastLane.OneWayLane = new OneWayLane(1024, _fastLane, slowLane); // Required setup
+            _fastLane.OneWayLane = new OneWayLane(_fastLane, slowLane);
 
             _config = new MemoryManagerConfig
             {
                 FastLaneSize = 1024 * 1024, // 1 MB
                 SlowLaneSize = 4 * 1024 * 1024, // 4 MB
-                BufferSize = 256 * 1024, // 256 KB
                 Threshold = 64 * 1024, // 64 KB
                 FastLaneUsageThreshold = 0.9f,
                 SlowLaneUsageThreshold = 0.85f,
@@ -60,21 +59,39 @@ namespace MemoryManagerTests
         public void MoveFastToSlowMovesEntryAndReplacesStub()
         {
             var arena = new MemoryArena(_config);
-            var size = 32 * 1024; // allocate in FastLane
+            var size = 32 * 1024;
 
+            // 1. Allocate in FastLane
             var fastHandle = arena.Allocate(size);
 
+            // Write some dummy data so we can verify it moved!
+            unsafe
+            {
+                byte* ptr = (byte*)arena.Resolve(fastHandle);
+                ptr[0] = 42; // Magic number
+            }
+
+            // 2. Move to SlowLane
             arena.MoveFastToSlow(fastHandle);
 
             arena.DebugDump();
 
-            Assert.IsFalse(arena.SlowLane.HasHandle(fastHandle));
+            // 3. Assertions
+            // The FastLane MUST still have the handle (it's a stub now!)
+            Assert.IsTrue(arena.FastLane.HasHandle(fastHandle), "FastLane should retain the handle as a stub.");
 
-            //absolute no no but for test purposes yeah ....
-            var moved = new MemoryHandle(-1, null);
-            arena.DebugDump();
+            var entry = arena.FastLane.GetEntry(fastHandle);
+            Assert.IsTrue(entry.IsStub, "The original entry should be marked as a stub.");
+            Assert.AreNotEqual(0, entry.RedirectToId, "The stub should have a valid RedirectToId.");
 
-            Assert.IsTrue(arena.SlowLane.HasHandle(moved));
+            // 4. Verify data survived the move using the ORIGINAL handle
+            unsafe
+            {
+                // Because arena.Resolve() checks the FastLane, sees the stub, 
+                // and follows the RedirectToId to the SlowLane automatically!
+                byte* resolvedPtr = (byte*)arena.Resolve(fastHandle);
+                Assert.AreEqual(42, resolvedPtr[0], "Data was corrupted or not moved properly during stub replacement.");
+            }
         }
 
         /// <summary>
@@ -88,42 +105,39 @@ namespace MemoryManagerTests
 
             for (var i = 0; i < 6; i++)
             {
-                handles[i] = _fastLane.Allocate(128); // 128 bytes each
-                Assert.IsTrue(_fastLane.HasHandle(handles[i]), $"Handle {i} should be allocated.");
+                handles[i] = _fastLane.Allocate(128);
             }
 
-            //Debug
-            Trace.WriteLine("first:");
-            _fastLane.LogDump();
-
-            // Free 2nd and 4th
+            // Free 2nd and 4th (Creates holes at Offset 128 and Offset 384)
             _fastLane.Free(handles[1]);
             _fastLane.Free(handles[3]);
 
-            Assert.IsFalse(_fastLane.HasHandle(handles[1]), "Handle 1 should have been freed.");
-            Assert.IsFalse(_fastLane.HasHandle(handles[3]), "Handle 3 should have been freed.");
-
-            var usedBefore = _fastLane.UsagePercentage();
-            //Debug
-            Trace.WriteLine("Second:");
-            _fastLane.LogDump();
-
+            var expectedFreeSpaceBefore = _fastLane.FreeSpace();
 
             // Act
             _fastLane.Compact();
 
-            // Assert
-            Assert.IsTrue(_fastLane.HasHandle(handles[0]), "Handle 0 should still be valid after compaction.");
-            Assert.IsTrue(_fastLane.HasHandle(handles[2]), "Handle 2 should still be valid after compaction.");
-            Assert.IsTrue(_fastLane.HasHandle(handles[4]), "Handle 4 should still be valid after compaction.");
-            Assert.IsTrue(_fastLane.HasHandle(handles[5]), "Handle 5 should still be valid after compaction.");
+            // Assert handles survived
+            Assert.IsTrue(_fastLane.HasHandle(handles[0]));
+            Assert.IsTrue(_fastLane.HasHandle(handles[2]));
+            Assert.IsTrue(_fastLane.HasHandle(handles[4]));
+            Assert.IsTrue(_fastLane.HasHandle(handles[5]));
 
-            var usedAfter = _fastLane.UsagePercentage();
-            Assert.IsTrue(usedAfter <= usedBefore, "Compaction should ideally not increase usage.");
+            // Assert that Free Space did not change (compaction doesn't free memory, it just moves it)
+            Assert.AreEqual(expectedFreeSpaceBefore, _fastLane.FreeSpace(), "Free space should remain identical before and after compaction.");
 
-            //Debug
-            Trace.WriteLine("Third:");
-            _fastLane.LogDump();
+            // THE CRITICAL CHECK: Verify they are perfectly packed!
+            // Handle 0 is at offset 0
+            Assert.AreEqual(0, _fastLane.GetEntry(handles[0]).Offset);
+            // Handle 2 should have slid down into the first hole (Offset 128)
+            Assert.AreEqual(128, _fastLane.GetEntry(handles[2]).Offset);
+            // Handle 4 should have slid down to Offset 256
+            Assert.AreEqual(256, _fastLane.GetEntry(handles[4]).Offset);
+            // Handle 5 should have slid down to Offset 384
+            Assert.AreEqual(384, _fastLane.GetEntry(handles[5]).Offset);
+
+            // Check that our FreeList is correctly reset to 1 giant block
+            Assert.AreEqual(0, _fastLane.EstimateFragmentation(), "Fragmentation should be exactly 0 after compaction.");
         }
     }
 }

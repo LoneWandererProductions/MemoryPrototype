@@ -46,7 +46,7 @@ namespace Core
             /// <summary>
             ///     Optional debug name or label for easier identification of this allocation during debugging.
             /// </summary>
-            public string? DebugName { get; init; }
+            public int RedirectToId;
 
             /// <summary>
             ///     The frame or timestamp when this allocation was initially made.

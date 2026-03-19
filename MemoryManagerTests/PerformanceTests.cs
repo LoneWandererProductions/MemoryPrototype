@@ -17,6 +17,9 @@ namespace MemoryManagerTests
     [TestClass]
     public class PerformanceTests
     {
+        /// <summary>
+        /// Larges the object heap fragmentation vs slow lane.
+        /// </summary>
         [TestMethod]
         [TestCategory("RealWorld")]
         public void LargeObjectHeapFragmentationVsSlowLane()
@@ -58,7 +61,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        ///  Deterministic vs finalizer fast lane timing.
+        /// Deterministic vs finalizer fast lane timing.
         /// </summary>
         [TestMethod]
         [TestCategory("RealWorld")]
@@ -91,6 +94,9 @@ namespace MemoryManagerTests
             Trace.WriteLine($"FastLane cleanup time: {sw.ElapsedMilliseconds} ms");
         }
 
+        /// <summary>
+        /// Deterministics the vs finalizer slow lane timing.
+        /// </summary>
         [TestMethod]
         [TestCategory("RealWorld")]
         public void DeterministicVsFinalizerSlowLaneTiming()
@@ -122,6 +128,9 @@ namespace MemoryManagerTests
             Trace.WriteLine($"SlowLane cleanup time: {sw.ElapsedMilliseconds} ms");
         }
 
+        /// <summary>
+        /// Deterministics the vs finalizer slow lane timing mass free.
+        /// </summary>
         [TestMethod]
         [TestCategory("RealWorld")]
         public void DeterministicVsFinalizerSlowLaneTimingMassFree()
@@ -152,6 +161,9 @@ namespace MemoryManagerTests
             Trace.WriteLine($"SlowLane cleanup time: {sw.ElapsedMilliseconds} ms");
         }
 
+        /// <summary>
+        /// Manageds the vs unmanaged pressure.
+        /// </summary>
         [TestMethod]
         [TestCategory("GCComparison")]
         public void ManagedVsUnmanagedPressure()
@@ -177,6 +189,9 @@ namespace MemoryManagerTests
             Trace.WriteLine($"SlowLane GC pressure: {(afterSlow - beforeSlow) / 1024.0 / 1024.0:F2} MB");
         }
 
+        /// <summary>
+        /// Highes the reuse with no gc.
+        /// </summary>
         [TestMethod]
         [TestCategory("Performance")]
         public void HighReuseWithNoGc()
@@ -186,10 +201,12 @@ namespace MemoryManagerTests
 
             using var fastLane = new FastLane(count * size + 20 * 1024 * 1024, null);
 
+            var handles = new MemoryHandle[count];
+
             var stopwatch = Stopwatch.StartNew();
             for (var cycle = 0; cycle < 5; cycle++)
             {
-                var handles = new MemoryHandle[count];
+
                 for (var i = 0; i < count; i++)
                     handles[i] = fastLane.Allocate(size);
                 for (var i = 0; i < count; i++)
@@ -202,14 +219,16 @@ namespace MemoryManagerTests
 
             count = 100;
 
+            var handlesTwo = new MemoryHandle[count];
+
             stopwatch = Stopwatch.StartNew();
             for (var cycle = 0; cycle < 5; cycle++)
             {
-                var handles = new MemoryHandle[count];
+
                 for (var i = 0; i < count; i++)
-                    handles[i] = fastLane.Allocate(size);
+                    handlesTwo[i] = fastLane.Allocate(size);
                 for (var i = 0; i < count; i++)
-                    fastLane.Free(handles[i]);
+                    fastLane.Free(handlesTwo[i]);
             }
 
             stopwatch.Stop();
@@ -220,14 +239,16 @@ namespace MemoryManagerTests
 
             count = 1000;
 
+
+            var handlesThree = new MemoryHandle[count];
+
             stopwatch = Stopwatch.StartNew();
             for (var cycle = 0; cycle < 5; cycle++)
             {
-                var handles = new MemoryHandle[count];
                 for (var i = 0; i < count; i++)
-                    handles[i] = fastLane.Allocate(size);
+                    handlesThree[i] = fastLane.Allocate(size);
                 for (var i = 0; i < count; i++)
-                    fastLane.Free(handles[i]);
+                    fastLane.Free(handlesThree[i]);
             }
 
             stopwatch.Stop();

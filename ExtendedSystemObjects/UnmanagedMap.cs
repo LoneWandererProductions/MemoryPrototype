@@ -1,12 +1,13 @@
 ﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
- * PROJECT:     ExtendedSystemObjects
- * FILE:        UnmanagedMap.cs
- * PURPOSE:     A faster unmanaged Key Value structure much like a Dictionary. The difference is that we only mark entries as deleted and only on compress we actual delete it.
+ * PROJECT:      ExtendedSystemObjects
+ * FILE:         UnmanagedMap.cs
+ * PURPOSE:      A high-performance unmanaged key-value store similar to a Dictionary.
+ * Unlike typical dictionaries, entries are marked as deleted (tombstoned)
+ * and only physically removed during explicit compaction, improving
+ * insertion and deletion performance by avoiding frequent reallocations.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
-
-// ReSharper disable MemberCanBeInternal
 
 using System;
 using System.Collections;
@@ -16,41 +17,42 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using ExtendedSystemObjects.Helper;
 
-
 namespace ExtendedSystemObjects
 {
+    /// <summary>
+    ///      Represents a high-performance, unmanaged hash map with integer keys and unmanaged values.
+    ///      Uses open addressing with linear probing for collision resolution and
+    ///      supports lazy deletion (tombstoning) to improve performance on removals.
+    /// </summary>
+    /// <typeparam name="TValue">The type of values stored, must be unmanaged.</typeparam>
+    [DebuggerDisplay("{ToString()}")]
     public sealed unsafe class UnmanagedMap<TValue> : IEnumerable<(int, TValue)>, IDisposable where TValue : unmanaged
     {
-        /// <summary>
-        ///     The minimum power of 2
-        ///     16 entries minimum
-        /// </summary>
         private const int MinPowerOf2 = 4;
-
-        /// <summary>
-        ///     The maximum power of 2
-        ///     ~1 million entries max
-        /// </summary>
         private const int MaxPowerOf2 = 20;
 
         /// <summary>
-        ///     The capacity power of2
+        /// The capacity power of2
         /// </summary>
         private int _capacityPowerOf2;
 
+        /// <summary>
+        /// The entries
+        /// </summary>
         private EntryGeneric<TValue>* _entries;
 
+        // Track total slots that aren't 'Empty' (Occupied + Tombstones)
+        // This is the true 'Load Factor' for linear probing performance.
+        private int _usedCount;
+
         /// <summary>
-        ///     Initializes a new instance of the <see cref="UnmanagedMap{TValue}" /> class.
+        /// Initializes a new instance of the <see cref="UnmanagedMap{TValue}"/> class.
         /// </summary>
-        /// <param name="capacityPowerOf2">The capacity power of 2. So be carefull. Optional but max is at 20.</param>
+        /// <param name="capacityPowerOf2">The capacity power of2.</param>
         public UnmanagedMap(int? capacityPowerOf2 = null)
         {
             var power = capacityPowerOf2 ?? 8;
-            if (power < MinPowerOf2)
-            {
-                power = MinPowerOf2;
-            }
+            power = Math.Clamp(power, MinPowerOf2, MaxPowerOf2);
 
             Capacity = 1 << power;
             _capacityPowerOf2 = power;
@@ -60,49 +62,78 @@ namespace ExtendedSystemObjects
         }
 
         /// <summary>
-        ///     Gets the count.
+        /// Gets the count.
         /// </summary>
         /// <value>
-        ///     The count.
+        /// The count.
         /// </value>
         public int Count { get; private set; }
 
         /// <summary>
-        ///     Gets the capacity.
+        /// Gets the capacity.
         /// </summary>
         /// <value>
-        ///     The capacity.
+        /// The capacity.
         /// </value>
         public int Capacity { get; private set; }
 
         /// <summary>
-        ///     Gets the keys.
+        /// Gets the keys.
         /// </summary>
         /// <value>
-        ///     The keys.
+        /// The keys.
         /// </value>
-        public IEnumerable<int> Keys
-        {
-            get
-            {
-                return GetKeysSnapshot();
-            }
-        }
+        public IEnumerable<int> Keys => GetKeysSnapshot();
 
         /// <summary>
-        ///     Gets or sets the <see cref="TValue" /> with the specified key.
+        /// Gets or sets the <see cref="TValue"/> with the specified key.
         /// </summary>
         /// <value>
-        ///     The <see cref="TValue" />.
+        /// The <see cref="TValue"/>.
         /// </value>
         /// <param name="key">The key.</param>
-        /// <returns></returns>
+        /// <returns>Value at Key</returns>
         public TValue this[int key]
         {
             get => Get(key);
             set => Set(key, value);
         }
 
+        /// <summary>
+        ///     Gets the values.
+        /// </summary>
+        /// <value>
+        ///     The values.
+        /// </value>
+        public IEnumerable<TValue> Values
+        {
+            get
+            {
+                return GetValuesSnapshot();
+            }
+        }
+
+        /// <summary>
+        /// Gets the values snapshot.
+        /// </summary>
+        /// <returns>List of Values</returns>
+        private List<TValue> GetValuesSnapshot()
+        {
+            var values = new List<TValue>(Count);
+            for (var i = 0; i < Capacity; i++)
+            {
+                var entry = _entries[i];
+                if (entry.Used == SharedResources.Occupied)
+                {
+                    values.Add(entry.Value);
+                }
+            }
+            return values;
+        }
+
+        /// <summary>
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
         public void Dispose()
         {
             Free();
@@ -110,143 +141,88 @@ namespace ExtendedSystemObjects
         }
 
         /// <summary>
-        ///     Returns an enumerator that iterates through the collection.
+        /// Determines whether the specified key contains key.
         /// </summary>
+        /// <param name="key">The key.</param>
         /// <returns>
-        ///     An enumerator that can be used to iterate through the collection.
+        ///   <c>true</c> if the specified key contains key; otherwise, <c>false</c>.
         /// </returns>
-        IEnumerator<(int, TValue)> IEnumerable<(int, TValue)>.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
+        public bool ContainsKey(int key) => FindIndex(key) >= 0;
 
         /// <summary>
-        ///     Returns an enumerator that iterates through a collection.
-        /// </summary>
-        /// <returns>
-        ///     An <see cref="T:System.Collections.IEnumerator" /> object that can be used to iterate through the collection.
-        /// </returns>
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        /// <summary>
-        ///     Sets the specified key.
+        /// Sets the specified key.
         /// </summary>
         /// <param name="key">The key.</param>
         /// <param name="value">The value.</param>
-        /// <exception cref="System.InvalidOperationException">UnmanagedIntMap full after compact and resize</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Set(int key, TValue value)
         {
-            var compactTried = false;
-            var resizeTried = false;
-
-            while (true)
+            // Trigger Resize or Compact based on total used slots (including tombstones)
+            // 0.7 is the standard threshold for linear probing performance health
+            if (_usedCount >= Capacity * 0.7f)
             {
-                if (Count >= Capacity * 0.7f)
+                // If tombstones make up more than half the used slots, just Compact
+                if (_usedCount - Count > Count) Compact();
+                else Resize();
+            }
+
+            var mask = Capacity - 1;
+            var hashIndex = key & mask;
+            var firstTombstone = -1;
+
+            for (var i = 0; i < Capacity; i++)
+            {
+                var idx = (hashIndex + i) & mask;
+                ref var slot = ref _entries[idx];
+
+                if (slot.Used == SharedResources.Empty)
                 {
-                    if (!compactTried)
-                    {
-                        Compact();
-                        compactTried = true;
+                    // Reclaim first tombstone found in the chain, or use this empty slot
+                    int targetIdx = (firstTombstone != -1) ? firstTombstone : idx;
 
-                        // Retry after compaction only if it helped
-                        if (Count < Capacity * 0.7f)
-                        {
-                            continue;
-                        }
-                    }
+                    ref var target = ref _entries[targetIdx];
+                    target.Key = key;
+                    target.Value = value;
+                    target.Used = SharedResources.Occupied;
 
-                    if (!resizeTried)
-                    {
-                        Resize();
-                        resizeTried = true;
-                        compactTried = false; // allow compact again later
-                        continue;
-                    }
-
-                    throw new InvalidOperationException("UnmanagedIntMap full after compact and resize");
+                    Count++;
+                    // Only increment usedCount if we took a truly empty slot
+                    if (firstTombstone == -1) _usedCount++;
+                    return;
                 }
 
-                var mask = Capacity - 1;
-                var index = key & mask;
-                var firstTombstone = -1;
-
-                for (var i = 0; i < Capacity; i++)
+                if (slot.Used == SharedResources.Tombstone)
                 {
-                    ref var slot = ref _entries[(index + i) & mask];
-
-                    if (slot.Used == SharedResources.Empty)
-                    {
-                        if (firstTombstone != -1)
-                        {
-                            ref var tomb = ref _entries[firstTombstone];
-                            tomb.Key = key;
-                            tomb.Value = value;
-                            tomb.Used = SharedResources.Occupied;
-                        }
-                        else
-                        {
-                            slot.Key = key;
-                            slot.Value = value;
-                            slot.Used = SharedResources.Occupied;
-                        }
-
-                        Count++;
-                        return;
-                    }
-
-                    if (slot.Used == SharedResources.Tombstone && firstTombstone == -1)
-                    {
-                        firstTombstone = (index + i) & mask;
-                    }
-                    else if (slot.Key == key)
-                    {
-                        slot.Value = value;
-                        return;
-                    }
+                    if (firstTombstone == -1) firstTombstone = idx;
                 }
-
-                // Should not be reached, retry
+                else if (slot.Key == key)
+                {
+                    slot.Value = value;
+                    return;
+                }
             }
         }
 
         /// <summary>
-        ///     Gets the specified key.
+        /// Gets the specified key.
         /// </summary>
         /// <param name="key">The key.</param>
         /// <returns></returns>
-        /// <exception cref="System.Collections.Generic.KeyNotFoundException">Key {key} not found.</exception>
+        /// <exception cref="KeyNotFoundException">Key {key} not found.</exception>
         public TValue Get(int key)
         {
-            var mask = Capacity - 1;
-            var index = key & mask;
-
-            for (var i = 0; i < Capacity; i++)
-            {
-                ref var slot = ref _entries[(index + i) & mask];
-
-                if (slot.Used == SharedResources.Empty)
-                {
-                    break;
-                }
-
-                if (slot.Used == SharedResources.Occupied && slot.Key == key)
-                {
-                    return slot.Value;
-                }
-            }
+            var idx = FindIndex(key);
+            if (idx >= 0) return _entries[idx].Value;
 
             throw new KeyNotFoundException($"Key {key} not found.");
         }
 
-        public bool ContainsKey(int key)
-        {
-            return FindIndex(key) >= 0;
-        }
-
+        /// <summary>
+        /// Tries the get value.
+        /// </summary>
+        /// <param name="key">The key.</param>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
         public bool TryGetValue(int key, out TValue value)
         {
             var idx = FindIndex(key);
@@ -260,225 +236,53 @@ namespace ExtendedSystemObjects
             return false;
         }
 
+        /// <summary>
+        /// Tries the remove.
+        /// </summary>
+        /// <param name="key">The key.</param>
+        /// <param name="value">The value.</param>
+        /// <returns></returns>
         public bool TryRemove(int key, out TValue value)
         {
-            var mask = Capacity - 1;
-            var i = key & mask;
-
-            // 1. Find the key
-            while (true)
+            var idx = FindIndex(key);
+            if (idx >= 0)
             {
-                ref var slot = ref _entries[i];
-                if (slot.Used == SharedResources.Empty)
-                {
-                    value = default;
-                    return false;
-                }
-
-                if (slot.Used == SharedResources.Occupied && slot.Key == key)
-                {
-                    value = slot.Value;
-                    break; // Found it, 'i' is the index to remove
-                }
-                i = (i + 1) & mask;
-            }
-
-            // 2. Perform the backward shift
-            // This fills the hole at 'i' by shifting subsequent entries
-            int j = i;
-            while (true)
-            {
-                j = (j + 1) & mask;
-                ref var nextSlot = ref _entries[j];
-
-                if (nextSlot.Used == SharedResources.Empty)
-                {
-                    break;
-                }
-
-                // Calculate the "ideal" position for the key at j
-                int ideal = nextSlot.Key & mask;
-
-                // Check if the current position 'j' is "out of order" 
-                // relative to the hole at 'i'
-                if ((j > i && (ideal <= i || ideal > j)) ||
-                    (j < i && (ideal <= i && ideal > j)))
-                {
-                    _entries[i] = nextSlot; // Move entry at j to hole at i
-                    i = j;                  // The hole is now at j
-                }
-            }
-
-            // 3. Mark the final hole as truly empty
-            _entries[i].Used = SharedResources.Empty;
-            _entries[i].Key = 0;
-            _entries[i].Value = default;
-            Count--;
-            return true;
-        }
-
-        public bool TryRemove(int key)
-        {
-            var mask = Capacity - 1;
-            for (var i = 0; i < Capacity; i++)
-            {
-                var idx = (key + i) & mask;
                 ref var slot = ref _entries[idx];
-
-                if (slot.Used == SharedResources.Empty)
-                {
-                    break;
-                }
-
-                if (slot.Used == SharedResources.Occupied && slot.Key == key)
-                {
-                    slot.Used = SharedResources.Tombstone;
-                    Count--;
-                    return true;
-                }
+                value = slot.Value;
+                slot.Used = SharedResources.Tombstone;
+                Count--;
+                return true;
             }
 
+            value = default;
             return false;
         }
 
         /// <summary>
-        ///     Gets the enumerator.
+        /// Tries the remove.
         /// </summary>
-        /// <returns>Enumerator for the key value pair.</returns>
-        public EntryGenericEnumerator<TValue> GetEnumerator()
-        {
-            return new(_entries, Capacity);
-        }
-
-        public void Resize()
-        {
-            if (_capacityPowerOf2 >= MaxPowerOf2)
-            {
-                return;
-            }
-
-            _capacityPowerOf2++;
-            var newMap = new UnmanagedMap<TValue>(_capacityPowerOf2);
-
-            for (var i = 0; i < Capacity; i++)
-            {
-                ref var entry = ref _entries[i];
-                if (entry.Used == SharedResources.Occupied)
-                {
-                    newMap.Set(entry.Key, entry.Value);
-                }
-            }
-
-            Free();
-
-            _entries = newMap._entries;
-            Capacity = newMap.Capacity;
-            _capacityPowerOf2 = newMap._capacityPowerOf2;
-            Count = newMap.Count;
-
-            // Prevent double free
-            newMap._entries = null;
-        }
-
-        public void EnsureCapacity(int expectedCount)
-        {
-            while (expectedCount > Capacity * 0.7f && _capacityPowerOf2 < MaxPowerOf2)
-            {
-                Resize();
-            }
-        }
-
-
-        public void Compact()
-        {
-            var loadFactor = Count / (float)Capacity;
-
-            if (loadFactor >= 0.25f || Capacity <= 1 << MinPowerOf2)
-            {
-                return;
-            }
-
-            var targetPowerOf2 = Math.Max(MinPowerOf2, _capacityPowerOf2 - 1);
-            var newMap = new UnmanagedMap<TValue>(targetPowerOf2);
-
-            for (var i = 0; i < Capacity; i++)
-            {
-                ref var entry = ref _entries[i];
-                if (entry.Used == SharedResources.Occupied)
-                {
-                    newMap.Set(entry.Key, entry.Value);
-                }
-            }
-
-            Free();
-            _entries = newMap._entries;
-            Capacity = newMap.Capacity;
-            _capacityPowerOf2 = targetPowerOf2;
-            Count = newMap.Count;
-
-            newMap._entries = null; // prevent double free
-        }
-
-        public void Clear()
-        {
-            if (_entries != null)
-            {
-                Unsafe.InitBlock(_entries, 0, (uint)(sizeof(EntryGeneric<TValue>) * Capacity));
-                Count = 0;
-            }
-        }
-
-        public void Free()
-        {
-            if (_entries != null)
-            {
-                Marshal.FreeHGlobal((IntPtr)_entries);
-                _entries = null;
-            }
-
-            Capacity = 0;
-            Count = 0;
-        }
-
-        [Conditional("DEBUG")]
-        public void DebugValidate()
-        {
-            var seen = new HashSet<int>();
-            for (var i = 0; i < Capacity; i++)
-            {
-                var entry = _entries[i];
-                if (entry.Used == SharedResources.Occupied)
-                {
-                    Debug.Assert(seen.Add(entry.Key), $"Duplicate key {entry.Key} found.");
-                }
-            }
-        }
+        /// <param name="key">The key.</param>
+        /// <returns></returns>
+        public bool TryRemove(int key) => TryRemove(key, out _);
 
         /// <summary>
-        ///     Finalizes an instance of the <see cref="UnmanagedMap{TValue}" /> class.
+        /// Finds the index.
         /// </summary>
-        ~UnmanagedMap()
-        {
-            if (_entries != null)
-            {
-                Free();
-            }
-        }
-
+        /// <param name="key">The key.</param>
+        /// <returns></returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int FindIndex(int key)
         {
             var mask = Capacity - 1;
-            var index = key & mask;
+            var startIndex = key & mask;
 
             for (var i = 0; i < Capacity; i++)
             {
-                var idx = (index + i) & mask;
+                var idx = (startIndex + i) & mask;
                 ref var slot = ref _entries[idx];
 
-                if (slot.Used == SharedResources.Empty)
-                {
-                    break;
-                }
+                // CRITICAL: We must stop at Empty, but SKIP Tombstones
+                if (slot.Used == SharedResources.Empty) return -1;
 
                 if (slot.Used == SharedResources.Occupied && slot.Key == key)
                 {
@@ -489,20 +293,138 @@ namespace ExtendedSystemObjects
             return -1;
         }
 
+        /// <summary>
+        /// Resizes this instance.
+        /// </summary>
+        public void Resize()
+        {
+            if (_capacityPowerOf2 >= MaxPowerOf2) return;
 
+            Rehash(_capacityPowerOf2 + 1);
+        }
+
+        /// <summary>
+        /// Compacts this instance.
+        /// </summary>
+        public void Compact()
+        {
+            // Only shrink if we are well below 25% load factor
+            if (Count / (float)Capacity >= 0.25f && _usedCount < Capacity * 0.7f)
+            {
+                // If we aren't shrinking, we still rehash to same size to clear tombstones
+                Rehash(_capacityPowerOf2);
+                return;
+            }
+
+            var targetPower = Math.Max(MinPowerOf2, _capacityPowerOf2 - 1);
+            Rehash(targetPower);
+        }
+
+        /// <summary>
+        /// Rehashes the specified new power of2.
+        /// </summary>
+        /// <param name="newPowerOf2">The new power of2.</param>
+        private void Rehash(int newPowerOf2)
+        {
+            var oldEntries = _entries;
+            var oldCapacity = Capacity;
+
+            _capacityPowerOf2 = newPowerOf2;
+            Capacity = 1 << _capacityPowerOf2;
+
+            _entries = (EntryGeneric<TValue>*)Marshal.AllocHGlobal(sizeof(EntryGeneric<TValue>) * Capacity);
+            Unsafe.InitBlock(_entries, 0, (uint)(sizeof(EntryGeneric<TValue>) * Capacity));
+
+            int oldCount = Count;
+            Count = 0;
+            _usedCount = 0;
+
+            for (var i = 0; i < oldCapacity; i++)
+            {
+                if (oldEntries[i].Used == SharedResources.Occupied)
+                {
+                    Set(oldEntries[i].Key, oldEntries[i].Value);
+                }
+            }
+
+            Marshal.FreeHGlobal((IntPtr)oldEntries);
+        }
+
+        /// <summary>
+        /// Clears this instance.
+        /// </summary>
+        public void Clear()
+        {
+            if (_entries != null)
+            {
+                Unsafe.InitBlock(_entries, 0, (uint)(sizeof(EntryGeneric<TValue>) * Capacity));
+                Count = 0;
+                _usedCount = 0;
+            }
+        }
+
+        /// <summary>
+        /// Frees this instance.
+        /// </summary>
+        public void Free()
+        {
+            if (_entries != null)
+            {
+                Marshal.FreeHGlobal((IntPtr)_entries);
+                _entries = null;
+            }
+
+            Capacity = 0;
+            Count = 0;
+            _usedCount = 0;
+        }
+
+        /// <summary>
+        /// Gets the enumerator.
+        /// </summary>
+        /// <returns></returns>
+        public EntryGenericEnumerator<TValue> GetEnumerator() => new(_entries, Capacity);
+
+        /// <summary>
+        /// Returns an enumerator that iterates through the collection.
+        /// </summary>
+        /// <returns>
+        /// An enumerator that can be used to iterate through the collection.
+        /// </returns>
+        IEnumerator<(int, TValue)> IEnumerable<(int, TValue)>.GetEnumerator() => GetEnumerator();
+
+        /// <summary>
+        /// Returns an enumerator that iterates through a collection.
+        /// </summary>
+        /// <returns>
+        /// An <see cref="T:System.Collections.IEnumerator" /> object that can be used to iterate through the collection.
+        /// </returns>
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        /// <summary>
+        /// Converts to string.
+        /// </summary>
+        /// <returns>
+        /// A <see cref="System.String" /> that represents this instance.
+        /// </returns>
+        public override string ToString() =>
+            $"Count = {Count}, Capacity = {Capacity}, LoadFactor = {Count / (float)Capacity:P1}";
+
+        /// <summary>
+        /// Gets the keys snapshot.
+        /// </summary>
+        /// <returns></returns>
         private List<int> GetKeysSnapshot()
         {
             var keys = new List<int>(Count);
             for (var i = 0; i < Capacity; i++)
             {
-                var entry = _entries[i];
-                if (entry.Used == SharedResources.Occupied)
-                {
-                    keys.Add(entry.Key);
-                }
+                if (_entries[i].Used == SharedResources.Occupied) keys.Add(_entries[i].Key);
             }
 
             return keys;
         }
+
+        ~UnmanagedMap() => Free();
     }
 }

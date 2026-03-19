@@ -40,7 +40,6 @@ namespace MemoryManagerTests
             {
                 FastLaneSize = 1024 * 1024, // 1 MB
                 SlowLaneSize = 4 * 1024 * 1024, // 4 MB
-                BufferSize = 256 * 1024, // 256 KB
                 Threshold = 64 * 1024, // 64 KB
                 FastLaneUsageThreshold = 0.9f,
                 SlowLaneUsageThreshold = 0.85f,
@@ -55,34 +54,43 @@ namespace MemoryManagerTests
         ///     Moves the fast to slow moves entry and replaces stub.
         /// </summary>
         [TestMethod]
-        public void MoveSlowToFastMovesEntryAndReplacesStub()
+        public void MoveSlowToFastMovesEntry() // Removed "AndReplacesStub" because it doesn't do that!
         {
             var arena = new MemoryArena(_config);
-            var size = 32 * 1024; // allocate in FastLane
+            var size = 32 * 1024;
 
-            var fastHandle = arena.Allocate(size);
+            // 1. Bypass the Arena Threshold and allocate DIRECTLY in the SlowLane
+            var slowHandle = arena.SlowLane.Allocate(size);
 
-            arena.MoveFastToSlow(fastHandle);
+            // Write a magic number so we can verify the copy worked
+            unsafe
+            {
+                byte* ptr = (byte*)arena.SlowLane.Resolve(slowHandle);
+                ptr[0] = 99;
+            }
+
+            // Verify initial state
+            Assert.IsTrue(slowHandle.Id < 0, "SlowLane handle must be negative.");
+            Assert.IsTrue(arena.SlowLane.HasHandle(slowHandle), "SlowLane must contain the allocated handle.");
+
+            // 2. Move to FastLane (The method returns the NEW handle!)
+            var fastHandle = arena.MoveSlowToFast(slowHandle);
 
             arena.DebugDump();
 
-            Assert.IsFalse(arena.SlowLane.HasHandle(fastHandle));
+            // 3. Verify the old handle is dead
+            Assert.IsFalse(arena.SlowLane.HasHandle(slowHandle), "SlowLane should no longer have the old handle.");
 
-            //absolute no no but for test purposes yeah ....
-            var moved = new MemoryHandle(-1, _slowLane);
-            arena.DebugDump();
+            // 4. Verify the new handle is alive
+            Assert.IsTrue(fastHandle.Id > 0, "FastLane handle must be positive.");
+            Assert.IsTrue(arena.FastLane.HasHandle(fastHandle), "FastLane must own the new handle.");
 
-            Assert.IsTrue(arena.SlowLane.HasHandle(moved));
-
-            moved = arena.MoveSlowToFast(moved);
-
-            Assert.IsFalse(arena.SlowLane.HasHandle(fastHandle));
-
-
-            //absolute no no but for test purposes yeah ....
-            moved = new MemoryHandle(1, null);
-
-            Assert.IsTrue(arena.FastLane.HasHandle(moved));
+            // 5. Verify the data actually moved successfully
+            unsafe
+            {
+                byte* newPtr = (byte*)arena.FastLane.Resolve(fastHandle);
+                Assert.AreEqual(99, newPtr[0], "Data was corrupted or not copied during the Slow-to-Fast move.");
+            }
         }
 
         /// <summary>

@@ -30,7 +30,6 @@ namespace MemoryManagerTests
             {
                 FastLaneSize = 1024 * 1024, // 1 MB
                 SlowLaneSize = 4 * 1024 * 1024, // 4 MB
-                BufferSize = 256 * 1024, // 256 KB
                 Threshold = 64 * 1024, // 64 KB
                 FastLaneUsageThreshold = 0.9f,
                 SlowLaneUsageThreshold = 0.85f,

@@ -30,6 +30,13 @@ namespace Lanes
     /// <seealso cref="T:System.IDisposable" />
     public sealed class SlowLane : IMemoryLane, IDisposable
     {
+#if DEBUG
+        /// <summary>
+        /// The debug names
+        /// </summary>
+        private readonly Dictionary<int, string> _debugNames = new();
+#endif
+
         /// <summary>
         ///     The safety margin
         /// </summary>
@@ -60,6 +67,9 @@ namespace Lanes
         /// </summary>
         private int _nextHandleId = -1;
 
+        private FreeBlock[] _freeBlocks = new FreeBlock[128];
+        private int _freeBlockCount = 0;
+
         /// <summary>
         ///     Initializes a new instance of the <see cref="SlowLane" /> class.
         /// </summary>
@@ -70,6 +80,10 @@ namespace Lanes
             Capacity = capacity;
             Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
+
+            // Initialize the entire SlowLane as one free block
+            _freeBlocks[0] = new FreeBlock { Offset = 0, Size = Capacity };
+            _freeBlockCount = 1;
         }
 
         /// <summary>
@@ -131,12 +145,23 @@ namespace Lanes
                 throw new OutOfMemoryException("SlowLane: Cannot allocate");
 
             //TODO  Optimize
-            var offset = FindFreeSpot(size);
+            var offset = MemoryLaneUtils.FindFreeSpot(size, ref _freeBlocks, ref _freeBlockCount);
+
+            if (offset == -1)
+                throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough.");
+
             var slotIndex = _freeSlots.Length > 0 ? _freeSlots.Pop() : EntryCount++;
             EnsureEntryCapacity(slotIndex);
 
             //So we reuse freed handles here
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
+
+#if DEBUG
+            if (!string.IsNullOrEmpty(debugName))
+            {
+                _debugNames[id] = debugName;
+            }
+#endif
 
             _entries[slotIndex] = new AllocationEntry
             {
@@ -149,7 +174,7 @@ namespace Lanes
                 // Metadata assignment
                 Priority = priority,
                 Hints = hints,
-                DebugName = debugName,
+                RedirectToId = 0,
                 AllocationFrame = currentFrame,
                 LastAccessFrame = currentFrame
             };
@@ -172,7 +197,14 @@ namespace Lanes
             if (GetUsed() + size > Capacity * (1.0 - SafetyMargin))
                 return false;
 
-            return FindFreeSpot(size) != -1;
+            // Fast, read-only check to see if a contiguous block exists
+            for (int i = 0; i < _freeBlockCount; i++)
+            {
+                if (_freeBlocks[i].Size >= size)
+                    return true;
+            }
+
+            return false;
         }
 
         /// <inheritdoc />
@@ -212,6 +244,10 @@ namespace Lanes
             _entries[index] = default;
             _freeSlots.Push(index);
             _freeIds.Push(handle.Id);
+
+#if DEBUG
+            _debugNames.Remove(handle.Id);
+#endif
 
             EntryCount++;
         }
@@ -258,52 +294,76 @@ namespace Lanes
         /// </summary>
         public unsafe void Compact()
         {
+            if (_entries == null || _handleIndex.Count == 0) return;
+
             var newBuffer = Marshal.AllocHGlobal(Capacity);
             var offset = 0;
 
-            // Compact only non-stub entries, moving them to front
-            var writeIndex = 0;
-            var newHandleIndex = new Dictionary<int, int>(_handleIndex.Count);
-
-            for (var i = 0; i < EntryCount; i++)
+            // 1. Extract only the living, valid entries using our dictionary
+            var validEntries = new List<AllocationEntry>(_handleIndex.Count);
+            foreach (var index in _handleIndex.Values)
             {
-                var entry = _entries[i];
-                if (entry.IsStub)
-                    // Skip stubs (or handle as needed)
-                    continue;
+                var entry = _entries[index];
+                if (!entry.IsStub)
+                {
+                    validEntries.Add(entry);
+                }
+            }
 
-                System.Buffer.MemoryCopy((void*)(Buffer + entry.Offset), (void*)(newBuffer + offset), entry.Size,
-                    entry.Size);
+            // 2. Sort them by their physical Offset in the buffer
+            validEntries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
 
-                entry.Offset = offset;
-                offset += entry.Size;
+            var writeIndex = 0;
+            var newHandleIndex = new Dictionary<int, int>(validEntries.Count);
+
+            // 3. Copy them sequentially to the new buffer
+            foreach (var entry in validEntries)
+            {
+                var currentEntry = entry; // Make a local copy to modify
+
+                System.Buffer.MemoryCopy(
+                    (void*)(Buffer + currentEntry.Offset),
+                    (void*)(newBuffer + offset),
+                    currentEntry.Size,
+                    currentEntry.Size);
+
+                currentEntry.Offset = offset;
+                offset += currentEntry.Size;
 
                 EnsureEntryCapacity(writeIndex);
-                _entries[writeIndex] = entry;
-                newHandleIndex[entry.HandleId] = writeIndex;
+                _entries[writeIndex] = currentEntry;
+                newHandleIndex[currentEntry.HandleId] = writeIndex;
 
                 writeIndex++;
             }
 
-            // Clear remaining slots if any
-            for (var i = writeIndex; i < EntryCount; i++)
+            // 4. Clear all remaining slots
+            for (var i = writeIndex; i < _entries.Length; i++)
+            {
                 _entries[i] = default;
+            }
 
-            // Update state
+            // 5. Update the internal state
             Marshal.FreeHGlobal(Buffer);
             Buffer = newBuffer;
 
             _handleIndex.Clear();
-
-            foreach (var (key, value) in newHandleIndex)
-                _handleIndex[key] = value;
+            foreach (var kv in newHandleIndex)
+            {
+                _handleIndex[kv.Key] = kv.Value;
+            }
 
             EntryCount = writeIndex;
+            _freeSlots.Clear(); // No more holes in the array!
 
-            // Reset free slots since after compact there are no holes
-            _freeSlots.Clear();
+            // 6. THE MISSING FIX: Reset the Free-List!
+            _freeBlocks[0] = new FreeBlock
+            {
+                Offset = offset,
+                Size = Capacity - offset
+            };
+            _freeBlockCount = 1;
 
-            // Entries already sorted by offset due to compact process
             OnCompaction?.Invoke(nameof(SlowLane));
         }
 
@@ -410,16 +470,6 @@ namespace Lanes
         }
 
         /// <summary>
-        ///     Finds the free spot.
-        /// </summary>
-        /// <param name="size">The size.</param>
-        /// <returns>Returns total free bytes in FastLane</returns>
-        private int FindFreeSpot(int size)
-        {
-            return MemoryLaneUtils.FindFreeSpot(size, _entries, EntryCount);
-        }
-
-        /// <summary>
         ///     Stubs the count.
         /// </summary>
         /// <returns>Returns count of stub entries</returns>
@@ -458,7 +508,15 @@ namespace Lanes
         /// <returns>A overview of Redirections.</returns>
         public string DebugRedirections()
         {
-            return MemoryLaneUtils.DebugRedirections(_entries, EntryCount);
+            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+
+#if DEBUG
+            // Pass the debug names dictionary in Debug mode
+            return MemoryLaneUtils.DebugRedirections(_entries, EntryCount, _debugNames);
+#else
+    // Pass null in Release mode since the dictionary doesn't exist
+    return MemoryLaneUtils.DebugRedirections(_entries, EntryCount, null);
+#endif
         }
 
         /// <summary>

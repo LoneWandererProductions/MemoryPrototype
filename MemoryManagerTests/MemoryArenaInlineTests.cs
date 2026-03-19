@@ -8,6 +8,7 @@
 
 using System;
 using System.Runtime.InteropServices;
+using Core;
 using MemoryManager;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -63,10 +64,13 @@ namespace MemoryManagerTests
             Assert.IsTrue(arena.FastLane.HasHandle(structHandle));
             var entry = arena.FastLane.GetEntry(structHandle);
             Assert.IsTrue(entry.IsStub);
-            Assert.IsTrue(entry.RedirectTo.HasValue);
+
+            // Use the new integer ID logic
+            Assert.AreNotEqual(0, entry.RedirectToId, "Stub must point to a valid ID (not 0).");
 
             // Verify SlowLane has the redirected entry
-            var redirectHandle = entry.RedirectTo.Value;
+            // Reconstruct the memory handle using the integer ID
+            var redirectHandle = new MemoryHandle(entry.RedirectToId, arena.SlowLane);
             Assert.IsTrue(arena.SlowLane.HasHandle(redirectHandle));
 
             // Confirm data still accessible

@@ -1,7 +1,7 @@
 ﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     ExtendedSystemObjects
- * FILE:        ExtendedSystemObjects/DictionaryExtensions.cs
+ * FILE:        DictionaryExtensions.cs
  * PURPOSE:     Helper class that extends the already versatile Dictionary, most operations are not thread safe, so beware.
  * PROGRAMER:   Peter Geinitz (Wayfarer)
  */
@@ -82,14 +82,13 @@ namespace ExtendedSystemObjects
         /// <param name="value">Value to add</param>
         public static bool AddDistinct<TKey, TValue>(this IDictionary<TKey, List<TValue>> dic, TKey key, TValue value)
         {
-            if (!dic.ContainsKey(key))
+            if (!dic.TryGetValue(key, out var cache))
             {
                 var lst = new List<TValue> { value };
-                dic.Add(key, lst);
+                cache = lst;
+                dic.Add(key, cache);
                 return true;
             }
-
-            var cache = dic[key];
 
             if (cache.Contains(value))
             {
@@ -230,9 +229,10 @@ namespace ExtendedSystemObjects
         /// <exception cref="ValueNotFoundException"><paramref name="value" /> not found.</exception>
         public static TKey GetFirstKeyByValue<TKey, TValue>(this IDictionary<TKey, TValue> dic, TValue value)
         {
-            foreach (var pair in dic.Where(pair => value.Equals(pair.Value)))
+            foreach (var pair in dic)
             {
-                return pair.Key;
+                if (EqualityComparer<TValue>.Default.Equals(pair.Value, value))
+                    return pair.Key;
             }
 
             throw new ValueNotFoundException(SharedResources.ErrorValueNotFound);
@@ -307,14 +307,18 @@ namespace ExtendedSystemObjects
         /// <typeparam name="TValue">Internal Value</typeparam>
         public static void Swap<TKey, TValue>(this IDictionary<TKey, TValue> dic, TKey i, TKey j)
         {
-            if (!dic.ContainsKey(j))
+            if (!dic.ContainsKey(i)) throw new KeyNotFoundException(nameof(i));
+
+            if (dic.TryGetValue(j, out var jValue))
             {
-                dic[j] = dic[i];
-                _ = dic.Remove(i);
+                var iValue = dic[i];
+                dic[i] = jValue;
+                dic[j] = iValue;
             }
             else
             {
-                (dic[j], dic[i]) = (dic[i], dic[j]);
+                dic[j] = dic[i];
+                dic.Remove(i);
             }
         }
 
@@ -335,8 +339,8 @@ namespace ExtendedSystemObjects
         /// <summary>
         ///     Converts to list.
         /// </summary>
-        /// <typeparam name="TValue">The type of the value.</typeparam>
         /// <typeparam name="TId">The type of the identifier.</typeparam>
+        /// <typeparam name="TValue">The type of the value.</typeparam>
         /// <param name="dic">The dic.</param>
         /// <returns>
         ///     A list with the Key as id

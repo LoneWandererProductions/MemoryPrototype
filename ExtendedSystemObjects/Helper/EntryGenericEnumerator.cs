@@ -11,10 +11,27 @@ using System.Collections.Generic;
 
 namespace ExtendedSystemObjects.Helper
 {
+    /// <inheritdoc />
+    /// <summary>
+    /// Generic enumerator for iterating over entries in a collection of type <see cref="T:ExtendedSystemObjects.Helper.EntryGeneric`1" />.
+    /// </summary>
+    /// <typeparam name="TValue">The type of the value.</typeparam>
+    /// <seealso cref="!:System.Collections.Generic.IEnumerator&lt;(System.Int32, TValue)&gt;" />
     public unsafe struct EntryGenericEnumerator<TValue> : IEnumerator<(int, TValue)> where TValue : unmanaged
     {
+        /// <summary>
+        ///     The entries
+        /// </summary>
         private readonly EntryGeneric<TValue>* _entries;
+
+        /// <summary>
+        ///     The capacity
+        /// </summary>
         private readonly int _capacity;
+
+        /// <summary>
+        ///     The index
+        /// </summary>
         private int _index;
 
         /// <summary>
@@ -30,9 +47,29 @@ namespace ExtendedSystemObjects.Helper
             Current = default;
         }
 
+        /// <summary>
+        ///     Gets the current.
+        /// </summary>
+        /// <value>
+        ///     The current.
+        /// </value>
         public (int, TValue) Current { get; private set; }
-        object IEnumerator.Current => Current;
 
+        /// <summary>
+        ///     Gets the current.
+        /// </summary>
+        /// <value>
+        ///     The current.
+        /// </value>
+        readonly object IEnumerator.Current => Current;
+
+        /// <summary>
+        ///     Advances the enumerator to the next element of the collection.
+        /// </summary>
+        /// <returns>
+        ///     <see langword="true" /> if the enumerator was successfully advanced to the next element; <see langword="false" />
+        ///     if the enumerator has passed the end of the collection.
+        /// </returns>
         public bool MoveNext()
         {
             while (++_index < _capacity)
@@ -50,11 +87,17 @@ namespace ExtendedSystemObjects.Helper
             return false;
         }
 
+        /// <summary>
+        ///     Sets the enumerator to its initial position, which is before the first element in the collection.
+        /// </summary>
         public void Reset()
         {
             _index = -1;
         }
 
-        public void Dispose() { }
+        /// <summary>
+        ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
+        public readonly void Dispose() { }
     }
 }

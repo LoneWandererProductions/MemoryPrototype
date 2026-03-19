@@ -1,8 +1,8 @@
 ﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     ExtendedSystemObjects
- * FILE:        IUnmanagedArray.cs
- * PURPOSE:     A high-performance array implementation with reduced features. Limited to unmanaged Types, very similar to IntArray.
+ * FILE:        UnmanagedList.cs
+ * PURPOSE:     
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
@@ -26,7 +26,7 @@ namespace ExtendedSystemObjects
     /// </summary>
     /// <typeparam name="T">Generic Type, must be unmanaged</typeparam>
     /// <seealso cref="T:System.IDisposable" />
-    public sealed unsafe class UnmanagedArray<T> : IUnmanagedArray<T>, IEnumerable<T> where T : unmanaged
+    public sealed unsafe class UnmanagedList<T> : IUnmanagedArray<T>, IEnumerable<T> where T : unmanaged
     {
         /// <summary>
         ///     The buffer
@@ -50,17 +50,33 @@ namespace ExtendedSystemObjects
         public T* Pointer => _ptr;
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="UnmanagedArray{T}" /> class.
+        /// Gets the <see cref="Span{T}"/> with the specified range.
         /// </summary>
-        /// <param name="size">The size.</param>
-        public UnmanagedArray(int size)
-        {
-            Capacity = size;
-            Length = size;
+        /// <value>
+        /// The <see cref="Span{T}"/>.
+        /// </value>
+        /// <param name="range">The range.</param>
+        /// <returns></returns>
+        public Span<T> this[Range range] => AsSpan()[range];
 
-            _buffer = UnmanagedMemoryHelper.Allocate<T>(size);
-            _ptr = (T*)_buffer;
-            UnmanagedMemoryHelper.Clear<T>(_buffer, size);
+        /// <summary>
+        ///     Initializes a new instance of the <see cref="UnmanagedList{T}" /> class.
+        /// </summary>
+        /// <param name="initialCapacity">The size. Default is 16.</param>
+        public UnmanagedList(int initialCapacity = 16)
+        {
+            Capacity = initialCapacity;
+            Length = 0;
+            if (initialCapacity > 0)
+            {
+                _buffer = UnmanagedMemoryHelper.Allocate<T>(initialCapacity);
+                _ptr = (T*)_buffer;
+            }
+            else
+            {
+                _buffer = IntPtr.Zero;
+                _ptr = null;
+            }
         }
 
         /// <summary>
@@ -81,6 +97,7 @@ namespace ExtendedSystemObjects
         /// </returns>
         public IEnumerator<T> GetEnumerator()
         {
+            EnsureNotDisposed();
             return new Enumerator<T>(_ptr, Length);
         }
 
@@ -120,6 +137,7 @@ namespace ExtendedSystemObjects
         {
             get
             {
+                EnsureNotDisposed();
 #if DEBUG
                 if (index < 0 || index >= Length)
                 {
@@ -130,6 +148,7 @@ namespace ExtendedSystemObjects
             }
             set
             {
+                EnsureNotDisposed();
 #if DEBUG
                 if (index < 0 || index >= Length)
                 {
@@ -138,6 +157,24 @@ namespace ExtendedSystemObjects
 #endif
                 _ptr[index] = value;
             }
+        }
+
+        /// <summary>
+        /// Adds the specified item.
+        /// </summary>
+        /// <param name="item">The item.</param>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Add(T item)
+        {
+            EnsureNotDisposed();
+
+            // If we hit capacity, double it
+            if (Length == Capacity)
+            {
+                EnsureCapacity(Capacity == 0 ? 4 : Capacity * 2);
+            }
+
+            _ptr[Length++] = item; // Drop it in and increment length
         }
 
         /// <summary>
@@ -169,6 +206,8 @@ namespace ExtendedSystemObjects
         /// <exception cref="ArgumentOutOfRangeException">index or count is invalid.</exception>
         public void RemoveAt(int index, int count = 1)
         {
+            EnsureNotDisposed();
+
             if (index < 0 || index >= Length) throw new ArgumentOutOfRangeException(nameof(index));
             if (count < 1 || index + count > Length) throw new ArgumentOutOfRangeException(nameof(count));
 
@@ -182,6 +221,41 @@ namespace ExtendedSystemObjects
             }
 
             Length -= count;
+        }
+
+        public void PushRange(ReadOnlySpan<T> values)
+        {
+            if (values.IsEmpty) return;
+
+            EnsureCapacity(Length + values.Length);
+            // Vectorized copy directly into unmanaged memory
+            values.CopyTo(new Span<T>(_ptr + Length, values.Length));
+            Length += values.Length;
+        }
+
+        public T[] ToArray()
+        {
+            EnsureNotDisposed();
+            if (Length == 0) return Array.Empty<T>();
+
+            var result = new T[Length];
+            AsSpan().CopyTo(result);
+            return result;
+        }
+
+        public bool Remove(T value)
+        {
+            var comparer = EqualityComparer<T>.Default;
+            for (var i = 0; i < Length; i++)
+            {
+                if (comparer.Equals(_ptr[i], value))
+                {
+                    RemoveAt(i);
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         /// <inheritdoc />
@@ -224,8 +298,10 @@ namespace ExtendedSystemObjects
         /// </summary>
         public void Clear()
         {
-            // Use Span<T>.Clear for safety and type correctness
-            UnmanagedMemoryHelper.Clear<T>(_buffer, Length);
+            // We don't actually need to zero out the memory with Span.Clear.
+            // Setting Length to 0 is instantly fast and means the next Add() will just overwrite the old garbage memory.
+            EnsureNotDisposed();
+            Length = 0;
         }
 
         /// <inheritdoc />
@@ -251,6 +327,8 @@ namespace ExtendedSystemObjects
         /// </exception>
         public void InsertAt(int index, T value, int count = 1)
         {
+            EnsureNotDisposed();
+
             if (index < 0 || index > Length) throw new ArgumentOutOfRangeException(nameof(index));
 
             if (count <= 0) return;
@@ -274,21 +352,66 @@ namespace ExtendedSystemObjects
         /// <summary>
         ///     Ensures the capacity.
         /// </summary>
-        /// <param name="minCapacity">The minimum capacity.</param>
-        public void EnsureCapacity(int minCapacity)
+        /// <param name="min">The minimum capacity.</param>
+        public void EnsureCapacity(int min)
         {
-            if (minCapacity <= Capacity)
+            EnsureNotDisposed();
+            if (min <= Capacity) return;
+
+            int newCapacity = Capacity == 0 ? 4 : Capacity * 2;
+            if (newCapacity < min) newCapacity = min;
+
+            _buffer = _buffer == IntPtr.Zero
+                ? UnmanagedMemoryHelper.Allocate<T>(newCapacity)
+                : UnmanagedMemoryHelper.Reallocate<T>(_buffer, newCapacity);
+
+            _ptr = (T*)_buffer;
+            Capacity = newCapacity;
+        }
+
+        /// <summary>
+        /// Pushes the specified value.
+        /// </summary>
+        /// <param name="value">The value.</param>
+        public void Push(T value) => Add(value);
+
+        /// <summary>
+        /// Pops this instance.
+        /// </summary>
+        /// <returns>Element -1</returns>
+        /// <exception cref="InvalidOperationException">Stack empty</exception>
+        public T Pop()
+        {
+            if (Length == 0) throw new InvalidOperationException("Stack empty");
+
+            return _ptr[--Length];
+        }
+
+        /// <summary>
+        /// Peeks this instance.
+        /// </summary>
+        /// <returns>Element at the end</returns>
+        /// <exception cref="InvalidOperationException">Stack empty</exception>
+        public T Peek()
+        {
+            EnsureNotDisposed();
+            if (Length == 0) throw new InvalidOperationException("Stack empty");
+
+            return _ptr[Length - 1];
+        }
+
+        public void Sort() => AsSpan().Sort();
+
+        public UnmanagedList<T> Clone()
+        {
+            var clone = new UnmanagedList<T>(Length);
+            if (Length > 0)
             {
-                return;
+                AsSpan().CopyTo(new Span<T>(clone._ptr, Length));
+                clone.Length = Length;
             }
 
-            var newCapacity = Capacity == 0 ? 4 : Capacity;
-            while (newCapacity < minCapacity)
-            {
-                newCapacity *= 2;
-            }
-
-            Resize(newCapacity);
+            return clone;
         }
 
         /// <summary>
@@ -299,6 +422,15 @@ namespace ExtendedSystemObjects
         {
             EnsureNotDisposed();
             return new Span<T>(_ptr, Length);
+        }
+
+        public void TrimExcess()
+        {
+            if (Length == Capacity) return;
+
+            _buffer = UnmanagedMemoryHelper.Reallocate<T>(_buffer, Length);
+            _ptr = (T*)_buffer;
+            Capacity = Length;
         }
 
         /// <summary>
@@ -314,7 +446,7 @@ namespace ExtendedSystemObjects
         /// <summary>
         ///     Finalizes an instance of the <see cref="UnmanagedArray{T}" /> class.
         /// </summary>
-        ~UnmanagedArray()
+        ~UnmanagedList()
         {
             Dispose(false);
         }
@@ -333,8 +465,9 @@ namespace ExtendedSystemObjects
             if (_buffer != IntPtr.Zero)
             {
                 Marshal.FreeHGlobal(_buffer);
+
                 _buffer = IntPtr.Zero;
-                _ptr = null; // EnsureNotDisposed checks often rely on this being null
+                _ptr = null;
             }
 
             _disposed = true;
