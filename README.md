@@ -5,6 +5,16 @@
 
 > ⚠️ **Note:** This is a **prototype for learning and experimentation**. Use at your own risk.
 Validated via high-stress memory pressure tests and performance benchmarks against the .NET Garbage Collector.
+---
+
+## Stable Handle Indirection (Relocatable Memory)
+Instead of handing you a raw pointer that permanently pins memory, MemoryLane gives you an $O(1)$ MemoryHandle. This means the engine can physically move your data in the background to defragment the heap, and your references will never break.
+
+## The "Janitor" (Automated Lifecycle Management)
+You don't have to decide where data lives. Hot, short-lived data stays in the zero-allocation `FastLane`. If data survives too long or goes "Cold," the automated Janitor seamlessly migrates it to the persistent `SlowLane`, leaving a lightweight redirection stub behind.
+
+## Live Compaction (Zero External Fragmentation)
+Standard freelist allocators suffer from "Swiss Cheese" memory over time, leaving gaps you can't use for large objects. MemoryLane features Live Compaction, physically sliding memory blocks together to eliminate gaps and reclaim 100% of your wasted space without pausing the application.
 
 ---
 
