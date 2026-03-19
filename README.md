@@ -81,10 +81,15 @@ This project was created to:
 These are conceptual features or areas for future exploration:
 
 [ ] Thread Safety — Replace global lock with ReaderWriterLockSlim for parallel Resolve operations.
+
 [ ] Handle ID Pooling — Implement a stack-based pool for MemoryHandle IDs to ensure $O(1)$ allocation without metadata overhead.
+
 [ ] SIMD Alignment — Add AlignTo(int boundary) to the allocation logic for cache-line and SIMD-friendly memory offsets.
+
 [ ] Visual Profiler — Export internal memory maps to a heatmap (JSON/HTML) for real-time fragmentation monitoring.
+
 [ ] Bidirectional Transfer — (Advanced) Allow the Janitor to "pull" frequently accessed data back into the `FastLane`.
+
 
 ---
 
