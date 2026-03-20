@@ -75,6 +75,9 @@ namespace MemoryManagerTests
                 "The old list buffer should be marked as fragmented/wasted after growth.");
         }
 
+        /// <summary>
+        /// Arenas the list as span allows high speed iteration.
+        /// </summary>
         [TestMethod]
         [TestCategory("Collections")]
         public void ArenaList_AsSpan_AllowsHighSpeedIteration()

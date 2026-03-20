@@ -17,7 +17,7 @@ namespace MemoryManager.Types
     /// its internal buffer from a <see cref="MemoryArena"/>.
     /// </summary>
     /// <typeparam name="T">The unmanaged type to store.</typeparam>
-    public sealed class ArenaList<T> where T : unmanaged
+    public sealed class ArenaList<T> where T : unmanaged, IDisposable
     {
         private readonly MemoryArena _arena;
         private MemoryHandle _handle;
@@ -104,6 +104,14 @@ namespace MemoryManager.Types
 
             _handle = newHandle;
             _capacity = newCapacity;
+        }
+
+        /// <summary>
+        /// Releases unmanaged and - optionally - managed resources.
+        /// </summary>
+        public void Dispose()
+        {
+            _arena.Free(_handle);
         }
     }
 }
