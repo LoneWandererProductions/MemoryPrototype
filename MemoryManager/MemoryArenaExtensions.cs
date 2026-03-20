@@ -7,7 +7,7 @@
  */
 
 #nullable enable
-using Core;
+using MemoryManager.Core;
 using System;
 using System.Runtime.CompilerServices;
 

@@ -13,7 +13,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Lanes\Lanes.csproj" />
+    <ProjectReference Include="..\MemoryManager.Core\MemoryManager.Core.csproj" />
+    <ProjectReference Include="..\MemoryManager.Lanes\MemoryManager.Lanes.csproj" />
   </ItemGroup>
 
 </Project>

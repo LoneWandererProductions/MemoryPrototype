@@ -8,9 +8,9 @@
  */
 
 #nullable enable
+using MemoryManager.Core;
 using System;
 using System.Runtime.CompilerServices;
-using Core;
 
 namespace MemoryManager
 {

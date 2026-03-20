@@ -8,8 +8,8 @@
 
 using System;
 using System.Runtime.InteropServices;
-using Core;
 using MemoryManager;
+using MemoryManager.Core;
 
 namespace MemoryPrototype
 {

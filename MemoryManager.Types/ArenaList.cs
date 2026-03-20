@@ -7,7 +7,7 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-using Core;
+using MemoryManager.Core;
 using System.Runtime.CompilerServices;
 
 namespace MemoryManager.Types
@@ -19,8 +19,19 @@ namespace MemoryManager.Types
     /// <typeparam name="T">The unmanaged type to store.</typeparam>
     public sealed class ArenaList<T> : IDisposable where T : unmanaged
     {
+        /// <summary>
+        /// The arena
+        /// </summary>
         private readonly MemoryArena _arena;
+
+        /// <summary>
+        /// The handle
+        /// </summary>
         private MemoryHandle _handle;
+
+        /// <summary>
+        /// The capacity
+        /// </summary>
         private int _capacity;
 
         /// <summary>

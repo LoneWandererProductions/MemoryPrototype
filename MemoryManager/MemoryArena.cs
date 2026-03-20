@@ -39,9 +39,8 @@
 // ReSharper disable NotAccessedField.Local
 
 #nullable enable
-using Core;
-using Core.MemoryArenaPrototype.Core;
-using Lanes;
+using MemoryManager.Core;
+using MemoryManager.Lanes;
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
