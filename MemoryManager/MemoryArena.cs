@@ -119,7 +119,15 @@ namespace MemoryManager
             _config = config;
             Threshold = config.Threshold;
             SlowLane = new SlowLane(config.SlowLaneSize);
-            FastLane = new FastLane(config.FastLaneSize, SlowLane);
+
+            if (config.FastLaneStrategy == AllocatorStrategy.FreeList)
+            {
+                FastLane = new FastLane(config.FastLaneSize, SlowLane, config.MaxEntries);
+            }
+            else
+            {
+                FastLane = new LinearLane(config.FastLaneSize, SlowLane, config.MaxEntries);
+            }
 
             // Now safe to construct OneWayLane
             FastLane.OneWayLane = new OneWayLane(FastLane, SlowLane);
@@ -135,7 +143,7 @@ namespace MemoryManager
         /// <value>
         ///     The fast lane.
         /// </value>
-        public FastLane FastLane { get; set; }
+        public IFastLane FastLane { get; set; }
 
         /// <summary>
         ///     Gets or sets the slow lane.

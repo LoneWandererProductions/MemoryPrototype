@@ -9,6 +9,7 @@
 
 #nullable enable
 using System;
+using System.Collections.Generic;
 using Core.MemoryArenaPrototype.Core;
 
 namespace Core
@@ -100,6 +101,26 @@ namespace Core
         /// </summary>
         /// <returns>A string representation of the current memory lane state.</returns>
         string DebugDump();
+
+        /// <summary>
+        /// Gets the total number of entries currently tracked by the lane.
+        /// </summary>
+        int EntryCount { get; }
+
+        /// <summary>
+        /// Gets a visual map of the memory layout.
+        /// </summary>
+        string DebugVisualMap();
+
+        /// <summary>
+        /// Gets an overview of active redirections/stubs.
+        /// </summary>
+        string DebugRedirections();
+
+        /// <summary>
+        /// Retrieves all handles currently active in the lane.
+        /// </summary>
+        IEnumerable<MemoryHandle> GetHandles();
 
         /// <summary>
         /// Frees the space.

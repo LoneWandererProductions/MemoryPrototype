@@ -7,6 +7,7 @@
  */
 
 using Core;
+using Lanes;
 using MemoryManager;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
@@ -173,8 +174,6 @@ namespace MemoryManagerTests
             Assert.AreEqual(10, sourceData[0]);
         }
 
-
-
         /// <summary>
         /// Memories the arena janitor and compaction stress test.
         /// </summary>
@@ -234,6 +233,89 @@ namespace MemoryManagerTests
             // 5. Check final health
             arena.DebugDump();
             Assert.AreEqual(0, arena.FastLane.EstimateFragmentation());
+        }
+
+        /// <summary>
+        /// Memories the arena configuration switch uses correct fast lane strategy.
+        /// </summary>
+        [TestMethod]
+        [TestCategory("Architecture")]
+        public void MemoryArena_ConfigSwitch_UsesCorrectFastLaneStrategy()
+        {
+            // --- 1. Test FreeList Strategy (The Classic Engine) ---
+            var configFreeList = new MemoryManagerConfig
+            {
+                FastLaneSize = 64 * 1024,
+                SlowLaneSize = 128 * 1024,
+                FastLaneStrategy = AllocatorStrategy.FreeList // Explicitly request the Free-List
+            };
+
+            var arenaFreeList = new MemoryArena(configFreeList);
+
+            // Assert the internal type is correct
+            Assert.IsInstanceOfType(arenaFreeList.FastLane, typeof(FastLane),
+                "Arena should use the original FastLane (Free-List) when configured.");
+
+            // Prove the interface works seamlessly
+            var handle1 = arenaFreeList.AllocateAndStore(42);
+            Assert.AreEqual(42, arenaFreeList.Get<int>(handle1), "FreeList allocation failed.");
+
+
+            // --- 2. Test LinearBump Strategy (The Speed Demon) ---
+            var configBump = new MemoryManagerConfig
+            {
+                FastLaneSize = 64 * 1024,
+                SlowLaneSize = 128 * 1024,
+                FastLaneStrategy = AllocatorStrategy.LinearBump // Explicitly request the Bump Allocator
+            };
+
+            var arenaBump = new MemoryArena(configBump);
+
+            // Assert the internal type is correct
+            Assert.IsInstanceOfType(arenaBump.FastLane, typeof(LinearLane),
+                "Arena should use the new LinearLane (Bump Allocator) when configured.");
+
+            // Prove the interface works seamlessly
+            var handle2 = arenaBump.AllocateAndStore(99);
+            Assert.AreEqual(99, arenaBump.Get<int>(handle2), "LinearBump allocation failed.");
+        }
+
+        /// <summary>
+        /// Memories the arena default configuration works out of the box.
+        /// </summary>
+        [TestMethod]
+        [TestCategory("Architecture")]
+        public void MemoryArena_DefaultConfig_WorksOutOfTheBox()
+        {
+            // --- THE FRESH USER SCENARIO ---
+            // Absolutely zero custom configuration. Just the raw defaults.
+            var defaultConfig = new MemoryManagerConfig();
+
+            // 1. Initialization should not throw an exception
+            var arena = new MemoryArena(defaultConfig);
+
+            // 2. Verify the default strategy (You set it to FreeList in the config!)
+            Assert.IsInstanceOfType(arena.FastLane, typeof(FastLane),
+                "The default config should initialize the standard FastLane (FreeList).");
+
+            // 3. Test a tiny allocation (Should safely route to FastLane or BlobManager)
+            var smallHandle = arena.AllocateAndStore(777);
+            Assert.AreEqual(777, arena.Get<int>(smallHandle),
+                "Failed to read tiny allocation using default config.");
+
+            // 4. Test a massive allocation 
+            // Default Threshold is 256KB. Let's allocate an array larger than that 
+            // to force it directly into the SlowLane to ensure the default boundaries hold.
+            int largeSize = 300 * 1024; // 300 KB
+            var largeHandle = arena.Allocate(largeSize);
+
+            // The ID should be negative, proving the default Threshold safely pushed it to the SlowLane
+            Assert.IsTrue(largeHandle.Id < 0,
+                "Large allocation did not route to the SlowLane under default thresholds.");
+
+            // 5. Clean up
+            arena.Free(smallHandle);
+            arena.Free(largeHandle);
         }
 
         /// <summary>

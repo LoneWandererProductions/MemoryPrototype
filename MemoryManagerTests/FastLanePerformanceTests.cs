@@ -2,7 +2,7 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryManagerTests
  * FILE:        FastLanePerformanceTests.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     Mostly performance Stuff in Fastlane
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 

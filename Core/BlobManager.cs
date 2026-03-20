@@ -1,4 +1,4 @@
-/*
+﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     Core
  * FILE:        BlobManager.cs
@@ -12,6 +12,7 @@ using System.Collections.Generic;
 
 namespace Core
 {
+    /// <inheritdoc />
     /// <summary>
     /// A Linear/Bump allocator designed for large or unpredictable blobs of memory.
     /// Allocations are extremely fast, but memory is only reclaimed when the entire
@@ -57,6 +58,10 @@ namespace Core
         private readonly Dictionary<int, string> _debugNames = new();
 #endif
 
+        /// <inheritdoc />
+        public int EntryCount => _entries.Count;
+
+        /// <inheritdoc />
         public event Action<string>? OnCompaction;
 
         /// <inheritdoc />
@@ -124,7 +129,7 @@ namespace Core
 
         /// <inheritdoc />
         /// <summary>
-        ///     Invalidates the handle. 
+        ///     Invalidates the handle.
         ///     Note: As a bump allocator, this does NOT immediately reclaim the physical memory bytes.
         /// </summary>
         public void Free(MemoryHandle handle)
@@ -189,59 +194,81 @@ namespace Core
         /// <inheritdoc />
         /// <summary>
         ///     WARNING: For a linear allocator, compaction means a total reset.
-        ///     This wipes all entries and resets the offset to 0. 
+        ///     This wipes all entries and resets the offset to 0.
         /// </summary>
         public void Compact()
         {
-            _entries.Clear();
-#if DEBUG
-            _debugNames.Clear();
-#endif
-            _nextFreeOffset = 0;
+            if (_entries.Count == 0) return;
+
+            // 1. Get all surviving entries and sort them by their physical offset
+            var validEntries = new List<BlobEntry>(_entries.Values);
+            validEntries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+
+            int currentOffset = 0;
+
+            // 2. Slide each entry as far left as possible
+            foreach (var entry in validEntries)
+            {
+                if (entry.Offset > currentOffset)
+                {
+                    unsafe
+                    {
+                        System.Buffer.MemoryCopy(
+                            (void*)(_buffer + entry.Offset),
+                            (void*)(_buffer + currentOffset),
+                            entry.Size,
+                            entry.Size);
+                    }
+                }
+
+                // 3. Update the entry's metadata with its new physical address
+                var updatedEntry = entry;
+                updatedEntry.Offset = currentOffset;
+                _entries[entry.Id] = updatedEntry;
+
+                currentOffset += entry.Size;
+            }
+
+            // 4. Update the global allocator offset
+            _nextFreeOffset = currentOffset;
+
             OnCompaction?.Invoke(nameof(BlobManager));
         }
 
         /// <inheritdoc />
-        /// <summary>
-        /// Usages the percentage.
-        /// </summary>
-        /// <returns>
-        /// Used memory Percentage
-        /// </returns>
         public double UsagePercentage()
         {
             return (_nextFreeOffset / (double)_capacity) * 100.0;
         }
 
-        /// <summary>
-        /// Frees the space.
-        /// </summary>
-        /// <returns>
-        /// Free Memory
-        /// </returns>
+        /// <inheritdoc />
         public int FreeSpace() => _capacity - _nextFreeOffset;
 
+        /// <inheritdoc />
         /// <summary>
-        /// A linear allocator doesn't suffer from external fragmentation in the traditional sense, 
-        /// because it doesn't leave gaps�it just consumes until full.
+        /// Calculates the percentage of "dead" space behind the bump pointer
+        /// that can be reclaimed via Compaction.
         /// </summary>
-        /// <returns>
-        /// Estimated Fragmentation.
-        /// </returns>
-        public int EstimateFragmentation() => 0;
+        public int EstimateFragmentation()
+        {
+            int allocatedBytes = _nextFreeOffset;
+            if (allocatedBytes == 0) return 0;
 
-        /// <summary>
-        /// Stubs the count.
-        /// </summary>
-        /// <returns>
-        /// Stub Count.
-        /// </returns>
+            int livingBytes = 0;
+            foreach (var blob in _entries.Values)
+            {
+                livingBytes += blob.Size;
+            }
+
+            int wastedBytes = allocatedBytes - livingBytes;
+
+            return (int)(((double)wastedBytes / allocatedBytes) * 100);
+        }
+
+        /// <inheritdoc />
         public int StubCount() => 0;
 
-        /// <summary>
-        /// Gets the handles.
-        /// </summary>
-        /// <returns></returns>
+        /// <inheritdoc />
         public IEnumerable<MemoryHandle> GetHandles()
         {
             foreach (var key in _entries.Keys)
@@ -250,28 +277,56 @@ namespace Core
             }
         }
 
-        /// <summary>
-        /// Provides a debug string dump describing the internal state of the memory lane.
-        /// Useful for diagnostics and debugging allocation behavior.
-        /// </summary>
-        /// <returns>
-        /// A string representation of the current memory lane state.
-        /// </returns>
+        /// <inheritdoc />
         public string DebugDump()
         {
             return $"BlobManager Dump\nAllocations: {_entries.Count}\nUsed: {_nextFreeOffset}/{_capacity} bytes";
         }
 
+        /// <inheritdoc />
         /// <summary>
-        /// Debugs the visual map.
+        /// Generates a visual string representation of the BlobManager's memory layout.
+        /// █ = Living Data, - = Dead Gap (Wasted), ░ = Untouched Capacity
         /// </summary>
-        /// <returns></returns>
-        public string DebugVisualMap() => "[BlobMap not implemented]";
+        public string DebugVisualMap()
+        {
+            if (_capacity == 0) return "[]";
 
-        /// <summary>
-        /// Debugs the redirections.
-        /// </summary>
-        /// <returns></returns>
+            const int mapResolution = 80; // Width of the console map
+            char[] map = new char[mapResolution];
+            double bytesPerChar = (double)_capacity / mapResolution;
+
+            for (int i = 0; i < mapResolution; i++)
+            {
+                double startByte = i * bytesPerChar;
+                double endByte = (i + 1) * bytesPerChar;
+
+                // If this bucket is completely past the bump pointer, it's untouched.
+                if (startByte >= _nextFreeOffset)
+                {
+                    map[i] = '░';
+                    continue;
+                }
+
+                // Otherwise, check if any living blob intersects this bucket
+                bool isLiving = false;
+                foreach (var blob in _entries.Values)
+                {
+                    // Intersection math: Blob starts before bucket ends AND Blob ends after bucket starts
+                    if (blob.Offset < endByte && (blob.Offset + blob.Size) > startByte)
+                    {
+                        isLiving = true;
+                        break;
+                    }
+                }
+
+                map[i] = isLiving ? '█' : '-';
+            }
+
+            return $"Blob Map: [{new string(map)}]\nLegend: █=Used, -=Gap, ░=Free";
+        }
+
+        /// <inheritdoc />
         public string DebugRedirections() => "[BlobRedirects not applicable]";
     }
 }

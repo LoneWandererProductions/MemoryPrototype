@@ -18,24 +18,40 @@ namespace Lanes
     /// </summary>
     public sealed class OneWayLane
     {
-        private readonly FastLane _fastLane;
-        private readonly SlowLane _slowLane;
+        /// <summary>
+        /// The fast lane
+        /// </summary>
+        private readonly IFastLane _fastLane;
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="OneWayLane" /> class.
+        /// The slow lane
         /// </summary>
+        private readonly IMemoryLane _slowLane;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="OneWayLane" /> class.
+        /// </summary>
+        /// <param name="fastLane">The fast lane.</param>
+        /// <param name="slowLane">The slow lane.</param>
+        /// <exception cref="System.ArgumentNullException">
+        /// fastLane
+        /// or
+        /// slowLane
+        /// </exception>
         // Notice we changed IMemoryLane to FastLane/SlowLane so we have access to ReplaceWithStub
-        public OneWayLane(FastLane fastLane, SlowLane slowLane)
+        public OneWayLane(IFastLane fastLane, IMemoryLane slowLane)
         {
             _fastLane = fastLane ?? throw new ArgumentNullException(nameof(fastLane));
             _slowLane = slowLane ?? throw new ArgumentNullException(nameof(slowLane));
         }
 
         /// <summary>
-        ///     Moves data from FastLane to SlowLane and sets up a redirection stub.
+        /// Moves data from FastLane to SlowLane and sets up a redirection stub.
         /// </summary>
         /// <param name="fastHandle">The fast handle.</param>
-        /// <returns>True if the move was successful, false otherwise.</returns>
+        /// <returns>
+        /// True if the move was successful, false otherwise.
+        /// </returns>
         public unsafe bool MoveFromFastToSlow(MemoryHandle fastHandle)
         {
             // Fix 1: FastLane IDs are positive! If it's negative, it's invalid here.

@@ -22,7 +22,7 @@ using System.Runtime.InteropServices;
 
 namespace Lanes
 {
-    public sealed class FastLane : IMemoryLane, IDisposable
+    public sealed class FastLane : IFastLane, IDisposable
     {
 
 #if DEBUG

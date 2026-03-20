@@ -126,12 +126,8 @@ namespace Lanes
         /// </value>
         public int Capacity { get; }
 
-        /// <summary>
-        ///     Gets the entry count.
-        /// </summary>
-        /// <value>
-        ///     The entry count.
-        /// </value>
+
+        /// <inheritdoc />
         public int EntryCount { get; private set; }
 
         /// <inheritdoc />
@@ -216,13 +212,6 @@ namespace Lanes
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Determines whether this instance can allocate the specified size.
-        /// </summary>
-        /// <param name="size">The size.</param>
-        /// <returns>
-        ///     <c>true</c> if this instance can allocate the specified size; otherwise, <c>false</c>.
-        /// </returns>
         public bool CanAllocate(int size)
         {
             // --- ROUTE TO BLOB MANAGER FOR SMALL SIZES ---
@@ -340,9 +329,6 @@ namespace Lanes
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Compacts this instance.
-        /// </summary>
         public unsafe void Compact()
         {
             if (_entries == null || _handleIndex.Count == 0) return;
@@ -419,13 +405,6 @@ namespace Lanes
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Determines whether the specified handle has handle.
-        /// </summary>
-        /// <param name="handle">The handle.</param>
-        /// <returns>
-        ///     <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
-        /// </returns>
         public bool HasHandle(MemoryHandle handle)
         {
             if (handle.Id <= BlobManager.StartingId && _blobManager != null)
@@ -437,11 +416,6 @@ namespace Lanes
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Gets the entry.
-        /// </summary>
-        /// <param name="handle">The handle.</param>
-        /// <returns>Get the Entry by handle.</returns>
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
             if (handle.Id <= BlobManager.StartingId && _blobManager != null)
@@ -453,11 +427,6 @@ namespace Lanes
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Gets the size of the allocation.
-        /// </summary>
-        /// <param name="handle">The handle.</param>
-        /// <returns>Size of allocated space.</returns>
         public int GetAllocationSize(MemoryHandle handle)
         {
             if (handle.Id <= BlobManager.StartingId && _blobManager != null)
@@ -469,31 +438,18 @@ namespace Lanes
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Debugs the dump.
-        /// </summary>
-        /// <returns>Basic Debug Info</returns>
         public string DebugDump()
         {
             return MemoryLaneUtils.DebugDump(_entries, EntryCount);
         }
 
-        /// <summary>
-        ///     Occurs when [on compaction].
-        /// </summary>
+        /// <inheritdoc />
         public event Action<string>? OnCompaction;
 
-        /// <summary>
-        ///     Occurs when [on allocation extension].
-        /// </summary>
+        /// <inheritdoc />
         public event Action<string, int, int>? OnAllocationExtension;
 
-        /// <summary>
-        ///     Gets the handles.
-        /// </summary>
-        /// <returns>
-        ///     List of handles.
-        /// </returns>
+        /// <inheritdoc />
         public IEnumerable<MemoryHandle> GetHandles()
         {
             var mainHandles = _handleIndex.Select(kv => new MemoryHandle(kv.Item1, this));
@@ -521,10 +477,7 @@ namespace Lanes
             return used;
         }
 
-        /// <summary>
-        ///     Frees the space.
-        /// </summary>
-        /// <returns>The Free space</returns>
+        /// <inheritdoc />
         public int FreeSpace()
         {
             int mainFreeSpace = MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
@@ -546,43 +499,31 @@ namespace Lanes
             OnAllocationExtension?.Invoke(nameof(SlowLane), oldSize, newSize);
         }
 
-        /// <summary>
-        ///     Stubs the count.
-        /// </summary>
-        /// <returns>Returns count of stub entries</returns>
+        /// <inheritdoc />
         public int StubCount()
         {
             return MemoryLaneUtils.StubCount(EntryCount, _entries);
         }
 
-        // Estimate fragmentation percentage (gaps / total capacity)
+        /// <inheritdoc />
         public int EstimateFragmentation()
         {
             return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount);
         }
 
-        /// <summary>
-        ///     Usages the percentage.
-        /// </summary>
-        /// <returns>Percentage of used memory.</returns>
+        /// <inheritdoc />
         public double UsagePercentage()
         {
             return MemoryLaneUtils.UsagePercentage(EntryCount, _entries, Capacity);
         }
 
-        /// <summary>
-        ///     Debugs the visual map.
-        /// </summary>
-        /// <returns>Visual information about the Debug and Memory layout.</returns>
+        /// <inheritdoc />
         public string DebugVisualMap()
         {
             return MemoryLaneUtils.DebugVisualMap(_entries, EntryCount, Capacity);
         }
 
-        /// <summary>
-        ///     Debugs the redirections.
-        /// </summary>
-        /// <returns>A overview of Redirections.</returns>
+        /// <inheritdoc />
         public string DebugRedirections()
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");

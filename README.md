@@ -1,13 +1,13 @@
-# MemoryLane
+# MemoryPrototype
 
-**MemoryLane** is a prototype memory allocation and handle system built to experiment with custom memory management in C#. Inspired by techniques found in game engines and real-time systems, it explores handle indirection, dual-tier memory lanes, and optional compaction.
+**MemoryPrototype** is a prototype memory allocation and handle system built to experiment with custom memory management in C#. Inspired by techniques found in game engines and real-time systems, it explores handle indirection, dual-tier memory lanes, and optional compaction.
 
 > ⚠️ **Note:** This is a **prototype for learning and experimentation**. Use at your own risk.
 > Validated via high-stress memory pressure tests and performance benchmarks against the .NET Garbage Collector.
 
 ---
 
-### 🚀 The 3 Killer Features
+### 🚀 The Killer Features
 
 1. **Stable Handle Indirection (Relocatable Memory)**
    Instead of handing you a raw pointer that permanently pins memory, MemoryLane gives you an O(1) `MemoryHandle`. This means the engine can physically move your data in the background to defragment the heap, and your references will never break.
@@ -15,6 +15,8 @@
    You don't have to decide where data lives. Hot, short-lived data stays in the zero-allocation `FastLane`. If data survives too long or goes "Cold," the automated Janitor seamlessly migrates it to the persistent `SlowLane`, leaving a lightweight redirection stub behind.
 3. **Live Compaction (Zero External Fragmentation)**
    Standard freelist allocators suffer from "Swiss Cheese" memory over time, leaving gaps you can't use for large objects. MemoryLane features Live Compaction, physically sliding memory blocks together to eliminate gaps and reclaim 100% of your wasted space without pausing the application.
+4. **Pluggable Allocation Strategies**
+   Not all workloads are the same. MemoryLane allows you to hot-swap the internal allocation engine of the `FastLane` via a simple config toggle. Choose between a safe, hole-reusing **Free-List Allocator** or a lightning-fast, O(1) **Linear Bump Allocator**.
 
 ---
 
@@ -34,6 +36,8 @@
 
 - 🔁 **Stable Handle System** - `MemoryHandle` provides opaque, safe references to internal memory entries.  
   - Redirection via lightweight stubs for safe relocation.
+
+- 🔌 **Modular Strategy Pattern** - Toggle the core allocation logic (`AllocatorStrategy.FreeList` vs `AllocatorStrategy.LinearBump`) to perfectly match your application's allocation tempo.
 
 - 🧹 **Optional Live Compaction** - Reduces fragmentation and reclaims space dynamically.
 
@@ -88,7 +92,7 @@ MemoryLane utilizes a dual-tier strategy to bypass the .NET Garbage Collector fo
 
 #### ✅ FastLane
 **Optimized for:** High-frequency, short-lived "hot" data.  
-**Backend:** High-speed Arena with contiguous Free-Block management.  
+**Backend:** Pluggable Strategy (`LinearBump` for maximum O(1) speed, or `FreeList` for highly-variable, chaotic lifespans).  
 **Convention:** Uses Positive Allocation IDs.  
 **The Janitor:** Automatically promotes stale, oversized, or "Cold-tagged" entries to the SlowLane during maintenance cycles to keep the FastLane lean.
 
@@ -113,7 +117,8 @@ var config = new MemoryManagerConfig(slowLaneSize: 10 * 1024 * 1024)
 {
     EnableAutoCompaction = true,
     FastLaneUsageThreshold = 0.90,
-    MaxFastLaneAgeFrames = 600 // Janitor evicts after 10 seconds at 60fps
+    MaxFastLaneAgeFrames = 600, // Janitor evicts after 10 seconds at 60fps
+    FastLaneStrategy = AllocatorStrategy.LinearBump // Choose your engine!
 };
 
 var arena = new MemoryArena(config);
