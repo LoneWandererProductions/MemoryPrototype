@@ -81,6 +81,7 @@ These are conceptual features or areas for future exploration:
 - [ ] **SIMD Alignment** — Add `AlignTo(int boundary)` to the allocation logic for cache-line and SIMD-friendly memory offsets.
 - [ ] **Visual Profiler** — Export internal memory maps to a heatmap (JSON/HTML) for real-time fragmentation monitoring.
 - [ ] **Bidirectional Transfer** — (Advanced) Allow the Janitor to "pull" frequently accessed data back into the `FastLane`.
+- [ ] **The "Lounge" (Pool Allocator)** — A dedicated memory tier for uniform, homogeneous data blocks (e.g., arrays of identical structs). Eliminates fragmentation entirely using an O(1) index stack. Includes a strict Janitor policy to evict "liars" to the `SlowLane` if their temporary frame data overstays its welcome.
 
 ---
 
