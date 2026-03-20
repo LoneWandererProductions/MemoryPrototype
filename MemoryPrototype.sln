@@ -26,6 +26,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Projektmappenelemente", "Pr
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExtendedSystemObjects", "ExtendedSystemObjects\ExtendedSystemObjects.csproj", "{2FF07C67-FC74-EFDF-98D7-6DEC304191F9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MemoryManager.Types", "MemoryManager.Types\MemoryManager.Types.csproj", "{77EC857A-5E5A-472A-82B4-DF86ED74B2D0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -56,6 +58,10 @@ Global
 		{2FF07C67-FC74-EFDF-98D7-6DEC304191F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2FF07C67-FC74-EFDF-98D7-6DEC304191F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2FF07C67-FC74-EFDF-98D7-6DEC304191F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{77EC857A-5E5A-472A-82B4-DF86ED74B2D0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{77EC857A-5E5A-472A-82B4-DF86ED74B2D0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{77EC857A-5E5A-472A-82B4-DF86ED74B2D0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{77EC857A-5E5A-472A-82B4-DF86ED74B2D0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

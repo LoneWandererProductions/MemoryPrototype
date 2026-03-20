@@ -49,6 +49,10 @@
   - Uses `Span<T>` and `Buffer.MemoryCopy` to avoid breaking references.  
   - Can be plugged into compaction or run manually.
 
+- 📦 High-Level Managed Types - Includes ArenaList<T>, a resizable collection that lives entirely in unmanaged memory.
+  - Automatically handles Growth and Migration through the handle system.
+  - Integrates with the Janitor for automatic defragmentation when lists are resized or freed.
+ 
 - 🔤 **Unmanaged String Support** - Store strings as UTF-8 byte arrays to save 50% memory over C# UTF-16 strings and bypass the GC.
 
 - ✅ **Robust Unit Tests** - Includes structural validation, performance benchmarks, and multi-lane stress testing.
@@ -113,41 +117,61 @@ MemoryLane utilizes a dual-tier strategy to bypass the .NET Garbage Collector fo
 ## 🧩 Example Usage
 
 ```csharp
-// Setup Configuration
+using MemoryManager;
+using MemoryManager.Types;
+
+// --- 1. Setup Configuration ---
+// Define your sandbox boundaries. 10MB SlowLane, 1MB FastLane.
 var config = new MemoryManagerConfig(slowLaneSize: 10 * 1024 * 1024) 
 {
     EnableAutoCompaction = true,
-    FastLaneUsageThreshold = 0.90,
-    MaxFastLaneAgeFrames = 600, // Janitor evicts after 10 seconds at 60fps
-    FastLaneStrategy = AllocatorStrategy.LinearBump // Choose your engine!
+    FastLaneUsageThreshold = 0.90, // Trigger maintenance at 90% full
+    MaxFastLaneAgeFrames = 600,    // Janitor evicts "stale" data after 10 seconds (60fps)
+    FastLaneStrategy = AllocatorStrategy.LinearBump // O(1) lightning speed
 };
 
 var arena = new MemoryArena(config);
 
-// --- 1. Syntactic Sugar: Allocation & Storage ---
-// Stores an int directly. The handle is stable even if the memory moves!
-var intHandle = arena.AllocateAndStore(777);
+// --- 2. High-Level Collections (The Lounge) ---
+// Use ArenaList for resizable, unmanaged collections.
+// It feels like a standard List<T>, but lives in your FastLane.
+var list = new ArenaList<int>(arena, initialCapacity: 16);
+for(int i = 0; i < 20; i++) list.Add(i); 
 
-// --- 2. High-Performance Arrays & Bulk Operations ---
+// --- 3. Stable Handles & Syntactic Sugar ---
+// Store a single value. The handle remains valid even if the Janitor 
+// moves this integer to the SlowLane later!
+var healthHandle = arena.AllocateAndStore(100);
+
+// --- 4. Bulk Data & Memory "Slamming" ---
 int[] sourceData = { 10, 20, 30, 40, 50 };
 var arrayHandle = arena.AllocateArray<int>(sourceData.Length);
 
-// "Slam" managed data into unmanaged memory instantly
+// Vectorized copy from managed to unmanaged memory
 arena.BulkSet(arrayHandle, sourceData);
 
-// --- 3. Pointer-Speed Access via Spans ---
-// Get a Span for zero-allocation, high-speed iteration
+// --- 5. Unmanaged Strings (Save 50% RAM) ---
+// Store text as UTF-8 in the Arena, bypassing C# UTF-16 overhead and the GC.
+var stringHandle = arena.AllocateString("Hello from the Arena!");
+
+// --- 6. Pointer-Speed Access via Spans ---
+// Get a Span for zero-allocation, high-speed iteration.
+// This is the "hot path" for game loops.
 var span = arena.GetSpan<int>(arrayHandle, sourceData.Length);
 foreach(ref var val in span) 
 {
-    val *= 2; // Direct memory manipulation
+    val *= 2; // Direct memory manipulation at CPU cache speeds
 }
 
-// --- 4. Policy-Driven Maintenance ---
-// Increments internal clock and triggers Janitor/Compaction if needed
+// --- 7. Policy-Driven Maintenance ---
+// Call this once per frame. It tracks the age of allocations.
 arena.TickFrame(); 
+
+// Periodically runs the Janitor (eviction) and Compaction (defragmentation)
+// to ensure your FastLane never turns into "Swiss Cheese."
 arena.RunMaintenanceCycle(); 
 
-// --- 5. Manual Cleanup ---
-arena.Free(intHandle);
+// --- 8. Manual Cleanup ---
+arena.Free(healthHandle);
 arena.Free(arrayHandle);
+// Note: ArenaList and String handles are cleaned up similarly.
