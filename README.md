@@ -49,7 +49,7 @@
   - Uses `Span<T>` and `Buffer.MemoryCopy` to avoid breaking references.  
   - Can be plugged into compaction or run manually.
 
-- 📦 High-Level Managed Types - Includes ArenaList<T>, a resizable collection that lives entirely in unmanaged memory.
+- 📦 **High-Level Managed Types** - Includes ArenaList<T>, a resizable collection that lives entirely in unmanaged memory.
   - Automatically handles Growth and Migration through the handle system.
   - Integrates with the Janitor for automatic defragmentation when lists are resized or freed.
  
