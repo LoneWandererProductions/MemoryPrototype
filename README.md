@@ -2,19 +2,19 @@
 
 **MemoryLane** is a prototype memory allocation and handle system built to experiment with custom memory management in C#. Inspired by techniques found in game engines and real-time systems, it explores handle indirection, dual-tier memory lanes, and optional compaction.
 
-
 > ⚠️ **Note:** This is a **prototype for learning and experimentation**. Use at your own risk.
-Validated via high-stress memory pressure tests and performance benchmarks against the .NET Garbage Collector.
+> Validated via high-stress memory pressure tests and performance benchmarks against the .NET Garbage Collector.
+
 ---
 
-## Stable Handle Indirection (Relocatable Memory)
-Instead of handing you a raw pointer that permanently pins memory, MemoryLane gives you an $O(1)$ MemoryHandle. This means the engine can physically move your data in the background to defragment the heap, and your references will never break.
+### 🚀 The 3 Killer Features
 
-## The "Janitor" (Automated Lifecycle Management)
-You don't have to decide where data lives. Hot, short-lived data stays in the zero-allocation `FastLane`. If data survives too long or goes "Cold," the automated Janitor seamlessly migrates it to the persistent `SlowLane`, leaving a lightweight redirection stub behind.
-
-## Live Compaction (Zero External Fragmentation)
-Standard freelist allocators suffer from "Swiss Cheese" memory over time, leaving gaps you can't use for large objects. MemoryLane features Live Compaction, physically sliding memory blocks together to eliminate gaps and reclaim 100% of your wasted space without pausing the application.
+1. **Stable Handle Indirection (Relocatable Memory)**
+   Instead of handing you a raw pointer that permanently pins memory, MemoryLane gives you an O(1) `MemoryHandle`. This means the engine can physically move your data in the background to defragment the heap, and your references will never break.
+2. **The "Janitor" (Automated Lifecycle Management)**
+   You don't have to decide where data lives. Hot, short-lived data stays in the zero-allocation `FastLane`. If data survives too long or goes "Cold," the automated Janitor seamlessly migrates it to the persistent `SlowLane`, leaving a lightweight redirection stub behind.
+3. **Live Compaction (Zero External Fragmentation)**
+   Standard freelist allocators suffer from "Swiss Cheese" memory over time, leaving gaps you can't use for large objects. MemoryLane features Live Compaction, physically sliding memory blocks together to eliminate gaps and reclaim 100% of your wasted space without pausing the application.
 
 ---
 
@@ -29,33 +29,25 @@ Standard freelist allocators suffer from "Swiss Cheese" memory over time, leavin
 
 ## ✨ Features
 
-- 🧠 **Dual Memory Lanes**  
-  - `FastLane`: low-latency, short-lived allocations (e.g., frame-local).  
+- 🧠 **Dual Memory Lanes** - `FastLane`: low-latency, short-lived allocations (e.g., frame-local).  
   - `SlowLane`: large, persistent allocations (e.g., background assets).
 
-- 🔁 **Stable Handle System**  
-  - `MemoryHandle` provides opaque, safe references to internal memory entries.  
+- 🔁 **Stable Handle System** - `MemoryHandle` provides opaque, safe references to internal memory entries.  
   - Redirection via lightweight stubs for safe relocation.
 
-- 🧹 **Optional Live Compaction**  
-  - Reduces fragmentation and reclaims space dynamically.
+- 🧹 **Optional Live Compaction** - Reduces fragmentation and reclaims space dynamically.
 
-- 🔄 **Stub-Based Indirection**  
-  - Moves memory without invalidating existing handles.
+- 🔄 **Stub-Based Indirection** - Moves memory without invalidating existing handles.
 
-- 🧪 **Safety Checks**  
-  - Includes `TryGet<T>`, `IsValid`, and `GetHandleState`.
+- 🧪 **Safety Checks** - Includes `TryGet<T>`, `IsValid`, and `GetHandleState`.
 
-- 🛤️ **One-Way Lane Transfer**  
-  - `OneWayLane` shifts data from `FastLane` to `SlowLane`.  
+- 🛤️ **One-Way Lane Transfer** - `OneWayLane` shifts data from `FastLane` to `SlowLane`.  
   - Uses `Span<T>` and `Buffer.MemoryCopy` to avoid breaking references.  
   - Can be plugged into compaction or run manually.
 
-- 🔤 Unmanaged String Support 
-   — Store strings as UTF-8 byte arrays to save 50% memory over C# UTF-16 strings and bypass the GC.
+- 🔤 **Unmanaged String Support** - Store strings as UTF-8 byte arrays to save 50% memory over C# UTF-16 strings and bypass the GC.
 
-- ✅ **Robust Unit Tests**  
-  — Includes structural validation, performance benchmarks, and multi-lane stress testing.
+- ✅ **Robust Unit Tests** - Includes structural validation, performance benchmarks, and multi-lane stress testing.
 
 ---
 
@@ -80,16 +72,11 @@ This project was created to:
 
 These are conceptual features or areas for future exploration:
 
-[ ] Thread Safety — Replace global lock with ReaderWriterLockSlim for parallel Resolve operations.
-
-[ ] Handle ID Pooling — Implement a stack-based pool for MemoryHandle IDs to ensure $O(1)$ allocation without metadata overhead.
-
-[ ] SIMD Alignment — Add AlignTo(int boundary) to the allocation logic for cache-line and SIMD-friendly memory offsets.
-
-[ ] Visual Profiler — Export internal memory maps to a heatmap (JSON/HTML) for real-time fragmentation monitoring.
-
-[ ] Bidirectional Transfer — (Advanced) Allow the Janitor to "pull" frequently accessed data back into the `FastLane`.
-
+- [ ] **Thread Safety** — Replace global lock with `ReaderWriterLockSlim` for parallel Resolve operations.
+- [ ] **Handle ID Pooling** — Implement a stack-based pool for `MemoryHandle` IDs to ensure O(1) allocation without metadata overhead.
+- [ ] **SIMD Alignment** — Add `AlignTo(int boundary)` to the allocation logic for cache-line and SIMD-friendly memory offsets.
+- [ ] **Visual Profiler** — Export internal memory maps to a heatmap (JSON/HTML) for real-time fragmentation monitoring.
+- [ ] **Bidirectional Transfer** — (Advanced) Allow the Janitor to "pull" frequently accessed data back into the `FastLane`.
 
 ---
 
@@ -100,29 +87,21 @@ MemoryLane utilizes a dual-tier strategy to bypass the .NET Garbage Collector fo
 ### 🔧 Tier Responsibilities
 
 #### ✅ FastLane
-Optimized for: High-frequency, short-lived "hot" data.
-
-Backend: High-speed Arena with a zero-allocation Free-List.
-
-Convention: Uses Positive Allocation IDs.
-
-The Janitor: Automatically promotes stale, oversized, or "Cold-tagged" entries to the SlowLane during maintenance cycles to keep the FastLane lean.
+**Optimized for:** High-frequency, short-lived "hot" data.  
+**Backend:** High-speed Arena with contiguous Free-Block management.  
+**Convention:** Uses Positive Allocation IDs.  
+**The Janitor:** Automatically promotes stale, oversized, or "Cold-tagged" entries to the SlowLane during maintenance cycles to keep the FastLane lean.
 
 #### ✅ SlowLane
-Optimized for: Large, persistent "cold" data or background assets.
-
-Backend: Large-scale unmanaged buffer with defragmentation support.
-
-Convention: Uses Negative Allocation IDs.
-
-Maintenance: Performs deep compaction when fragmentation exceeds configured thresholds.
+**Optimized for:** Large, persistent "cold" data or background assets.  
+**Backend:** Hybrid Segregated Allocator (Free-Block Manager for large assets, Bump Allocator for tiny blobs).  
+**Convention:** Uses Negative Allocation IDs.  
+**Maintenance:** Performs deep compaction when fragmentation exceeds configured thresholds.
 
 #### ✅ OneWayLane (The Bridge)
-Responsibility: Seamlessly migrates memory from FastLane to SlowLane.
-
-Mechanism: Direct pointer-to-pointer Buffer.MemoryCopy.
-
-Stub System: Replaces the FastLane entry with a Stub that redirects all future Resolve calls to the new SlowLane address.
+**Responsibility:** Seamlessly migrates memory from FastLane to SlowLane.  
+**Mechanism:** Direct pointer-to-pointer `Buffer.MemoryCopy`.  
+**Stub System:** Replaces the FastLane entry with a Stub that redirects all future Resolve calls to the new SlowLane address.
 
 ---
 
