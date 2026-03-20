@@ -17,7 +17,7 @@ namespace MemoryManager.Types
     /// its internal buffer from a <see cref="MemoryArena"/>.
     /// </summary>
     /// <typeparam name="T">The unmanaged type to store.</typeparam>
-    public sealed class ArenaList<T> where T : unmanaged, IDisposable
+    public sealed class ArenaList<T> : IDisposable where T : unmanaged
     {
         private readonly MemoryArena _arena;
         private MemoryHandle _handle;
