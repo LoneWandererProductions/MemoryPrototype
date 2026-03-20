@@ -57,8 +57,14 @@ namespace Lanes
         /// </summary>
         private int _nextHandleId = 1;
 
+        /// <summary>
+        /// The free blocks
+        /// </summary>
         private FreeBlock[] _freeBlocks = new FreeBlock[128];
 
+        /// <summary>
+        /// The free block count
+        /// </summary>
         private int _freeBlockCount = 0;
 
         //_blockManager = new BlockMemoryManager(Buffer, Capacity, blockSize);

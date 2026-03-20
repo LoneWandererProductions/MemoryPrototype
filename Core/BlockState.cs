@@ -2,12 +2,15 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     Core
  * FILE:        BlockState.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     Status of the memory block
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 namespace Core
 {
+    /// <summary>
+    /// States of the memory blocks.
+    /// </summary>
     public enum BlockState
     {
         Free,
