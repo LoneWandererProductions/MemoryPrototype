@@ -104,7 +104,7 @@ namespace MemoryManagerTests
 
             for (var i = 0; i < 6; i++)
             {
-                handles[i] = _slowLane.Allocate(128); // 128 bytes each
+                handles[i] = _slowLane.Allocate(512); // 512 bytes each
                 Assert.IsTrue(_slowLane.HasHandle(handles[i]), $"Handle {i} should be allocated.");
             }
 

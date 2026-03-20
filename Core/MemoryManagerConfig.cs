@@ -36,29 +36,23 @@ namespace Core
             // Rule of thumb: Fast lane size is ~1/8 of slow lane size, but capped to a max (e.g. 16MB)
             FastLaneSize = Math.Min(slowLaneSize / 8, 16 * 1024 * 1024);
 
-            // Safety margin stays default 10%
             FastLaneSafetyMargin = 0.10;
-
-            // Compaction threshold set to 80% usage of fast lane
             CompactionThreshold = 0.80;
-
-            // Check policy every second (tune as needed)
             PolicyCheckInterval = TimeSpan.FromSeconds(1);
-
             EnableAutoCompaction = true;
 
             // Threshold for generic operations set as 1/4 of fast lane size
             Threshold = FastLaneSize / 4;
 
-            // Trigger compaction if usage exceeds 90%
             FastLaneUsageThreshold = 0.9;
-
-            // Large entries threshold set to typical page size or 1/256 of fast lane size, whichever is smaller
             FastLaneLargeEntryThreshold = Math.Min(4096, FastLaneSize / 256);
 
-            // Set defaults for slow lane thresholds
             SlowLaneUsageThreshold = 0.85;
             SlowLaneSafetyMargin = 0.10;
+
+            // Default hybrid tuning
+            SlowLaneBlobCapacityFraction = 0.20;
+            SlowLaneBlobThreshold = 256;
         }
 
         /// <summary>
@@ -115,6 +109,18 @@ namespace Core
         // Safety margin for slow lane compaction decisions
         // Similar to fast lane safety margin, but can be tuned independently
         public double SlowLaneSafetyMargin { get; init; } = 0.10;
+
+        /// <summary>
+        /// Fraction of the SlowLane capacity dedicated to the BlobManager for small, unpredictable data.
+        /// Example: 0.20 reserves 20% of the SlowLane for tiny blobs.
+        /// </summary>
+        public double SlowLaneBlobCapacityFraction { get; init; } = 0.20;
+
+        /// <summary>
+        /// Allocations in the SlowLane smaller than or equal to this size (in bytes) 
+        /// will be routed to the BlobManager instead of the main BlockManager.
+        /// </summary>
+        public int SlowLaneBlobThreshold { get; init; } = 256;
 
         /// <summary>
         ///     Estimates the total reserved unmanaged memory (in bytes) this configuration will request,

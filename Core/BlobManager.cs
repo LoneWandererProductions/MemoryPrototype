@@ -21,6 +21,11 @@ namespace Core
     public sealed class BlobManager : IMemoryLane
     {
         /// <summary>
+        /// The starting identifier
+        /// </summary>
+        public const int StartingId = -1000000;
+
+        /// <summary>
         /// The buffer
         /// </summary>
         private readonly nint _buffer;
@@ -33,7 +38,7 @@ namespace Core
         /// <summary>
         /// Negative IDs are standard convention for SlowLane/Blob allocations
         /// </summary>
-        private int _nextId = -10000;
+        private int _nextId = StartingId;
 
         /// <summary>
         /// The next free offset

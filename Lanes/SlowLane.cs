@@ -78,19 +78,36 @@ namespace Lanes
         private int _freeBlockCount = 0;
 
         /// <summary>
+        ///     The threshold. Anything smaller than this goes to the BlobManager.
+        ///     e.g., 256 bytes
+        /// </summary>
+        private readonly int _blobThreshold = 256;
+
+        /// <summary>
+        ///     The specialized manager for tiny/unpredictable allocations.
+        /// </summary>
+        private readonly BlobManager? _blobManager;
+
+        /// <summary>
         ///     Initializes a new instance of the <see cref="SlowLane" /> class.
         /// </summary>
         /// <param name="capacity">The capacity.</param>
         /// <param name="maxEntries">The maximum entries.</param>
-        public SlowLane(int capacity, int maxEntries = 1024)
+        public SlowLane(int capacity, double blobCapacityFraction = 0.20, int blobThreshold = 256, int maxEntries = 1024)
         {
             Capacity = capacity;
+            _blobThreshold = blobThreshold;
+
             Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
 
-            // Initialize the entire SlowLane as one free block
-            _freeBlocks[0] = new FreeBlock { Offset = 0, Size = Capacity };
+            // Use the fraction provided by the config/constructor
+            int blobCapacity = (int)(capacity * blobCapacityFraction);
+
+            _freeBlocks[0] = new FreeBlock { Offset = blobCapacity, Size = Capacity - blobCapacity };
             _freeBlockCount = 1;
+
+            _blobManager = new BlobManager(Buffer, blobCapacity);
         }
 
         /// <summary>
@@ -128,6 +145,8 @@ namespace Lanes
             _handleIndex.Clear();
             _freeSlots.Clear();
             _freeIds.Clear();
+
+            _blobManager?.Compact();
         }
 
         /// <inheritdoc />
@@ -151,7 +170,12 @@ namespace Lanes
             if (!CanAllocate(size))
                 throw new OutOfMemoryException("SlowLane: Cannot allocate");
 
-            //TODO  Optimize
+            // --- ROUTE TO BLOB MANAGER FOR SMALL SIZES ---
+            if (size <= _blobThreshold && _blobManager != null && _blobManager.CanAllocate(size))
+            {
+                return _blobManager.Allocate(size, priority, hints, debugName, currentFrame);
+            }
+
             var offset = MemoryLaneUtils.FindFreeSpot(size, ref _freeBlocks, ref _freeBlockCount);
 
             if (offset == -1)
@@ -201,10 +225,16 @@ namespace Lanes
         /// </returns>
         public bool CanAllocate(int size)
         {
+            // --- ROUTE TO BLOB MANAGER FOR SMALL SIZES ---
+            if (size <= _blobThreshold && _blobManager != null)
+            {
+                return _blobManager.CanAllocate(size);
+            }
+
+            // --- STANDARD BLOCK ALLOCATION LOGIC ---
             if (GetUsed() + size > Capacity * (1.0 - SafetyMargin))
                 return false;
 
-            // Fast, read-only check to see if a contiguous block exists
             for (int i = 0; i < _freeBlockCount; i++)
             {
                 if (_freeBlocks[i].Size >= size)
@@ -227,10 +257,17 @@ namespace Lanes
         /// </exception>
         public IntPtr Resolve(MemoryHandle handle)
         {
+            // Fast O(1) integer check! No dictionary lookup needed here.
+            if (handle.Id <= BlobManager.StartingId && _blobManager != null)
+            {
+                return _blobManager.Resolve(handle);
+            }
+
             if (!_handleIndex.TryGetValue(handle.Id, out var index))
                 throw new InvalidOperationException("SlowLane: Invalid handle");
 
             var entry = _entries[index];
+
             if (entry.IsStub && !entry.RedirectTo.HasValue)
                 throw new InvalidOperationException("SlowLane: Cannot resolve stub entry without redirection");
 
@@ -245,6 +282,13 @@ namespace Lanes
         /// <exception cref="T:System.InvalidOperationException">SlowLane: Invalid handle</exception>
         public void Free(MemoryHandle handle)
         {
+            // Fast O(1) integer check!
+            if (handle.Id <= BlobManager.StartingId && _blobManager != null)
+            {
+                _blobManager.Free(handle);
+                return;
+            }
+
             if (!_handleIndex.TryRemove(handle.Id, out var index))
                 throw new InvalidOperationException($"SlowLane: Invalid handle {handle.Id}");
 
@@ -384,6 +428,11 @@ namespace Lanes
         /// </returns>
         public bool HasHandle(MemoryHandle handle)
         {
+            if (handle.Id <= BlobManager.StartingId && _blobManager != null)
+            {
+                return _blobManager.HasHandle(handle);
+            }
+
             return MemoryLaneUtils.HasHandle(handle, _handleIndex);
         }
 
@@ -395,6 +444,11 @@ namespace Lanes
         /// <returns>Get the Entry by handle.</returns>
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
+            if (handle.Id <= BlobManager.StartingId && _blobManager != null)
+            {
+                return _blobManager.GetEntry(handle);
+            }
+
             return MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries, nameof(SlowLane));
         }
 
@@ -406,6 +460,11 @@ namespace Lanes
         /// <returns>Size of allocated space.</returns>
         public int GetAllocationSize(MemoryHandle handle)
         {
+            if (handle.Id <= BlobManager.StartingId && _blobManager != null)
+            {
+                return _blobManager.GetAllocationSize(handle);
+            }
+
             return MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries, nameof(SlowLane));
         }
 
@@ -437,7 +496,14 @@ namespace Lanes
         /// </returns>
         public IEnumerable<MemoryHandle> GetHandles()
         {
-            return _handleIndex.Select(kv => new MemoryHandle(kv.Item1, this));
+            var mainHandles = _handleIndex.Select(kv => new MemoryHandle(kv.Item1, this));
+
+            if (_blobManager != null)
+            {
+                return mainHandles.Concat(_blobManager.GetHandles());
+            }
+
+            return mainHandles;
         }
 
         /// <summary>
@@ -461,7 +527,11 @@ namespace Lanes
         /// <returns>The Free space</returns>
         public int FreeSpace()
         {
-            return MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+            int mainFreeSpace = MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+
+            int blobFreeSpace = _blobManager != null ? _blobManager.FreeSpace() : 0;
+
+            return mainFreeSpace + blobFreeSpace;
         }
 
         /// <summary>

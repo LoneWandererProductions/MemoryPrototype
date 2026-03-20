@@ -114,7 +114,7 @@ namespace MemoryManagerTests
             Trace.WriteLine($"GC cleanup time: {sw.ElapsedMilliseconds} ms");
 
             // SlowLane version
-            using var slowLane = new SlowLane(600 * 1024 * 1024);
+            using var slowLane = new SlowLane(800 * 1024 * 1024);
             var handles = new MemoryHandle[refs.Length];
 
             sw.Restart();
@@ -129,7 +129,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        /// Deterministics the vs finalizer slow lane timing mass free.
+        /// Deterministic the vs finalizer slow lane timing mass free.
         /// </summary>
         [TestMethod]
         [TestCategory("RealWorld")]
@@ -148,7 +148,7 @@ namespace MemoryManagerTests
             Trace.WriteLine($"GC cleanup time: {sw.ElapsedMilliseconds} ms");
 
             // SlowLane version
-            using var slowLane = new SlowLane(600 * 1024 * 1024);
+            using var slowLane = new SlowLane(800 * 1024 * 1024);
             var handles = new MemoryHandle[refs.Length];
 
             sw.Restart();
@@ -162,7 +162,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        /// Manageds the vs unmanaged pressure.
+        /// Managed the vs unmanaged pressure.
         /// </summary>
         [TestMethod]
         [TestCategory("GCComparison")]
@@ -181,7 +181,7 @@ namespace MemoryManagerTests
             Trace.WriteLine($"Managed GC pressure: {(afterManaged - beforeManaged) / 1024.0 / 1024.0:F2} MB");
 
             var beforeSlow = GC.GetTotalMemory(true);
-            using var slowLane = new SlowLane(count * size + 50 * 1024 * 1024);
+            using var slowLane = new SlowLane(500 * 1024 * 1024);
             for (var i = 0; i < count; i++)
                 slowLane.Allocate(size);
 
@@ -190,7 +190,7 @@ namespace MemoryManagerTests
         }
 
         /// <summary>
-        /// Highes the reuse with no gc.
+        /// High reuse with no gc.
         /// </summary>
         [TestMethod]
         [TestCategory("Performance")]
