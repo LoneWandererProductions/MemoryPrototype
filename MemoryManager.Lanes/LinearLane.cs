@@ -14,6 +14,12 @@ using System.Runtime.InteropServices;
 
 namespace MemoryManager.Lanes
 {
+    /// <inheritdoc />
+    /// <summary>
+    /// LinearLane  with Bump Allocator
+    /// </summary>
+    /// <seealso cref="MemoryManager.Lanes.IFastLane" />
+    /// <seealso cref="System.IDisposable" />
     public sealed class LinearLane : IFastLane, IDisposable
     {
 
@@ -23,16 +29,43 @@ namespace MemoryManager.Lanes
         /// </summary>
         private readonly Dictionary<int, string> _debugNames = new();
 #endif
+
+        /// <summary>
+        /// The free ids
+        /// </summary>
         private readonly UnmanagedIntList _freeIds = new(128);
+
+        /// <summary>
+        /// The handle index
+        /// </summary>
         private readonly UnmanagedMap<int> _handleIndex = new(7);
+
+        /// <summary>
+        /// The slow lane
+        /// </summary>
         private readonly SlowLane _slowLane;
 
+        /// <summary>
+        /// The entries
+        /// </summary>
         private AllocationEntry[]? _entries;
+
+        /// <summary>
+        /// The next handle identifier
+        /// </summary>
         private int _nextHandleId = 1;
 
-        // --- THE BUMP POINTER ---
+        /// <summary>
+        /// The next free offset
+        /// </summary>
         private int _nextFreeOffset = 0;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LinearLane"/> class.
+        /// </summary>
+        /// <param name="size">The size.</param>
+        /// <param name="slowLane">The slow lane.</param>
+        /// <param name="maxEntries">The maximum entries.</param>
         public LinearLane(int size, SlowLane slowLane, int maxEntries = 1024)
         {
             _slowLane = slowLane;
@@ -63,6 +96,12 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public OneWayLane? OneWayLane { get; set; }
 
+        /// <summary>
+        /// Gets the redirects.
+        /// </summary>
+        /// <value>
+        /// The redirects.
+        /// </value>
         private Dictionary<int, MemoryHandle> Redirects { get; } = new();
 
         /// <inheritdoc />
