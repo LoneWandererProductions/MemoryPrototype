@@ -33,4 +33,8 @@
     <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
   </ItemGroup>
 
+<PropertyGroup>
+  <TestingPlatformDotNetTestSupport>true</TestingPlatformDotNetTestSupport>
+</PropertyGroup>
+
 </Project>
