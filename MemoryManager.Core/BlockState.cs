@@ -21,5 +21,4 @@ namespace MemoryManager.Core
         Aging,
         Protected
     }
-
 }

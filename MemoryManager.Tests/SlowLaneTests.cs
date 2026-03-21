@@ -62,7 +62,7 @@ namespace MemoryManager.Tests
             // Write a magic number so we can verify the copy worked
             unsafe
             {
-                byte* ptr = (byte*)arena.SlowLane.Resolve(slowHandle);
+                var ptr = (byte*)arena.SlowLane.Resolve(slowHandle);
                 ptr[0] = 99;
             }
 
@@ -85,7 +85,7 @@ namespace MemoryManager.Tests
             // 5. Verify the data actually moved successfully
             unsafe
             {
-                byte* newPtr = (byte*)arena.FastLane.Resolve(fastHandle);
+                var newPtr = (byte*)arena.FastLane.Resolve(fastHandle);
                 Assert.AreEqual(99, newPtr[0], "Data was corrupted or not copied during the Slow-to-Fast move.");
             }
         }

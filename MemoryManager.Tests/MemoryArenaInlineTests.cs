@@ -149,7 +149,7 @@ namespace MemoryManager.Tests
             // 4. Validate the upload worked
             unsafe
             {
-                int* ptr = (int*)arena.Resolve(handle);
+                var ptr = (int*)arena.Resolve(handle);
                 Assert.AreEqual(10, ptr[0]);
                 Assert.AreEqual(50, ptr[4]);
             }
@@ -157,7 +157,7 @@ namespace MemoryManager.Tests
             // 5. Use a Span to modify the unmanaged data in-place
             // (This simulates a high-speed systems task like a physics update)
             var unmanagedSpan = arena.GetSpan<int>(handle, sourceData.Length);
-            for (int i = 0; i < unmanagedSpan.Length; i++)
+            for (var i = 0; i < unmanagedSpan.Length; i++)
             {
                 unmanagedSpan[i] *= 2;
             }
@@ -179,7 +179,7 @@ namespace MemoryManager.Tests
         {
             var config = new MemoryManagerConfig
             {
-                FastLaneSize = 512 * 1024,   // 512KB
+                FastLaneSize = 512 * 1024, // 512KB
                 SlowLaneSize = 2 * 1024 * 1024, // 2MB
                 MaxFastLaneAgeFrames = 10,
                 FastLaneLargeEntryThreshold = 1024
@@ -190,7 +190,7 @@ namespace MemoryManager.Tests
             const int objectCount = 1000;
 
             // 1. Fill the FastLane with a mix of Hot and Cold data
-            for (int i = 0; i < objectCount; i++)
+            for (var i = 0; i < objectCount; i++)
             {
                 // Every 5th object is "Cold" (Janitor bait)
                 var hints = i % 5 == 0 ? AllocationHints.Cold : AllocationHints.None;
@@ -201,7 +201,7 @@ namespace MemoryManager.Tests
             }
 
             // 2. Simulate "Time passing" to age the allocations
-            for (int frame = 0; frame < 15; frame++)
+            for (var frame = 0; frame < 15; frame++)
             {
                 arena.RunMaintenanceCycle(); // Janitor starts looking at Age and Hints
             }
@@ -210,10 +210,10 @@ namespace MemoryManager.Tests
             arena.CompactAll();
 
             // 4. Verification: All handles must still resolve to their original unique ID
-            for (int i = 0; i < objectCount; i++)
+            for (var i = 0; i < objectCount; i++)
             {
                 var handle = handles[i];
-                int val = arena.Get<int>(handle);
+                var val = arena.Get<int>(handle);
 
                 Assert.AreEqual(i, val, $"Data corruption at index {i}. Handle ID: {handle.Id}");
 
@@ -299,10 +299,10 @@ namespace MemoryManager.Tests
             Assert.AreEqual(777, arena.Get<int>(smallHandle),
                 "Failed to read tiny allocation using default config.");
 
-            // 4. Test a massive allocation 
-            // Default Threshold is 256KB. Let's allocate an array larger than that 
+            // 4. Test a massive allocation
+            // Default Threshold is 256KB. Let's allocate an array larger than that
             // to force it directly into the SlowLane to ensure the default boundaries hold.
-            int largeSize = 300 * 1024; // 300 KB
+            var largeSize = 300 * 1024; // 300 KB
             var largeHandle = arena.Allocate(largeSize);
 
             // The ID should be negative, proving the default Threshold safely pushed it to the SlowLane

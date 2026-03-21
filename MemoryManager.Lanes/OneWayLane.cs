@@ -75,7 +75,7 @@ namespace MemoryManager.Lanes
                 size);
 
             // Fix 3: Set up the Stub instead of Freeing!
-            // This ensures that anyone holding the old fastHandle will now 
+            // This ensures that anyone holding the old fastHandle will now
             // seamlessly get routed to the new slowHandle.
             _fastLane.ReplaceWithStub(fastHandle, slowHandle);
 

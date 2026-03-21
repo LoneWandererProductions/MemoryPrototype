@@ -64,15 +64,17 @@ namespace MemoryManager
         /// <param name="source">The source data to copy from.</param>
         /// <exception cref="ArgumentException">Thrown if the destination allocation is too small.</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void BulkSet<T>(this MemoryArena arena, MemoryHandle handle, ReadOnlySpan<T> source) where T : unmanaged
+        public static unsafe void BulkSet<T>(this MemoryArena arena, MemoryHandle handle, ReadOnlySpan<T> source)
+            where T : unmanaged
         {
             var entry = arena.GetEntry(handle);
-            int requiredSize = Unsafe.SizeOf<T>() * source.Length;
+            var requiredSize = Unsafe.SizeOf<T>() * source.Length;
 
             if (entry.Size < requiredSize)
-                throw new ArgumentException($"Destination allocation ({entry.Size} bytes) is too small for source data ({requiredSize} bytes).");
+                throw new ArgumentException(
+                    $"Destination allocation ({entry.Size} bytes) is too small for source data ({requiredSize} bytes).");
 
-            void* dest = arena.Resolve(handle).ToPointer();
+            var dest = arena.Resolve(handle).ToPointer();
 
             // Fixed: Use the Span's internal reference to copy directly to the pointer
             fixed (T* srcPtr = source)
@@ -91,7 +93,7 @@ namespace MemoryManager
         public static MemoryHandle StoreString(this MemoryArena arena, string text)
         {
             // Convert to bytes
-            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(text);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(text);
 
             // Allocate space (including a null-terminator if you want to be C-compatible)
             var handle = arena.AllocateArray<byte>(bytes.Length);

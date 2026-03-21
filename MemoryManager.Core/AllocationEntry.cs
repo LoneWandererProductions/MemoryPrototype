@@ -11,7 +11,6 @@
 
 namespace MemoryManager.Core
 {
-
     /// <summary>
     ///     Represents an entry for an allocated memory block inside the MemoryArena.
     ///     Tracks location, size, identity, and additional metadata for lifetime and debugging purposes.
@@ -41,7 +40,7 @@ namespace MemoryManager.Core
         /// <summary>
         ///     If this allocation is redirected, references the handle to which it redirects.
         /// </summary>
-        public MemoryHandle? RedirectTo { get; set; }
+        public MemoryHandle? RedirectTo { get; init; }
 
         /// <summary>
         ///     Optional debug name or label for easier identification of this allocation during debugging.
@@ -51,7 +50,7 @@ namespace MemoryManager.Core
         /// <summary>
         ///     The frame or timestamp when this allocation was initially made.
         /// </summary>
-        public int AllocationFrame { get; set; }
+        public int AllocationFrame { get; init; }
 
         /// <summary>
         ///     The frame or timestamp when this allocation was last accessed.

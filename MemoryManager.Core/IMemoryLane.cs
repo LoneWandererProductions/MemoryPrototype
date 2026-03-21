@@ -39,11 +39,11 @@ namespace MemoryManager.Core
         /// A handle representing the allocated memory block.
         /// </returns>
         MemoryHandle Allocate(
-                    int size,
-                    AllocationPriority priority = AllocationPriority.Normal,
-                    AllocationHints hints = AllocationHints.None,
-                    string? debugName = null,
-                    int currentFrame = 0);
+            int size,
+            AllocationPriority priority = AllocationPriority.Normal,
+            AllocationHints hints = AllocationHints.None,
+            string? debugName = null,
+            int currentFrame = 0);
 
         /// <summary>
         ///     Resolves a memory handle to a raw pointer (IntPtr) to access the allocated memory.

@@ -63,7 +63,7 @@ namespace MemoryManager.Tests
             // Write some dummy data so we can verify it moved!
             unsafe
             {
-                byte* ptr = (byte*)arena.Resolve(fastHandle);
+                var ptr = (byte*)arena.Resolve(fastHandle);
                 ptr[0] = 42; // Magic number
             }
 
@@ -83,10 +83,11 @@ namespace MemoryManager.Tests
             // 4. Verify data survived the move using the ORIGINAL handle
             unsafe
             {
-                // Because arena.Resolve() checks the FastLane, sees the stub, 
+                // Because arena.Resolve() checks the FastLane, sees the stub,
                 // and follows the RedirectToId to the SlowLane automatically!
-                byte* resolvedPtr = (byte*)arena.Resolve(fastHandle);
-                Assert.AreEqual(42, resolvedPtr[0], "Data was corrupted or not moved properly during stub replacement.");
+                var resolvedPtr = (byte*)arena.Resolve(fastHandle);
+                Assert.AreEqual(42, resolvedPtr[0],
+                    "Data was corrupted or not moved properly during stub replacement.");
             }
         }
 
@@ -120,7 +121,8 @@ namespace MemoryManager.Tests
             Assert.IsTrue(_fastLane.HasHandle(handles[5]));
 
             // Assert that Free Space did not change (compaction doesn't free memory, it just moves it)
-            Assert.AreEqual(expectedFreeSpaceBefore, _fastLane.FreeSpace(), "Free space should remain identical before and after compaction.");
+            Assert.AreEqual(expectedFreeSpaceBefore, _fastLane.FreeSpace(),
+                "Free space should remain identical before and after compaction.");
 
             // THE CRITICAL CHECK: Verify they are perfectly packed!
             // Handle 0 is at offset 0
@@ -133,7 +135,8 @@ namespace MemoryManager.Tests
             Assert.AreEqual(384, _fastLane.GetEntry(handles[5]).Offset);
 
             // Check that our FreeList is correctly reset to 1 giant block
-            Assert.AreEqual(0, _fastLane.EstimateFragmentation(), "Fragmentation should be exactly 0 after compaction.");
+            Assert.AreEqual(0, _fastLane.EstimateFragmentation(),
+                "Fragmentation should be exactly 0 after compaction.");
         }
     }
 }

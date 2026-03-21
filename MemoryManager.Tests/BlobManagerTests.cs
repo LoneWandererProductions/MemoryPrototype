@@ -23,7 +23,7 @@ namespace MemoryManager.Tests
         [TestCategory("BlobManager")]
         public void BlobManager_AllocateFreeAndCompact_WorksCorrectly()
         {
-            int capacity = 1024; // 1 KB buffer
+            var capacity = 1024; // 1 KB buffer
             nint buffer = Marshal.AllocHGlobal(capacity);
 
             try
@@ -87,8 +87,10 @@ namespace MemoryManager.Tests
             var linearHandles = new MemoryHandle[count];
 
             // --- WARMUP (JIT Compilation) ---
-            var w1 = fastLane.Allocate(16); fastLane.Free(w1);
-            var w2 = linearLane.Allocate(16); linearLane.Free(w2);
+            var w1 = fastLane.Allocate(16);
+            fastLane.Free(w1);
+            var w2 = linearLane.Allocate(16);
+            linearLane.Free(w2);
 
             var sw = new Stopwatch();
 
@@ -96,33 +98,33 @@ namespace MemoryManager.Tests
 
             // LinearLane (Bump Allocator)
             sw.Start();
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
                 linearHandles[i] = linearLane.Allocate(size);
             sw.Stop();
-            long linearAllocTicks = sw.ElapsedTicks;
+            var linearAllocTicks = sw.ElapsedTicks;
 
             // FastLane (Free-List Allocator)
             sw.Restart();
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
                 fastHandles[i] = fastLane.Allocate(size);
             sw.Stop();
-            long fastAllocTicks = sw.ElapsedTicks;
+            var fastAllocTicks = sw.ElapsedTicks;
 
             // --- 2. DEALLOCATION RACE ---
 
             // LinearLane (Bump Allocator)
             sw.Restart();
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
                 linearLane.Free(linearHandles[i]);
             sw.Stop();
-            long linearFreeTicks = sw.ElapsedTicks;
+            var linearFreeTicks = sw.ElapsedTicks;
 
             // FastLane (Free-List Allocator)
             sw.Restart();
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
                 fastLane.Free(fastHandles[i]);
             sw.Stop();
-            long fastFreeTicks = sw.ElapsedTicks;
+            var fastFreeTicks = sw.ElapsedTicks;
 
             // --- 3. THE RESULTS ---
             Trace.WriteLine("===== ALLOCATION SPEED (50,000 objects) =====");

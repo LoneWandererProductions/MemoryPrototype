@@ -85,11 +85,14 @@ namespace MemoryManager.Lanes
         private readonly BlobManager? _blobManager;
 
         /// <summary>
-        ///     Initializes a new instance of the <see cref="SlowLane" /> class.
+        /// Initializes a new instance of the <see cref="SlowLane" /> class.
         /// </summary>
         /// <param name="capacity">The capacity.</param>
+        /// <param name="blobCapacityFraction">The BLOB capacity fraction.</param>
+        /// <param name="blobThreshold">The BLOB threshold.</param>
         /// <param name="maxEntries">The maximum entries.</param>
-        public SlowLane(int capacity, double blobCapacityFraction = 0.20, int blobThreshold = 256, int maxEntries = 1024)
+        public SlowLane(int capacity, double blobCapacityFraction = 0.20, int blobThreshold = 256,
+            int maxEntries = 1024)
         {
             Capacity = capacity;
             _blobThreshold = blobThreshold;
@@ -98,7 +101,7 @@ namespace MemoryManager.Lanes
             _entries = new AllocationEntry[maxEntries];
 
             // Use the fraction provided by the config/constructor
-            int blobCapacity = (int)(capacity * blobCapacityFraction);
+            var blobCapacity = (int)(capacity * blobCapacityFraction);
 
             _freeBlocks[0] = new FreeBlock { Offset = blobCapacity, Size = Capacity - blobCapacity };
             _freeBlockCount = 1;
@@ -220,7 +223,7 @@ namespace MemoryManager.Lanes
             if (GetUsed() + size > Capacity * (1.0 - SafetyMargin))
                 return false;
 
-            for (int i = 0; i < _freeBlockCount; i++)
+            for (var i = 0; i < _freeBlockCount; i++)
             {
                 if (_freeBlocks[i].Size >= size)
                     return true;
@@ -296,16 +299,16 @@ namespace MemoryManager.Lanes
         public unsafe void FreeMany(MemoryHandle[] handles) // Or ReadOnlySpan<MemoryHandle>
         {
             var span = handles.AsSpan();
-            int count = span.Length;
+            var count = span.Length;
 
             // We'll collect the IDs and Indices in temporary buffers to batch-push
             // Using stackalloc for small-to-medium batches avoids GC pressure
-            int* ids = stackalloc int[count];
-            int* indices = stackalloc int[count];
+            var ids = stackalloc int[count];
+            var indices = stackalloc int[count];
 
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
-                int id = span[i].Id;
+                var id = span[i].Id;
 
                 if (!_handleIndex.TryRemove(id, out var index))
                     throw new InvalidOperationException($"SlowLane: Invalid handle {id}");
@@ -476,9 +479,9 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public int FreeSpace()
         {
-            int mainFreeSpace = MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+            var mainFreeSpace = MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
 
-            int blobFreeSpace = _blobManager != null ? _blobManager.FreeSpace() : 0;
+            var blobFreeSpace = _blobManager?.FreeSpace() ?? 0;
 
             return mainFreeSpace + blobFreeSpace;
         }

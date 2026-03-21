@@ -62,7 +62,7 @@ namespace ExtendedSystemObjects
             if (destination.Length < span.Length)
                 throw new ArgumentException("Destination span is too small.");
 
-            for (int i = 0; i < span.Length; i++)
+            for (var i = 0; i < span.Length; i++)
                 destination[i] = selector(span[i]);
         }
 
@@ -77,8 +77,8 @@ namespace ExtendedSystemObjects
         /// <returns>The number of elements written to the destination span.</returns>
         public static int WhereFast<T>(this ReadOnlySpan<T> span, Span<T> destination, Func<T, bool> predicate)
         {
-            int count = 0;
-            int destLength = destination.Length; // Cache length to help JIT
+            var count = 0;
+            var destLength = destination.Length; // Cache length to help JIT
 
             foreach (var t in span)
             {

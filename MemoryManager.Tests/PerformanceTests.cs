@@ -204,7 +204,6 @@ namespace MemoryManager.Tests
             var stopwatch = Stopwatch.StartNew();
             for (var cycle = 0; cycle < 5; cycle++)
             {
-
                 for (var i = 0; i < count; i++)
                     handles[i] = fastLane.Allocate(size);
                 for (var i = 0; i < count; i++)
@@ -222,7 +221,6 @@ namespace MemoryManager.Tests
             stopwatch = Stopwatch.StartNew();
             for (var cycle = 0; cycle < 5; cycle++)
             {
-
                 for (var i = 0; i < count; i++)
                     handlesTwo[i] = fastLane.Allocate(size);
                 for (var i = 0; i < count; i++)

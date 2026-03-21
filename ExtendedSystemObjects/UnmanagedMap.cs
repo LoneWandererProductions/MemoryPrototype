@@ -107,17 +107,14 @@ namespace ExtendedSystemObjects
         /// </value>
         public IEnumerable<TValue> Values
         {
-            get
-            {
-                return GetValuesSnapshot();
-            }
+            get { return GetValuesSnapshot(); }
         }
 
         /// <summary>
         /// Gets the values snapshot.
         /// </summary>
         /// <returns>List of Values</returns>
-        private List<TValue> GetValuesSnapshot()
+        private IEnumerable<TValue> GetValuesSnapshot()
         {
             var values = new List<TValue>(Count);
             for (var i = 0; i < Capacity; i++)
@@ -128,6 +125,7 @@ namespace ExtendedSystemObjects
                     values.Add(entry.Value);
                 }
             }
+
             return values;
         }
 
@@ -178,7 +176,7 @@ namespace ExtendedSystemObjects
                 if (slot.Used == SharedResources.Empty)
                 {
                     // Reclaim first tombstone found in the chain, or use this empty slot
-                    int targetIdx = (firstTombstone != -1) ? firstTombstone : idx;
+                    var targetIdx = (firstTombstone != -1) ? firstTombstone : idx;
 
                     ref var target = ref _entries[targetIdx];
                     target.Key = key;
@@ -335,7 +333,7 @@ namespace ExtendedSystemObjects
             _entries = (EntryGeneric<TValue>*)Marshal.AllocHGlobal(sizeof(EntryGeneric<TValue>) * Capacity);
             Unsafe.InitBlock(_entries, 0, (uint)(sizeof(EntryGeneric<TValue>) * Capacity));
 
-            int oldCount = Count;
+            var oldCount = Count;
             Count = 0;
             _usedCount = 0;
 

@@ -13,7 +13,7 @@ using System.Runtime.CompilerServices;
 namespace MemoryManager.Types
 {
     /// <summary>
-    /// A high-performance, resizable list for unmanaged types that allocates 
+    /// A high-performance, resizable list for unmanaged types that allocates
     /// its internal buffer from a <see cref="MemoryArena"/>.
     /// </summary>
     /// <typeparam name="T">The unmanaged type to store.</typeparam>
@@ -102,7 +102,7 @@ namespace MemoryManager.Types
         /// </summary>
         private void Grow()
         {
-            int newCapacity = _capacity * 2;
+            var newCapacity = _capacity * 2;
             var newHandle = _arena.Allocate(Unsafe.SizeOf<T>() * newCapacity);
 
             // Copy data from the old buffer to the new one

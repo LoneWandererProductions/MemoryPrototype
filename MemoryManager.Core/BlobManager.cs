@@ -97,10 +97,11 @@ namespace MemoryManager.Core
             int currentFrame = 0)
         {
             if (!CanAllocate(size))
-                throw new OutOfMemoryException($"BlobManager: Out of memory. Requested {size} bytes, but only {FreeSpace()} available.");
+                throw new OutOfMemoryException(
+                    $"BlobManager: Out of memory. Requested {size} bytes, but only {FreeSpace()} available.");
 
-            int id = _nextId--;
-            int allocatedOffset = _nextFreeOffset;
+            var id = _nextId--;
+            var allocatedOffset = _nextFreeOffset;
 
             _entries[id] = new BlobEntry
             {
@@ -200,7 +201,7 @@ namespace MemoryManager.Core
             var validEntries = new List<BlobEntry>(_entries.Values);
             validEntries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
 
-            int currentOffset = 0;
+            var currentOffset = 0;
 
             // 2. Slide each entry as far left as possible
             foreach (var entry in validEntries)
@@ -247,16 +248,16 @@ namespace MemoryManager.Core
         /// </summary>
         public int EstimateFragmentation()
         {
-            int allocatedBytes = _nextFreeOffset;
+            var allocatedBytes = _nextFreeOffset;
             if (allocatedBytes == 0) return 0;
 
-            int livingBytes = 0;
+            var livingBytes = 0;
             foreach (var blob in _entries.Values)
             {
                 livingBytes += blob.Size;
             }
 
-            int wastedBytes = allocatedBytes - livingBytes;
+            var wastedBytes = allocatedBytes - livingBytes;
 
             return (int)((double)wastedBytes / allocatedBytes * 100);
         }
@@ -289,13 +290,13 @@ namespace MemoryManager.Core
             if (_capacity == 0) return "[]";
 
             const int mapResolution = 80; // Width of the console map
-            char[] map = new char[mapResolution];
-            double bytesPerChar = (double)_capacity / mapResolution;
+            var map = new char[mapResolution];
+            var bytesPerChar = (double)_capacity / mapResolution;
 
-            for (int i = 0; i < mapResolution; i++)
+            for (var i = 0; i < mapResolution; i++)
             {
-                double startByte = i * bytesPerChar;
-                double endByte = (i + 1) * bytesPerChar;
+                var startByte = i * bytesPerChar;
+                var endByte = (i + 1) * bytesPerChar;
 
                 // If this bucket is completely past the bump pointer, it's untouched.
                 if (startByte >= _nextFreeOffset)
@@ -305,7 +306,7 @@ namespace MemoryManager.Core
                 }
 
                 // Otherwise, check if any living blob intersects this bucket
-                bool isLiving = false;
+                var isLiving = false;
                 foreach (var blob in _entries.Values)
                 {
                     // Intersection math: Blob starts before bucket ends AND Blob ends after bucket starts

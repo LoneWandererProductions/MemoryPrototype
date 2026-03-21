@@ -96,11 +96,11 @@ namespace MemoryManager.Lanes
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int FindFreeSpot(int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount)
         {
-            for (int i = 0; i < freeBlockCount; i++)
+            for (var i = 0; i < freeBlockCount; i++)
             {
                 if (freeBlocks[i].Size >= size)
                 {
-                    int assignedOffset = freeBlocks[i].Offset;
+                    var assignedOffset = freeBlocks[i].Offset;
 
                     // Shrink the hole
                     freeBlocks[i].Offset += size;
@@ -134,8 +134,8 @@ namespace MemoryManager.Lanes
             var newHole = new FreeBlock { Offset = offset, Size = size };
 
             // Insert sorted by offset
-            int insertIndex = freeBlockCount;
-            for (int i = 0; i < freeBlockCount; i++)
+            var insertIndex = freeBlockCount;
+            for (var i = 0; i < freeBlockCount; i++)
             {
                 if (freeBlocks[i].Offset > offset)
                 {
@@ -149,7 +149,7 @@ namespace MemoryManager.Lanes
             freeBlockCount++;
 
             // Merge adjacent holes
-            for (int i = 0; i < freeBlockCount - 1; i++)
+            for (var i = 0; i < freeBlockCount - 1; i++)
             {
                 if (freeBlocks[i].Offset + freeBlocks[i].Size == freeBlocks[i + 1].Offset)
                 {
@@ -290,7 +290,8 @@ namespace MemoryManager.Lanes
         /// <param name="debugNames">Optional dictionary mapping HandleId to DebugName.</param>
         /// <returns>Display all information about stubs and forwarding.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static string DebugRedirections(AllocationEntry[] entries, int entryCount, IReadOnlyDictionary<int, string>? debugNames = null)
+        internal static string DebugRedirections(AllocationEntry[] entries, int entryCount,
+            IReadOnlyDictionary<int, string>? debugNames = null)
         {
             var sb = new StringBuilder(entryCount * 64);
             for (var i = 0; i < entryCount; i++)
@@ -304,11 +305,11 @@ namespace MemoryManager.Lanes
 
                 if (e.IsStub)
                 {
-                    string redirectStr = e.RedirectToId != 0 ? e.RedirectToId.ToString() : "null";
+                    var redirectStr = e.RedirectToId != 0 ? e.RedirectToId.ToString() : "null";
 
                     sb.Append(" [STUB -> ID ")
-                      .Append(redirectStr)
-                      .Append("]");
+                        .Append(redirectStr)
+                        .Append("]");
                 }
 
                 // Look up the name in the dictionary instead of the struct

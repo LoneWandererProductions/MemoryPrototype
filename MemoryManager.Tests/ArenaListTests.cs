@@ -55,7 +55,7 @@ namespace MemoryManager.Tests
             list.Add(1);
             list.Add(2);
 
-            int spaceBeforeGrow = arena.FastLane.FreeSpace();
+            var spaceBeforeGrow = arena.FastLane.FreeSpace();
 
             // This triggers Grow() -> Capacity becomes 4
             // It should allocate 16 bytes (4 * 4) and FREE 8 bytes (2 * 4)
@@ -82,10 +82,10 @@ namespace MemoryManager.Tests
             var arena = new MemoryArena(new MemoryManagerConfig());
             var list = new ArenaList<int>(arena);
 
-            for (int i = 0; i < 10; i++) list.Add(i * 10);
+            for (var i = 0; i < 10; i++) list.Add(i * 10);
 
             var span = list.AsSpan();
-            int sum = 0;
+            var sum = 0;
             foreach (var val in span)
             {
                 sum += val;

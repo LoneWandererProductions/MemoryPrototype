@@ -16,7 +16,11 @@ namespace MemoryManager.Lanes
 {
     public sealed class LinearLane : IFastLane, IDisposable
     {
+
 #if DEBUG
+        /// <summary>
+        /// The debug names
+        /// </summary>
         private readonly Dictionary<int, string> _debugNames = new();
 #endif
         private readonly UnmanagedIntList _freeIds = new(128);
@@ -37,13 +41,31 @@ namespace MemoryManager.Lanes
             _entries = new AllocationEntry[maxEntries];
         }
 
+        /// <summary>
+        /// Gets the capacity.
+        /// </summary>
+        /// <value>
+        /// The capacity.
+        /// </value>
         public int Capacity { get; }
+
+        /// <inheritdoc />
         public int EntryCount { get; private set; }
+
+        /// <summary>
+        /// Gets the buffer.
+        /// </summary>
+        /// <value>
+        /// The buffer.
+        /// </value>
         public nint Buffer { get; private set; }
+
+        /// <inheritdoc />
         public OneWayLane? OneWayLane { get; set; }
 
         private Dictionary<int, MemoryHandle> Redirects { get; } = new();
 
+        /// <inheritdoc />
         public void Dispose()
         {
             Marshal.FreeHGlobal(Buffer);
@@ -52,14 +74,16 @@ namespace MemoryManager.Lanes
             _entries = null;
         }
 
-        // O(1) Allocation Check
+        /// <inheritdoc />
         public bool CanAllocate(int size) => _nextFreeOffset + size <= Capacity;
 
-        // O(1) Bump Allocation
-        public MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
+        /// <inheritdoc />
+        public MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
+            AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
         {
             if (_entries == null) throw new InvalidOperationException("LinearLane: Memory not reserved");
-            if (!CanAllocate(size)) throw new OutOfMemoryException("LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
+            if (!CanAllocate(size))
+                throw new OutOfMemoryException("LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
 
             var offset = _nextFreeOffset;
             _nextFreeOffset += size; // BUMP!
@@ -89,23 +113,22 @@ namespace MemoryManager.Lanes
             return new MemoryHandle(id, this);
         }
 
+        /// <inheritdoc />
         public nint Resolve(MemoryHandle handle)
         {
             if (_entries == null) throw new InvalidOperationException("LinearLane: Memory is corrupted.");
-            if (!_handleIndex.TryGetValue(handle.Id, out var index)) throw new InvalidOperationException("LinearLane: Invalid handle");
+            if (!_handleIndex.TryGetValue(handle.Id, out var index))
+                throw new InvalidOperationException("LinearLane: Invalid handle");
 
             ref readonly var entry = ref _entries[index];
 
-            if (entry.IsStub && entry.RedirectToId != 0)
-            {
-                var slowHandle = new MemoryHandle(entry.RedirectToId, _slowLane);
-                return _slowLane.Resolve(slowHandle);
-            }
+            if (!entry.IsStub || entry.RedirectToId == 0) return Buffer + entry.Offset;
 
-            return Buffer + entry.Offset;
+            var slowHandle = new MemoryHandle(entry.RedirectToId, _slowLane);
+            return _slowLane.Resolve(slowHandle);
         }
 
-        // O(1) Free. We don't care about the hole it leaves behind!
+        /// <inheritdoc />
         public void Free(MemoryHandle handle)
         {
             if (!_handleIndex.TryRemove(handle.Id, out var index))
@@ -122,7 +145,7 @@ namespace MemoryManager.Lanes
                 _slowLane.Free(slowHandle);
             }
 
-            int lastIdx = --EntryCount;
+            var lastIdx = --EntryCount;
             if (index != lastIdx)
             {
                 var movedEntry = _entries[lastIdx];
@@ -133,8 +156,10 @@ namespace MemoryManager.Lanes
             _freeIds.Push(handle.Id);
         }
 
+        /// <inheritdoc />
         public void Compact() => Compact(0, new MemoryManagerConfig());
 
+        /// <inheritdoc />
         public unsafe void Compact(int currentFrame, MemoryManagerConfig config)
         {
             if (_entries == null || EntryCount == 0) return;
@@ -152,7 +177,8 @@ namespace MemoryManager.Lanes
 
                 if (!entry.IsStub)
                 {
-                    if (ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames, config.FastLaneLargeEntryThreshold))
+                    if (ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames,
+                            config.FastLaneLargeEntryThreshold))
                     {
                         var fastHandle = new MemoryHandle(entry.HandleId, this);
                         if (OneWayLane?.MoveFromFastToSlow(fastHandle) == true)
@@ -186,6 +212,7 @@ namespace MemoryManager.Lanes
             OnCompaction?.Invoke(nameof(LinearLane));
         }
 
+        /// <inheritdoc />
         public void ReplaceWithStub(MemoryHandle fastHandle, MemoryHandle slowHandle)
         {
             if (_entries == null || !_handleIndex.TryGetValue(fastHandle.Id, out var index))
@@ -201,14 +228,28 @@ namespace MemoryManager.Lanes
             Redirects[fastHandle.Id] = slowHandle;
         }
 
-        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, int maxAgeFrames, int largeThreshold)
+        /// <summary>
+        /// Should move to slow lane.
+        /// </summary>
+        /// <param name="entry">The entry.</param>
+        /// <param name="currentFrame">The current frame.</param>
+        /// <param name="maxAgeFrames">The maximum age frames.</param>
+        /// <param name="largeThreshold">The large threshold.</param>
+        /// <returns></returns>
+        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, int maxAgeFrames,
+            int largeThreshold)
         {
             if (entry.Hints.HasFlag(AllocationHints.Cold)) return true;
             if (entry.Size > largeThreshold) return true;
             if (currentFrame - entry.AllocationFrame > maxAgeFrames) return true;
+
             return false;
         }
 
+        /// <summary>
+        /// Ensures the entry capacity.
+        /// </summary>
+        /// <param name="requiredSlotIndex">Index of the required slot.</param>
         private void EnsureEntryCapacity(int requiredSlotIndex)
         {
             var oldSize = _entries!.Length;
@@ -216,32 +257,74 @@ namespace MemoryManager.Lanes
             OnAllocationExtension?.Invoke(nameof(LinearLane), oldSize, newSize);
         }
 
+        /// <inheritdoc />
         public int FreeSpace() => Capacity - _nextFreeOffset;
+
+        /// <inheritdoc />
         public int StubCount() => MemoryLaneUtils.StubCount(EntryCount, _entries!);
 
+        /// <inheritdoc />
         public int EstimateFragmentation()
         {
-            int allocatedBytes = _nextFreeOffset;
-            int usedBytes = 0;
-            for (int i = 0; i < EntryCount; i++) if (!_entries![i].IsStub) usedBytes += _entries[i].Size;
+            var allocatedBytes = _nextFreeOffset;
+            var usedBytes = 0;
+            for (var i = 0; i < EntryCount; i++)
+                if (!_entries![i].IsStub)
+                    usedBytes += _entries[i].Size;
 
             if (allocatedBytes == 0) return 0;
+
             return (int)((double)(allocatedBytes - usedBytes) / allocatedBytes * 100);
         }
 
+        /// <summary>
+        /// Usages the percentage.
+        /// </summary>
+        /// <returns>
+        /// Used memory Percentage
+        /// </returns>
         public double UsagePercentage() => (double)(Capacity - FreeSpace()) / Capacity;
 
-        // Passthroughs to MemoryLaneUtils
-        public AllocationEntry GetEntry(MemoryHandle handle) => MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries!, nameof(LinearLane));
-        public int GetAllocationSize(MemoryHandle handle) => MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries!, nameof(LinearLane));
+        /// <inheritdoc />
+        /// <summary>
+        /// Retrieves the full allocation entry metadata for a given handle.
+        /// Passthroughs to MemoryLaneUtils
+        /// </summary>
+        /// <param name="handle">The handle identifying the allocation.</param>
+        /// <returns>
+        /// The allocation entry associated with the handle.
+        /// </returns>
+        public AllocationEntry GetEntry(MemoryHandle handle) =>
+            MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries!, nameof(LinearLane));
+
+        /// <inheritdoc />
+        public int GetAllocationSize(MemoryHandle handle) =>
+            MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries!, nameof(LinearLane));
+
+        /// <inheritdoc />
         public bool HasHandle(MemoryHandle handle) => MemoryLaneUtils.HasHandle(handle, _handleIndex);
+
+        /// <inheritdoc />
         public string DebugDump() => MemoryLaneUtils.DebugDump(_entries!, EntryCount);
+
+        /// <inheritdoc />
         public string DebugVisualMap() => MemoryLaneUtils.DebugVisualMap(_entries!, EntryCount, Capacity);
+
+        /// <inheritdoc />
         public string DebugRedirections() => MemoryLaneUtils.DebugRedirections(_entries!, EntryCount, null);
+
+        /// <inheritdoc />
         public IEnumerable<MemoryHandle> GetHandles() => _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
 
+        /// <inheritdoc />
         public event Action<string>? OnCompaction;
+
+        /// <inheritdoc />
         public event Action<string, int, int>? OnAllocationExtension;
+
+        /// <summary>
+        /// Logs the dump.
+        /// </summary>
         public void LogDump() => Trace.WriteLine(DebugDump());
     }
 }

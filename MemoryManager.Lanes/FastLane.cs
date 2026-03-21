@@ -18,9 +18,14 @@ using System.Runtime.InteropServices;
 
 namespace MemoryManager.Lanes
 {
+    /// <inheritdoc cref="IFastLane" />
+    /// <summary>
+    /// Fastlane Implementation
+    /// </summary>
+    /// <seealso cref="MemoryManager.Lanes.IFastLane" />
+    /// <seealso cref="System.IDisposable" />
     public sealed class FastLane : IFastLane, IDisposable
     {
-
 #if DEBUG
         /// <summary>
         /// The debug names
@@ -63,13 +68,12 @@ namespace MemoryManager.Lanes
         /// </summary>
         private int _freeBlockCount = 0;
 
-        //_blockManager = new BlockMemoryManager(Buffer, Capacity, blockSize);
-
         /// <summary>
-        ///     Initializes a new instance of the <see cref="FastLane" /> class.
+        /// Initializes a new instance of the <see cref="FastLane" /> class.
         /// </summary>
         /// <param name="size">The size.</param>
         /// <param name="slowLane">The slow lane.</param>
+        /// <param name="maxEntries">The maximum entries.</param>
         public FastLane(int size, SlowLane slowLane, int maxEntries = 1024)
         {
             _slowLane = slowLane;
@@ -93,12 +97,7 @@ namespace MemoryManager.Lanes
         /// </value>
         public int Capacity { get; }
 
-        /// <summary>
-        ///     Gets the entry count.
-        /// </summary>
-        /// <value>
-        ///     The entry count.
-        /// </value>
+        /// <inheritdoc />
         public int EntryCount { get; private set; }
 
         /// <summary>
@@ -106,12 +105,7 @@ namespace MemoryManager.Lanes
         /// </summary>
         private Dictionary<int, MemoryHandle> Redirects { get; } = new();
 
-        /// <summary>
-        ///     Gets or sets the one way lane.
-        /// </summary>
-        /// <value>
-        ///     The one way lane.
-        /// </value>
+        /// <inheritdoc />
         public OneWayLane? OneWayLane { get; set; }
 
         /// <summary>
@@ -135,17 +129,10 @@ namespace MemoryManager.Lanes
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Determines whether this instance can allocate the specified size.
-        /// </summary>
-        /// <param name="size">The size.</param>
-        /// <returns>
-        ///     <c>true</c> if this instance can allocate the specified size; otherwise, <c>false</c>.
-        /// </returns>
         public bool CanAllocate(int size)
         {
             // Fast, read-only check to see if a contiguous block exists
-            for (int i = 0; i < _freeBlockCount; i++)
+            for (var i = 0; i < _freeBlockCount; i++)
             {
                 if (_freeBlocks[i].Size >= size)
                     return true;
@@ -251,7 +238,6 @@ namespace MemoryManager.Lanes
         //}
 
 
-
         /// <inheritdoc />
         /// <summary>
         ///     Resolves the specified handle.
@@ -316,7 +302,7 @@ namespace MemoryManager.Lanes
             }
 
             // 3. Swap-with-tail removal
-            int lastIdx = --EntryCount; // Decrement first to get the last valid index
+            var lastIdx = --EntryCount; // Decrement first to get the last valid index
             if (index != lastIdx)
             {
                 // Move the last entry into the hole
@@ -324,7 +310,7 @@ namespace MemoryManager.Lanes
                 _entries[index] = movedEntry;
 
                 // Update the map to point to the new location
-                // OPTIMIZATION: Use a direct 'Set' or 'Update' if your map allows 
+                // OPTIMIZATION: Use a direct 'Set' or 'Update' if your map allows
                 // to avoid tombstone buildup during updates.
                 _handleIndex[movedEntry.HandleId] = index;
             }
@@ -366,7 +352,8 @@ namespace MemoryManager.Lanes
                 if (!entry.IsStub)
                 {
                     // --- THE JANITOR AT WORK ---
-                    if (ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames, config.FastLaneLargeEntryThreshold))
+                    if (ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames,
+                            config.FastLaneLargeEntryThreshold))
                     {
                         var fastHandle = new MemoryHandle(entry.HandleId, this);
                         if (OneWayLane?.MoveFromFastToSlow(fastHandle) == true)
@@ -503,7 +490,8 @@ namespace MemoryManager.Lanes
         /// </summary>
         /// <param name="entry">The entry.</param>
         /// <returns>Status if a move is necessary.</returns>
-        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, int maxAgeFrames, int largeThreshold)
+        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, int maxAgeFrames,
+            int largeThreshold)
         {
             // 1. Explicit Telemetry: Developer tagged it as cold
             if (entry.Hints.HasFlag(AllocationHints.Cold))
@@ -514,7 +502,7 @@ namespace MemoryManager.Lanes
                 return true;
 
             // 3. Lifetime Analytics: It has outstayed its welcome (The Janitor)
-            int age = currentFrame - entry.AllocationFrame;
+            var age = currentFrame - entry.AllocationFrame;
             if (age > maxAgeFrames)
                 return true;
 
@@ -542,11 +530,12 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            int totalFree = 0;
-            for (int i = 0; i < _freeBlockCount; i++)
+            var totalFree = 0;
+            for (var i = 0; i < _freeBlockCount; i++)
             {
                 totalFree += _freeBlocks[i].Size;
             }
+
             return totalFree;
         }
 
@@ -588,8 +577,8 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            int free = FreeSpace();
-            int used = Capacity - free;
+            var free = FreeSpace();
+            var used = Capacity - free;
             return (double)used / Capacity;
         }
 

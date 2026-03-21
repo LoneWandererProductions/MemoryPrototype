@@ -67,7 +67,7 @@ namespace MemoryManager
         /// The policy timer
         /// Optionally: background thread for policies
         /// </summary>
-        private Timer? _policyTimer;
+        private readonly Timer? _policyTimer;
 
         /// <summary>
         /// Gets the current frame.
@@ -87,7 +87,7 @@ namespace MemoryManager
         public unsafe Span<T> GetSpan<T>(MemoryHandle handle, int count) where T : unmanaged
         {
             // Resolve handles the stub-redirection automatically!
-            void* ptr = Resolve(handle).ToPointer();
+            var ptr = Resolve(handle).ToPointer();
             return new Span<T>(ptr, count);
         }
 
@@ -168,7 +168,7 @@ namespace MemoryManager
         {
             CurrentFrame++;
 
-            // If background timer is disabled, we run policies here to ensure 
+            // If background timer is disabled, we run policies here to ensure
             // the Janitor still does his work.
             if (_policyTimer == null)
             {
@@ -269,7 +269,7 @@ namespace MemoryManager
             var handle = Allocate(Unsafe.SizeOf<T>(), priority, hints, debugName, CurrentFrame);
 
             // Write the value to the resolved pointer
-            void* dest = Resolve(handle).ToPointer();
+            var dest = Resolve(handle).ToPointer();
             Unsafe.Write(dest, value);
 
             return handle;
@@ -384,7 +384,7 @@ namespace MemoryManager
             if (FastLane.UsagePercentage() <= _config.FastLaneUsageThreshold)
                 return;
 
-            // Let the Janitor inside FastLane.Compact do the heavy lifting 
+            // Let the Janitor inside FastLane.Compact do the heavy lifting
             // of deciding what to move based on Age, Size, and Hints.
             FastLane.Compact(CurrentFrame, _config);
         }
@@ -401,7 +401,7 @@ namespace MemoryManager
                 return;
 
             // Estimated fragmentation fraction (0.0 - 1.0)
-            double fragmentationFraction = SlowLane.EstimateFragmentation() / 100.0;
+            var fragmentationFraction = SlowLane.EstimateFragmentation() / 100.0;
 
             // Current free space in bytes
             double currentFreeSpace = SlowLane.FreeSpace();
