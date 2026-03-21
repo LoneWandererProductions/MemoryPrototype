@@ -11,6 +11,9 @@ using MemoryManager.Lanes;
 
 namespace MemoryManager.Tests
 {
+    /// <summary>
+    /// Some basic FastLane tests
+    /// </summary>
     [TestClass]
     public class FastLaneTests
     {
