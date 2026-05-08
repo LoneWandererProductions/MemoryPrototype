@@ -38,11 +38,6 @@ namespace MemoryManager.Core
         public bool IsStub { get; set; }
 
         /// <summary>
-        ///     If this allocation is redirected, references the handle to which it redirects.
-        /// </summary>
-        public MemoryHandle? RedirectTo { get; init; }
-
-        /// <summary>
         ///     Optional debug name or label for easier identification of this allocation during debugging.
         /// </summary>
         public int RedirectToId;
