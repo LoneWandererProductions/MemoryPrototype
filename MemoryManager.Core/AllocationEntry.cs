@@ -59,6 +59,22 @@ namespace MemoryManager.Core
         public int LastAccessFrame { get; set; }
 
         /// <summary>
+        /// Gets or sets the version.
+        /// </summary>
+        /// <value>
+        /// The version.
+        /// </value>
+        public byte Version { get; set; }
+
+        /// <summary>
+        /// The redirect version
+        /// </summary>
+        /// <value>
+        /// The redirect version.
+        /// </value>
+        public byte RedirectVersion { get; set; }
+
+        /// <summary>
         ///     Priority level of this allocation which can influence eviction or memory management policies.
         /// </summary>
         public AllocationPriority Priority { get; init; }

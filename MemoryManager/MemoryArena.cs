@@ -87,8 +87,11 @@ namespace MemoryManager
         public unsafe Span<T> GetSpan<T>(MemoryHandle handle, int count) where T : unmanaged
         {
             // Resolve handles the stub-redirection automatically!
-            var ptr = Resolve(handle).ToPointer();
-            return new Span<T>(ptr, count);
+            lock (_lock)
+            {
+                var ptr = Resolve(handle).ToPointer();
+                return new Span<T>(ptr, count);
+            }
         }
 
         /// <summary>
@@ -317,13 +320,16 @@ namespace MemoryManager
         /// <returns>Get the pointer to the data.</returns>
         public IntPtr Resolve(MemoryHandle handle)
         {
-            if (handle.IsInvalid)
-                throw new InvalidOperationException($"Invalid handle {handle.Id}");
+            lock (_lock)
+            {
+                if (handle.IsInvalid)
+                    throw new InvalidOperationException($"Invalid handle {handle.Id}");
 
-            if (handle.Id > 0)
-                return FastLane.Resolve(handle);
+                if (handle.Id > 0)
+                    return FastLane.Resolve(handle);
 
-            return SlowLane.Resolve(handle);
+                return SlowLane.Resolve(handle);
+            }
         }
 
         /// <summary>

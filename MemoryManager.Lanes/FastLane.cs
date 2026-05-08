@@ -12,6 +12,7 @@
 #nullable enable
 using ExtendedSystemObjects;
 using MemoryManager.Core;
+using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -64,6 +65,11 @@ namespace MemoryManager.Lanes
         private FreeBlock[] _freeBlocks = new FreeBlock[128];
 
         /// <summary>
+        /// The versions
+        /// </summary>
+        private readonly byte[] _versions;
+
+        /// <summary>
         /// The free block count
         /// </summary>
         private int _freeBlockCount = 0;
@@ -83,6 +89,7 @@ namespace MemoryManager.Lanes
             // PRE-ALLOCATE everything based on maxEntries
             _entries = new AllocationEntry[maxEntries];
             _freeBlocks = new FreeBlock[maxEntries]; // Free blocks can theoretically equal maxEntries
+            _versions = new byte[maxEntries];
 
             // INITIALIZATION: The entire lane starts as one giant free block
             _freeBlocks[0] = new FreeBlock { Offset = 0, Size = Capacity };
@@ -168,11 +175,14 @@ namespace MemoryManager.Lanes
                 throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough.");
 
             EnsureEntryCapacity(EntryCount);
-            //if (EntryCount >= _entries.Length)
-            //    Array.Resize(ref _entries, _entries.Length * 2);
 
             //So we reuse freed handles here
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
+
+            // --- ZOMBIE KILLER: Increment the version for this ID slot ---
+            // This ensures that any old handles still pointing to this ID will be rejected.
+            _versions[id % _versions.Length]++;
+            byte currentVersion = _versions[id % _versions.Length];
 
 #if DEBUG
             if (!string.IsNullOrEmpty(debugName))
@@ -189,6 +199,7 @@ namespace MemoryManager.Lanes
                 Priority = priority,
                 Hints = hints,
                 RedirectToId = 0,
+                Version = currentVersion,
                 AllocationFrame = currentFrame,
                 LastAccessFrame = currentFrame
             };
@@ -196,47 +207,8 @@ namespace MemoryManager.Lanes
             _handleIndex[id] = EntryCount;
             EntryCount++;
 
-            return new MemoryHandle(id, this);
+            return new MemoryHandle(id, currentVersion, this);
         }
-
-        //public MemoryHandle Allocate(
-        //    int size,
-        //    AllocationPriority priority = AllocationPriority.Normal,
-        //    AllocationHints hints = AllocationHints.None,
-        //    string? debugName = null,
-        //    int currentFrame = 0)
-        //{
-        //    if (_entries == null)
-        //        throw new InvalidOperationException("FastLane: Memory not reserved");
-
-        //    int blocksNeeded = (size + _blockManager.BlockSize - 1) / _blockManager.BlockSize;
-
-        //    if (!_blockManager.TryAllocateContiguous(blocksNeeded, out int startBlock))
-        //        throw new OutOfMemoryException("FastLane: Not enough memory");
-
-        //    EnsureEntryCapacity(EntryCount);
-
-        //    var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
-        //    int offset = startBlock * _blockManager.BlockSize;
-
-        //    _entries[EntryCount] = new AllocationEntry
-        //    {
-        //        Offset = offset,
-        //        Size = blocksNeeded * _blockManager.BlockSize,
-        //        HandleId = id,
-        //        Priority = priority,
-        //        Hints = hints,
-        //        DebugName = debugName,
-        //        AllocationFrame = currentFrame,
-        //        LastAccessFrame = currentFrame
-        //    };
-
-        //    _handleIndex[id] = EntryCount;
-        //    EntryCount++;
-
-        //    return new MemoryHandle(id, this);
-        //}
-
 
         /// <inheritdoc />
         /// <summary>
@@ -251,21 +223,29 @@ namespace MemoryManager.Lanes
         /// </exception>
         public nint Resolve(MemoryHandle handle)
         {
-            if (_entries == null)
-                throw new InvalidOperationException("FastLane: Memory is corrupted.");
+            if (_entries == null) throw new InvalidOperationException("Corrupted");
 
             if (!_handleIndex.TryGetValue(handle.Id, out var index))
                 throw new InvalidOperationException("FastLane: Invalid handle");
 
             ref readonly var entry = ref _entries[index];
 
-            // If it's a stub, immediately resolve it via the SlowLane instead!
+            // 1. ZOMBIE CHECK (FastLane)
+            // Is the handle the user is holding still valid for this FastLane slot?
+            if (entry.Version != handle.Version)
+                throw new AccessViolationException($"Zombie Handle: FastLane ID {handle.Id} is stale.");
+
+            // 2. REDIRECTION (Stub Logic)
             if (entry.IsStub && entry.RedirectToId != 0)
             {
-                var slowHandle = new MemoryHandle(entry.RedirectToId, _slowLane);
+                // Reconstruct the handle using the EXACT version the SlowLane gave us
+                var slowHandle = new MemoryHandle(entry.RedirectToId, entry.RedirectVersion, _slowLane);
+
+                // This will now perform its OWN zombie check inside the SlowLane!
                 return _slowLane.Resolve(slowHandle);
             }
 
+            // 3. PHYSICAL RESOLVE
             return Buffer + entry.Offset;
         }
 
@@ -296,7 +276,7 @@ namespace MemoryManager.Lanes
 
             if (entry.IsStub && entry.RedirectToId != 0)
             {
-                var slowHandle = new MemoryHandle(entry.RedirectToId, _slowLane);
+                var slowHandle = new MemoryHandle(entry.RedirectToId, entry.Version, _slowLane);
                 _slowLane.Free(slowHandle);
                 // Redirects.Remove(handle.Id); // We are going to delete this dictionary entirely in a second!
             }
@@ -338,56 +318,48 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null || EntryCount == 0) return;
 
-            var newBuffer = Marshal.AllocHGlobal(Capacity);
-            var offset = 0;
-
-            var sortedEntries = new AllocationEntry[EntryCount];
-            Array.Copy(_entries, sortedEntries, EntryCount);
-            Array.Sort(sortedEntries, (a, b) => a.Offset.CompareTo(b.Offset));
-
-            for (var i = 0; i < EntryCount; i++)
+            // --- PASS 1: THE JANITOR ---
+            // Update the "Source of Truth" array directly.
+            // We don't sort here; we just find cold data and kick it to the SlowLane.
+            for (int i = 0; i < EntryCount; i++)
             {
-                var entry = sortedEntries[i];
-
-                if (!entry.IsStub)
+                if (!_entries[i].IsStub && ShouldMoveToSlowLane(_entries[i], currentFrame, config))
                 {
-                    // --- THE JANITOR AT WORK ---
-                    if (ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames,
-                            config.FastLaneLargeEntryThreshold))
-                    {
-                        var fastHandle = new MemoryHandle(entry.HandleId, this);
-                        if (OneWayLane?.MoveFromFastToSlow(fastHandle) == true)
-                        {
-                            var actualIndex = _handleIndex[entry.HandleId];
-                            entry = _entries[actualIndex];
-                            _entries[actualIndex] = entry;
-                            continue; // Skip the memory copy! It's gone to the SlowLane.
-                        }
-                    }
-
-                    // Normal compaction copy for surviving FastLane entries
-                    void* source = (byte*)Buffer + entry.Offset;
-                    void* target = (byte*)newBuffer + offset;
-                    System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
-                    entry.Offset = offset;
-                    offset += entry.Size;
+                    var h = new MemoryHandle(_entries[i].HandleId, _entries[i].Version, this);
+                    OneWayLane?.MoveFromFastToSlow(h);
+                    // MoveFromFastToSlow calls ReplaceWithStub, which updates _entries[i] safely.
                 }
-
-                var originalIndex = _handleIndex[entry.HandleId];
-                _entries[originalIndex] = entry;
             }
 
+            // --- PASS 2: THE SNOWPLOW (Physical Slide) ---
+            var newBuffer = Marshal.AllocHGlobal(Capacity);
+            var currentOffset = 0;
+
+            // Now take your snapshot for sorting, but ONLY for survivors (non-stubs)
+            var survivors = _entries.Take(EntryCount)
+                                    .Where(e => !e.IsStub)
+                                    .OrderBy(e => e.Offset)
+                                    .ToList();
+
+            foreach (var survivor in survivors)
+            {
+                // 1. Move the bytes
+                void* source = (byte*)Buffer + survivor.Offset;
+                void* target = (byte*)newBuffer + currentOffset;
+                System.Buffer.MemoryCopy(source, target, Capacity - currentOffset, survivor.Size);
+
+                // 2. Update the OFFSET ONLY in the real metadata
+                var index = _handleIndex[survivor.HandleId];
+                _entries[index].Offset = currentOffset;
+
+                currentOffset += survivor.Size;
+            }
+
+            // --- PASS 3: CLEANUP ---
             Marshal.FreeHGlobal(Buffer);
             Buffer = newBuffer;
-
-            _freeBlocks[0] = new FreeBlock
-            {
-                Offset = offset,
-                Size = Capacity - offset
-            };
+            _freeBlocks[0] = new FreeBlock { Offset = currentOffset, Size = Capacity - currentOffset };
             _freeBlockCount = 1;
-
-            OnCompaction?.Invoke(nameof(FastLane));
         }
 
         /// <inheritdoc />
@@ -449,10 +421,24 @@ namespace MemoryManager.Lanes
         /// <summary>
         ///     Gets the handles.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Return all Handles</returns>
         public IEnumerable<MemoryHandle> GetHandles()
         {
-            return _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
+            if (_entries == null) yield break;
+
+            // We iterate through every active ID in the map
+            foreach (var id in _handleIndex.Keys)
+            {
+                // Find where this ID's metadata lives
+                if (_handleIndex.TryGetValue(id, out var index))
+                {
+                    // Grab the version from the actual allocation entry
+                    byte version = _entries[index].Version;
+
+                    // Return the "Smart Handle" with its generational proof-of-life
+                    yield return new MemoryHandle(id, version, this);
+                }
+            }
         }
 
         /// <summary>
@@ -463,26 +449,22 @@ namespace MemoryManager.Lanes
         /// <exception cref="InvalidOperationException">FastLane: Invalid handle</exception>
         public void ReplaceWithStub(MemoryHandle fastHandle, MemoryHandle slowHandle)
         {
-            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid handle");
-
             if (!_handleIndex.TryGetValue(fastHandle.Id, out var index))
                 throw new InvalidOperationException("FastLane: Invalid handle");
 
+            // Grab the existing entry
             var entry = _entries[index];
+
             entry.IsStub = true;
-
-            // Fix: Save the integer ID, not the struct!
             entry.RedirectToId = slowHandle.Id;
+            entry.RedirectVersion = slowHandle.Version;
 
-            // Fix: We also agreed to zero out the ghost memory stats here!
-            // This is vital so the FastLane doesn't think this stub is consuming space.
+            // Cleanup FastLane stats
             MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
             entry.Offset = 0;
             entry.Size = 0;
 
             _entries[index] = entry;
-
-            Redirects[fastHandle.Id] = slowHandle;
         }
 
         /// <summary>
@@ -620,6 +602,38 @@ namespace MemoryManager.Lanes
             Trace.WriteLine(DebugVisualMap());
             Trace.WriteLine(DebugRedirections());
             Trace.WriteLine($"--- {GetType().Name} Dump End ---");
+        }
+
+        /// <summary>
+        /// Evaluates an allocation against current policies to see if it should be evicted.
+        /// </summary>
+        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, MemoryManagerConfig config)
+        {
+            // 1. EXPLICIT TELEMETRY: 
+            // Did the developer tag this as "Cold" or "LongLived" during allocation?
+            if (entry.Hints.HasFlag(AllocationHints.Cold))
+                return true;
+
+            // 2. SIZE ANALYTICS: 
+            // Is this entry so large that it's clogging the FastLane?
+            // Large objects cause more fragmentation during bump-allocations.
+            if (entry.Size > config.FastLaneLargeEntryThreshold)
+                return true;
+
+            // 3. LIFETIME ANALYTICS (The "Janitor" Rule):
+            // How many frames has this object survived?
+            // If it has outstayed its welcome (e.g., > 600 frames), it's no longer "temporary."
+            var age = currentFrame - entry.AllocationFrame;
+            if (age > config.MaxFastLaneAgeFrames)
+                return true;
+
+            // 4. PRIORITY OVERRIDE:
+            // Critical objects (like UI state or frame-buffers) stay in the FastLane 
+            // regardless of age, unless memory is extremely tight.
+            if (entry.Priority == AllocationPriority.Critical)
+                return false;
+
+            return false;
         }
     }
 }

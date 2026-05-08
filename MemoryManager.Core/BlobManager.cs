@@ -103,12 +103,15 @@ namespace MemoryManager.Core
             var id = _nextId--;
             var allocatedOffset = _nextFreeOffset;
 
+            byte version = 1;
+
             _entries[id] = new BlobEntry
             {
                 Id = id,
                 Offset = allocatedOffset,
                 Size = size,
-                AllocationFrame = currentFrame
+                AllocationFrame = currentFrame,
+                Version = version
             };
 
 #if DEBUG
@@ -121,7 +124,7 @@ namespace MemoryManager.Core
             // Bump the allocator forward
             _nextFreeOffset += size;
 
-            return new MemoryHandle(id, this);
+            return new MemoryHandle(id, version, this);
         }
 
         /// <inheritdoc />
@@ -151,7 +154,10 @@ namespace MemoryManager.Core
         public nint Resolve(MemoryHandle handle)
         {
             if (!_entries.TryGetValue(handle.Id, out var entry))
-                throw new InvalidOperationException($"BlobManager: Cannot resolve invalid handle {handle.Id}");
+                throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
+
+            if (entry.Version != handle.Version)
+                throw new AccessViolationException($"Blob Zombie: ID {handle.Id} version mismatch.");
 
             return _buffer + entry.Offset;
         }
@@ -168,6 +174,7 @@ namespace MemoryManager.Core
             return new AllocationEntry
             {
                 HandleId = blob.Id,
+                Version = blob.Version,
                 Offset = blob.Offset,
                 Size = blob.Size,
                 AllocationFrame = blob.AllocationFrame,
@@ -268,9 +275,10 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public IEnumerable<MemoryHandle> GetHandles()
         {
-            foreach (var key in _entries.Keys)
+            foreach (var entry in _entries.Values)
             {
-                yield return new MemoryHandle(key, this);
+                // Return the correct, versioned handle
+                yield return new MemoryHandle(entry.Id, entry.Version, this);
             }
         }
 

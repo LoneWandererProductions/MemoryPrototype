@@ -61,6 +61,11 @@ namespace MemoryManager.Lanes
         private int _nextFreeOffset = 0;
 
         /// <summary>
+        /// The versions
+        /// </summary>
+        private readonly byte[] _versions;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="LinearLane"/> class.
         /// </summary>
         /// <param name="size">The size.</param>
@@ -71,6 +76,7 @@ namespace MemoryManager.Lanes
             _slowLane = slowLane;
             Capacity = size;
             Buffer = Marshal.AllocHGlobal(size);
+            _versions = new byte[maxEntries];
             _entries = new AllocationEntry[maxEntries];
         }
 
@@ -133,6 +139,8 @@ namespace MemoryManager.Lanes
 #if DEBUG
             if (!string.IsNullOrEmpty(debugName)) _debugNames[id] = debugName;
 #endif
+            _versions[id % _versions.Length]++;
+            byte currentVersion = _versions[id % _versions.Length];
 
             _entries[EntryCount] = new AllocationEntry
             {
@@ -149,7 +157,7 @@ namespace MemoryManager.Lanes
             _handleIndex[id] = EntryCount;
             EntryCount++;
 
-            return new MemoryHandle(id, this);
+            return new MemoryHandle(id, currentVersion, this);
         }
 
         /// <inheritdoc />
@@ -163,7 +171,7 @@ namespace MemoryManager.Lanes
 
             if (!entry.IsStub || entry.RedirectToId == 0) return Buffer + entry.Offset;
 
-            var slowHandle = new MemoryHandle(entry.RedirectToId, _slowLane);
+            var slowHandle = new MemoryHandle(entry.RedirectToId, entry.RedirectVersion, _slowLane);
             return _slowLane.Resolve(slowHandle);
         }
 
@@ -180,7 +188,7 @@ namespace MemoryManager.Lanes
             var entry = _entries[index];
             if (entry.IsStub && entry.RedirectToId != 0)
             {
-                var slowHandle = new MemoryHandle(entry.RedirectToId, _slowLane);
+                var slowHandle = new MemoryHandle(entry.RedirectToId, entry.RedirectVersion, _slowLane);
                 _slowLane.Free(slowHandle);
             }
 
@@ -203,6 +211,18 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null || EntryCount == 0) return;
 
+            // PASS 1: Evict old data to SlowLane (This creates stubs)
+            for (int i = EntryCount - 1; i >= 0; i--)
+            {
+                var entry = _entries[i];
+                if (!entry.IsStub && ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames, config.FastLaneLargeEntryThreshold))
+                {
+                    var h = new MemoryHandle(entry.HandleId, entry.Version, this);
+                    OneWayLane?.MoveFromFastToSlow(h);
+                }
+            }
+
+            // PASS 2: Physical Slide
             var newBuffer = Marshal.AllocHGlobal(Capacity);
             var offset = 0;
 
@@ -213,23 +233,8 @@ namespace MemoryManager.Lanes
             for (var i = 0; i < EntryCount; i++)
             {
                 var entry = sortedEntries[i];
-
                 if (!entry.IsStub)
                 {
-                    if (ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames,
-                            config.FastLaneLargeEntryThreshold))
-                    {
-                        var fastHandle = new MemoryHandle(entry.HandleId, this);
-                        if (OneWayLane?.MoveFromFastToSlow(fastHandle) == true)
-                        {
-                            var actualIndex = _handleIndex[entry.HandleId];
-                            entry = _entries[actualIndex];
-                            _entries[actualIndex] = entry;
-                            continue;
-                        }
-                    }
-
-                    // Sliding Compaction
                     void* source = (byte*)Buffer + entry.Offset;
                     void* target = (byte*)newBuffer + offset;
                     System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
@@ -238,17 +243,14 @@ namespace MemoryManager.Lanes
                     offset += entry.Size;
                 }
 
+                // Sync the new offset back to the main metadata
                 var originalIndex = _handleIndex[entry.HandleId];
                 _entries[originalIndex] = entry;
             }
 
             Marshal.FreeHGlobal(Buffer);
             Buffer = newBuffer;
-
-            // RESET THE BUMP POINTER TO THE END OF THE SURVIVORS
-            _nextFreeOffset = offset;
-
-            OnCompaction?.Invoke(nameof(LinearLane));
+            _nextFreeOffset = offset; // Reset bump pointer to the end of survivors
         }
 
         /// <inheritdoc />
@@ -353,7 +355,23 @@ namespace MemoryManager.Lanes
         public string DebugRedirections() => MemoryLaneUtils.DebugRedirections(_entries!, EntryCount, null);
 
         /// <inheritdoc />
-        public IEnumerable<MemoryHandle> GetHandles() => _handleIndex.Keys.Select(id => new MemoryHandle(id, this));
+        public IEnumerable<MemoryHandle> GetHandles()
+        {
+            if (_entries == null) yield break;
+
+            // We must iterate the keys and look up the version in the metadata
+            foreach (var id in _handleIndex.Keys)
+            {
+                if (_handleIndex.TryGetValue(id, out var index))
+                {
+                    // Grab the generation from the actual entry
+                    byte version = _entries[index].Version;
+
+                    // Return the "Smart Handle" with its proof-of-life
+                    yield return new MemoryHandle(id, version, this);
+                }
+            }
+        }
 
         /// <inheritdoc />
         public event Action<string>? OnCompaction;

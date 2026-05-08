@@ -15,5 +15,6 @@ namespace MemoryManager.Core
         public int Offset;
         public int Size;
         public int AllocationFrame;
+        public byte Version;
     }
 }

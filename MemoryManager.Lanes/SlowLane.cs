@@ -85,6 +85,11 @@ namespace MemoryManager.Lanes
         private readonly BlobManager? _blobManager;
 
         /// <summary>
+        /// The versions
+        /// </summary>
+        private readonly byte[] _versions;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SlowLane" /> class.
         /// </summary>
         /// <param name="capacity">The capacity.</param>
@@ -99,6 +104,7 @@ namespace MemoryManager.Lanes
 
             Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
+            _versions = new byte[maxEntries];
 
             // Use the fraction provided by the config/constructor
             var blobCapacity = (int)(capacity * blobCapacityFraction);
@@ -188,16 +194,17 @@ namespace MemoryManager.Lanes
                 _debugNames[id] = debugName;
             }
 #endif
+            int versionIndex = Math.Abs(id) % _versions.Length;
+            _versions[versionIndex]++;
+            byte currentVersion = _versions[versionIndex];
 
             _entries[slotIndex] = new AllocationEntry
             {
                 Offset = offset,
                 Size = size,
                 HandleId = id,
+                Version = currentVersion,
                 IsStub = false,
-                RedirectTo = null,
-
-                // Metadata assignment
                 Priority = priority,
                 Hints = hints,
                 RedirectToId = 0,
@@ -207,7 +214,7 @@ namespace MemoryManager.Lanes
 
             _handleIndex[id] = slotIndex;
 
-            return new MemoryHandle(id, this);
+            return new MemoryHandle(id, currentVersion, this);
         }
 
         /// <inheritdoc />
@@ -256,8 +263,12 @@ namespace MemoryManager.Lanes
 
             var entry = _entries[index];
 
-            if (entry.IsStub && !entry.RedirectTo.HasValue)
-                throw new InvalidOperationException("SlowLane: Cannot resolve stub entry without redirection");
+            // This is vital for the SlowLane because objects live so long here.
+            if (entry.Version != handle.Version)
+                throw new AccessViolationException($"SlowLane Zombie: ID {handle.Id} version mismatch.");
+
+            if (entry.IsStub && entry.RedirectToId == 0)
+                throw new InvalidOperationException("SlowLane: Cannot resolve stub without redirection");
 
             return Buffer + entry.Offset;
         }
@@ -287,8 +298,6 @@ namespace MemoryManager.Lanes
 #if DEBUG
             _debugNames.Remove(handle.Id);
 #endif
-
-            EntryCount++;
         }
 
         /// <summary>
@@ -451,14 +460,23 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public IEnumerable<MemoryHandle> GetHandles()
         {
-            var mainHandles = _handleIndex.Select(kv => new MemoryHandle(kv.Item1, this));
-
-            if (_blobManager != null)
+            // Main Lane handles
+            foreach (var id in _handleIndex.Keys)
             {
-                return mainHandles.Concat(_blobManager.GetHandles());
+                if (_handleIndex.TryGetValue(id, out var index))
+                {
+                    yield return new MemoryHandle(id, _entries[index].Version, this);
+                }
             }
 
-            return mainHandles;
+            // Don't forget the tiny blobs!
+            if (_blobManager != null)
+            {
+                foreach (var blobHandle in _blobManager.GetHandles())
+                {
+                    yield return blobHandle;
+                }
+            }
         }
 
         /// <summary>
