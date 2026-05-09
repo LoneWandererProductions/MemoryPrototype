@@ -59,7 +59,7 @@ namespace MemoryManager.Core
         /// <value>
         /// The version.
         /// </value>
-        public byte Version { get; set; }
+        public byte Version { get; init; }
 
         /// <summary>
         /// The redirect version

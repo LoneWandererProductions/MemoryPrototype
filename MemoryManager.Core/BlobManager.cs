@@ -40,7 +40,7 @@ namespace MemoryManager.Core
         /// <summary>
         /// The next free offset
         /// </summary>
-        private int _nextFreeOffset = 0;
+        private int _nextFreeOffset;
 
         /// <summary>
         ///     Maps the handle IDs to their actual blob metadata.

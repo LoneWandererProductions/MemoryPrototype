@@ -71,7 +71,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// The free block count
         /// </summary>
-        private int _freeBlockCount = 0;
+        private int _freeBlockCount;
 
         /// <summary>
         ///     The threshold. Anything smaller than this goes to the BlobManager.

@@ -144,7 +144,7 @@ namespace MemoryManager.Core
         /// <value>
         /// The fast lane large entry threshold.
         /// </value>
-        public int FastLaneLargeEntryThreshold { get; set; } = 4096;
+        public int FastLaneLargeEntryThreshold { get; init; } = 4096;
 
         /// <summary>
         /// Gets the slow lane usage threshold.

@@ -12,7 +12,6 @@
 #nullable enable
 using ExtendedSystemObjects;
 using MemoryManager.Core;
-using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -72,7 +71,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// The free block count
         /// </summary>
-        private int _freeBlockCount = 0;
+        private int _freeBlockCount;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FastLane" /> class.
@@ -337,9 +336,9 @@ namespace MemoryManager.Lanes
 
             // Now take your snapshot for sorting, but ONLY for survivors (non-stubs)
             var survivors = _entries.Take(EntryCount)
-                                    .Where(e => !e.IsStub)
-                                    .OrderBy(e => e.Offset)
-                                    .ToList();
+                .Where(e => !e.IsStub)
+                .OrderBy(e => e.Offset)
+                .ToList();
 
             foreach (var survivor in survivors)
             {
@@ -468,30 +467,6 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Should the move to slow lane.
-        /// </summary>
-        /// <param name="entry">The entry.</param>
-        /// <returns>Status if a move is necessary.</returns>
-        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, int maxAgeFrames,
-            int largeThreshold)
-        {
-            // 1. Explicit Telemetry: Developer tagged it as cold
-            if (entry.Hints.HasFlag(AllocationHints.Cold))
-                return true;
-
-            // 2. Size Analytics: It's too big and clogging the FastLane
-            if (entry.Size > largeThreshold)
-                return true;
-
-            // 3. Lifetime Analytics: It has outstayed its welcome (The Janitor)
-            var age = currentFrame - entry.AllocationFrame;
-            if (age > maxAgeFrames)
-                return true;
-
-            return false;
-        }
-
-        /// <summary>
         ///     Ensures the entry capacity.
         /// </summary>
         /// <param name="requiredSlotIndex">Index of the required slot.</param>
@@ -607,14 +582,18 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// Evaluates an allocation against current policies to see if it should be evicted.
         /// </summary>
+        /// <param name="entry">The entry.</param>
+        /// <param name="currentFrame">The current frame.</param>
+        /// <param name="config">The configuration.</param>
+        /// <returns>True if the entry should be moved to the slow lane; otherwise, false.</returns>
         private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, MemoryManagerConfig config)
         {
-            // 1. EXPLICIT TELEMETRY: 
+            // 1. EXPLICIT TELEMETRY:
             // Did the developer tag this as "Cold" or "LongLived" during allocation?
             if (entry.Hints.HasFlag(AllocationHints.Cold))
                 return true;
 
-            // 2. SIZE ANALYTICS: 
+            // 2. SIZE ANALYTICS:
             // Is this entry so large that it's clogging the FastLane?
             // Large objects cause more fragmentation during bump-allocations.
             if (entry.Size > config.FastLaneLargeEntryThreshold)
@@ -628,7 +607,7 @@ namespace MemoryManager.Lanes
                 return true;
 
             // 4. PRIORITY OVERRIDE:
-            // Critical objects (like UI state or frame-buffers) stay in the FastLane 
+            // Critical objects (like UI state or frame-buffers) stay in the FastLane
             // regardless of age, unless memory is extremely tight.
             if (entry.Priority == AllocationPriority.Critical)
                 return false;

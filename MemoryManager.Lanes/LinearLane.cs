@@ -6,7 +6,6 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-#nullable enable
 using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Diagnostics;
@@ -14,7 +13,7 @@ using System.Runtime.InteropServices;
 
 namespace MemoryManager.Lanes
 {
-    /// <inheritdoc />
+    /// <inheritdoc cref="IFastLane" />
     /// <summary>
     /// LinearLane  with Bump Allocator
     /// </summary>
@@ -22,7 +21,6 @@ namespace MemoryManager.Lanes
     /// <seealso cref="System.IDisposable" />
     public sealed class LinearLane : IFastLane, IDisposable
     {
-
 #if DEBUG
         /// <summary>
         /// The debug names
@@ -58,7 +56,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// The next free offset
         /// </summary>
-        private int _nextFreeOffset = 0;
+        private int _nextFreeOffset;
 
         /// <summary>
         /// The versions
@@ -215,7 +213,8 @@ namespace MemoryManager.Lanes
             for (int i = EntryCount - 1; i >= 0; i--)
             {
                 var entry = _entries[i];
-                if (!entry.IsStub && ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames, config.FastLaneLargeEntryThreshold))
+                if (!entry.IsStub && ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames,
+                        config.FastLaneLargeEntryThreshold))
                 {
                     var h = new MemoryHandle(entry.HandleId, entry.Version, this);
                     OneWayLane?.MoveFromFastToSlow(h);

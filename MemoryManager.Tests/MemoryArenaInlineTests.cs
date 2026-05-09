@@ -8,7 +8,6 @@
 
 using MemoryManager.Core;
 using MemoryManager.Lanes;
-using System.Runtime.InteropServices;
 
 namespace MemoryManager.Tests
 {
@@ -54,7 +53,7 @@ namespace MemoryManager.Tests
             Assert.IsTrue(arena.SlowLane.HasHandle(redirectHandle));
 
             // 3. Confirm data transparency
-            // arena.Get internally calls Resolve, which sees the Stub, 
+            // arena.Get internally calls Resolve, which sees the Stub,
             // grabs the RedirectVersion, and hops to the SlowLane automatically.
             var result = arena.Get<MyStruct>(structHandle);
             Assert.AreEqual(123, result.X);
@@ -101,7 +100,7 @@ namespace MemoryManager.Tests
 
             var arena = new MemoryArena(config);
 
-            // SUGAR 1: Allocate and set an int. 
+            // SUGAR 1: Allocate and set an int.
             // This handle now carries a Version (e.g., ID: 1, Version: 1)
             var intHandle = arena.Store(777);
 
@@ -115,7 +114,7 @@ namespace MemoryManager.Tests
             Assert.AreEqual(3.14f, readStruct.Y, 0.001f);
 
             // --- THE BIG MOVE ---
-            // FastLane creates a Stub. 
+            // FastLane creates a Stub.
             // Stub.RedirectToId = SlowLane ID
             // Stub.RedirectVersion = SlowLane Version
             arena.MoveFastToSlow(structHandle);
@@ -135,7 +134,7 @@ namespace MemoryManager.Tests
 
             // 3. Confirm data transparency
             // This is the magic part: the user still uses 'structHandle' (the FastLane one).
-            // Internally, Resolve sees the stub, sees the RedirectVersion, and 
+            // Internally, Resolve sees the stub, sees the RedirectVersion, and
             // fetches the data from the SlowLane automatically.
             var result = arena.Get<MyStruct>(structHandle);
             Assert.AreEqual(123, result.X);
