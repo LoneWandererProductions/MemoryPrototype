@@ -8,6 +8,7 @@
 
 // ReSharper disable UnusedMember.Global
 
+using System.Diagnostics;
 using MemoryManager.Core;
 
 namespace MemoryManager.Lanes
@@ -37,7 +38,6 @@ namespace MemoryManager.Lanes
         /// or
         /// slowLane
         /// </exception>
-        // Notice we changed IMemoryLane to FastLane/SlowLane so we have access to ReplaceWithStub
         public OneWayLane(IFastLane fastLane, IMemoryLane slowLane)
         {
             _fastLane = fastLane ?? throw new ArgumentNullException(nameof(fastLane));
@@ -53,33 +53,66 @@ namespace MemoryManager.Lanes
         /// </returns>
         public unsafe bool MoveFromFastToSlow(MemoryHandle fastHandle)
         {
-            // Fix 1: FastLane IDs are positive! If it's negative, it's invalid here.
+            // 1. Pre-validation
             if (fastHandle.IsInvalid || fastHandle.Id < 0) return false;
 
-            var fastPtr = _fastLane.Resolve(fastHandle);
-            var size = _fastLane.GetAllocationSize(fastHandle);
+            nint fastPtr;
+            int size;
+            try
+            {
+                fastPtr = _fastLane.Resolve(fastHandle);
+                size = _fastLane.GetAllocationSize(fastHandle);
+            }
+            catch
+            {
+                // Fail-safe if the fast handle was already corrupted or freed
+                return false;
+            }
 
-            // Allocate on slow lane
-            var slowHandle = _slowLane.Allocate(size);
+            // 2. Allocate on slow lane
+            MemoryHandle slowHandle;
+            try
+            {
+                slowHandle = _slowLane.Allocate(size);
+            }
+            catch (OutOfMemoryException)
+            {
+                return false; // Slow lane is full, abort migration but keep fast data intact
+            }
 
-            // SlowLane IDs are negative. If >= 0, something went wrong.
-            if (slowHandle.IsInvalid || slowHandle.Id >= 0) return false;
+            // Validate slow lane handle characteristics safely before proceeding
+            if (slowHandle.IsInvalid || slowHandle.Id >= 0)
+            {
+                // If the handle is invalid but somehow reserved memory, free it if possible
+                if (!slowHandle.IsInvalid) _slowLane.Free(slowHandle);
+                return false;
+            }
 
-            var slowPtr = _slowLane.Resolve(slowHandle);
+            // 3. Execution Phase
+            try
+            {
+                var slowPtr = _slowLane.Resolve(slowHandle);
 
-            // Fix 2: Direct unmanaged copy (No phantom byte[] needed)
-            Buffer.MemoryCopy(
-                (void*)fastPtr,
-                (void*)slowPtr,
-                size,
-                size);
+                // Direct unmanaged copy
+                System.Buffer.MemoryCopy(
+                    (void*)fastPtr,
+                    (void*)slowPtr,
+                    size, // Destination capacity limit
+                    size // Row bytes to copy
+                );
 
-            // Fix 3: Set up the Stub instead of Freeing!
-            // This ensures that anyone holding the old fastHandle will now
-            // seamlessly get routed to the new slowHandle.
-            _fastLane.ReplaceWithStub(fastHandle, slowHandle);
-
-            return true;
+                // SUCCESS: Only swap to stub if the copy operation completely succeeded
+                _fastLane.ReplaceWithStub(fastHandle, slowHandle);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Error during MoveFromFastToSlow: {ex}");
+                // CLEANUP ON FAILURE: If copying or resolving blew up,
+                // free the allocated slow lane block so we don't leak unmanaged memory.
+                _slowLane.Free(slowHandle);
+                return false;
+            }
         }
     }
 }

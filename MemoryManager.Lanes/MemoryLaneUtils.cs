@@ -8,11 +8,16 @@
 
 using ExtendedSystemObjects;
 using MemoryManager.Core;
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
+using MemoryHandle = MemoryManager.Core.MemoryHandle;
 
 namespace MemoryManager.Lanes
 {
+    /// <summary>
+    /// Static utility class for shared methods between FastLane and SlowLane, as well as common debug functionality.
+    /// </summary>
     internal static class MemoryLaneUtils
     {
         /// <summary>
@@ -30,7 +35,7 @@ namespace MemoryManager.Lanes
             var usedSpace = 0;
             for (var i = 0; i < entryCount; i++)
             {
-                // If your array contains freed/invalid entries that shouldn't be counted, 
+                // If your array contains freed/invalid entries that shouldn't be counted,
                 // add a check here (e.g., if (!entries[i].IsStub))
                 usedSpace += entries[i].Size;
             }
@@ -71,18 +76,21 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Stubs the count.
+        /// Stubs the count.
         /// </summary>
-        /// <param name="entryCount">The entry count.</param>
         /// <param name="entries">The entries.</param>
-        /// <returns>Number of stubs, aka references from fast to slow Lane.</returns>
+        /// <returns>
+        /// Number of stubs, aka references from fast to slow Lane.
+        /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int StubCount(int entryCount, AllocationEntry[] entries)
+        internal static int StubCount(ReadOnlySpan<AllocationEntry> entries)
         {
             var count = 0;
-            for (var i = 0; i < entryCount; i++)
-                if (entries[i].IsStub)
-                    count++;
+            // Using 'ref readonly' prevents the struct from being copied into a local variable
+            foreach (ref readonly var entry in entries)
+            {
+                if (entry.IsStub) count++;
+            }
 
             return count;
         }
@@ -180,82 +188,112 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Debugs the visual map.
+        /// Debugs the visual map.
         /// </summary>
         /// <param name="entries">The entries.</param>
-        /// <param name="entryCount">The entry count.</param>
         /// <param name="capacity">The capacity.</param>
-        /// <returns>Visual map of fragmentation.</returns>
-        internal static string DebugVisualMap(IEnumerable<AllocationEntry> entries, int entryCount, int capacity)
+        /// <returns>
+        /// Visual map of fragmentation.
+        /// </returns>
+        internal static string DebugVisualMap(ReadOnlySpan<AllocationEntry> entries, int capacity)
         {
-            if (entryCount == 0)
+            // The span's length represents the current active entry count
+            if (entries.Length == 0)
                 return "Memory is empty";
 
             var sb = new StringBuilder();
 
-            var validEntries = entries
-                .Take(entryCount)
-                .Where(e => !e.IsStub && e.HandleId != -1)
-                .OrderBy(e => e.Offset)
-                .ToArray();
+            // 1. Rent a temporary scratch buffer from the shared pool to avoid heap allocations
+            var pool = ArrayPool<AllocationEntry>.Shared;
+            var scratch = pool.Rent(entries.Length);
 
-            sb.AppendLine("--- Dump Start ---");
-
-            const int barWidth = 80;
-            var visual = new char[barWidth];
-
-            var allocationCoverage = new double[barWidth];
-            var scale = barWidth / (double)capacity;
-
-            foreach (var e in validEntries)
+            var validCount = 0;
+            try
             {
-                double startByte = e.Offset;
-                double endByte = e.Offset + e.Size;
-                var startIdx = (int)(startByte * scale);
-                var endIdx = (int)(endByte * scale);
-                endIdx = Math.Max(startIdx + 1, endIdx);
-                endIdx = Math.Min(barWidth, endIdx);
-
-                for (var i = startIdx; i < endIdx; i++)
+                // 2. Filter out stubs and invalid IDs manually (Replaces .Take().Where())
+                for (var i = 0; i < entries.Length; i++)
                 {
-                    var cellStart = i / scale;
-                    var cellEnd = (i + 1) / scale;
-
-                    var overlap = Math.Min(endByte, cellEnd) - Math.Max(startByte, cellStart);
-                    var cellSize = cellEnd - cellStart;
-
-                    if (overlap > 0) allocationCoverage[i] += overlap / cellSize;
+                    ref readonly var e = ref entries[i];
+                    if (!e.IsStub && e.HandleId != -1)
+                    {
+                        scratch[validCount++] = e;
+                    }
                 }
+
+                // 3. Slice our scratch array to exactly how many valid entries we found and sort it
+                var validSpan = scratch.AsSpan(0, validCount);
+
+                // Passing a custom struct comparison instead of a lambda avoids delegate allocation
+                validSpan.Sort(new OffsetComparer());
+
+                sb.AppendLine("--- Dump Start ---");
+
+                const int barWidth = 80;
+                var visual = new char[barWidth];
+                var allocationCoverage = new double[barWidth];
+                var scale = barWidth / (double)capacity;
+
+                // 4. Process the sorted entries
+                for (var i = 0; i < validSpan.Length; i++)
+                {
+                    ref readonly var e = ref validSpan[i];
+                    double startByte = e.Offset;
+                    double endByte = e.Offset + e.Size;
+                    var startIdx = (int)(startByte * scale);
+                    var endIdx = (int)(endByte * scale);
+                    endIdx = Math.Max(startIdx + 1, endIdx);
+                    endIdx = Math.Min(barWidth, endIdx);
+
+                    for (var j = startIdx; j < endIdx; j++)
+                    {
+                        var cellStart = j / scale;
+                        var cellEnd = (j + 1) / scale;
+
+                        var overlap = Math.Min(endByte, cellEnd) - Math.Max(startByte, cellStart);
+                        var cellSize = cellEnd - cellStart;
+
+                        if (overlap > 0) allocationCoverage[j] += overlap / cellSize;
+                    }
+                }
+
+                // Define partial blocks (8 levels + dot)
+                char[] blocks = { '░', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█' };
+
+                for (var i = 0; i < barWidth; i++)
+                {
+                    var coverage = allocationCoverage[i];
+                    if (coverage <= 0.0)
+                    {
+                        visual[i] = '░'; // free
+                    }
+                    else if (coverage < 0.125)
+                    {
+                        visual[i] = '.'; // very small allocation
+                    }
+                    else
+                    {
+                        var blockIndex = (int)Math.Round(coverage * 8);
+                        blockIndex = Math.Min(8, blockIndex);
+                        visual[i] = blocks[blockIndex];
+                    }
+                }
+
+                sb.AppendLine("Visual Map (░ = gap, . = very small allocation, ▏ to █ = partial/full allocation):");
+#if NETCOREAPP
+                sb.Append(visual); // Directly appends char span without allocation in modern .NET
+                sb.AppendLine();
+#else
+        sb.AppendLine(new string(visual));
+#endif
+                sb.AppendLine($"Capacity: {capacity} bytes");
+                sb.AppendLine();
+                sb.AppendLine("--- Dump End ---");
             }
-
-            // Define partial blocks (8 levels + dot)
-            char[] blocks = { '░', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█' };
-
-            for (var i = 0; i < barWidth; i++)
+            finally
             {
-                var coverage = allocationCoverage[i];
-                if (coverage <= 0.0)
-                {
-                    visual[i] = '░'; // free
-                }
-                else if (coverage < 0.125)
-                {
-                    visual[i] = '.'; // very small allocation
-                }
-                else
-                {
-                    var blockIndex = (int)Math.Round(coverage * 8);
-                    blockIndex = Math.Min(8, blockIndex);
-                    visual[i] = blocks[blockIndex];
-                }
+                // Always return the rented array back to the pool, even if something crashed
+                pool.Return(scratch);
             }
-
-            sb.AppendLine("Visual Map (░ = gap, . = very small allocation, ▏ to █ = partial/full allocation):");
-            sb.AppendLine(new string(visual));
-            sb.AppendLine($"Capacity: {capacity} bytes");
-            sb.AppendLine();
-
-            sb.AppendLine("--- Dump End ---");
 
             return sb.ToString();
         }
@@ -415,6 +453,18 @@ namespace MemoryManager.Lanes
             Array.Resize(ref entries, newSize);
 
             return newSize;
+        }
+
+        /// <summary>
+        /// A zero-allocation comparison struct for sorting allocations by offset.
+        /// </summary>
+        /// <seealso cref="System.Collections.Generic.IComparer&lt;MemoryManager.Core.AllocationEntry&gt;" />
+        private struct OffsetComparer : IComparer<AllocationEntry>
+        {
+            public int Compare(AllocationEntry x, AllocationEntry y)
+            {
+                return x.Offset.CompareTo(y.Offset);
+            }
         }
     }
 }

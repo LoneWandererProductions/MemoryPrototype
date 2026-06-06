@@ -100,6 +100,10 @@ namespace MemoryManager.Core
                 throw new OutOfMemoryException(
                     $"BlobManager: Out of memory. Requested {size} bytes, but only {FreeSpace()} available.");
 
+            // Prevent negative ID underflow wrapping into positive integers
+            if (_nextId == int.MinValue)
+                throw new OutOfMemoryException("BlobManager: ID exhaustion. Cannot allocate more IDs without violating negative ID convention.");
+
             var id = _nextId--;
             var allocatedOffset = _nextFreeOffset;
 
@@ -142,6 +146,10 @@ namespace MemoryManager.Core
 #endif
         }
 
+        /// <summary>
+        /// Frees the many.
+        /// </summary>
+        /// <param name="handles">The handles.</param>
         public void FreeMany(IEnumerable<MemoryHandle> handles)
         {
             foreach (var handle in handles)
@@ -204,37 +212,58 @@ namespace MemoryManager.Core
         {
             if (_entries.Count == 0) return;
 
-            // 1. Get all surviving entries and sort them by their physical offset
-            var validEntries = new List<BlobEntry>(_entries.Values);
-            validEntries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
+            // 1. Rent a temporary buffer for zero-allocation sorting
+            var pool = System.Buffers.ArrayPool<BlobEntry>.Shared;
+            var scratch = pool.Rent(_entries.Count);
 
-            var currentOffset = 0;
-
-            // 2. Slide each entry as far left as possible
-            foreach (var entry in validEntries)
+            try
             {
-                if (entry.Offset > currentOffset)
+                var validCount = 0;
+                foreach (var entry in _entries.Values)
                 {
-                    unsafe
-                    {
-                        Buffer.MemoryCopy(
-                            (void*)(_buffer + entry.Offset),
-                            (void*)(_buffer + currentOffset),
-                            entry.Size,
-                            entry.Size);
-                    }
+                    scratch[validCount++] = entry;
                 }
 
-                // 3. Update the entry's metadata with its new physical address
-                var updatedEntry = entry;
-                updatedEntry.Offset = currentOffset;
-                _entries[entry.Id] = updatedEntry;
+                var validSpan = scratch.AsSpan(0, validCount);
 
-                currentOffset += entry.Size;
+                // Sort natively using a struct to avoid delegate allocation
+                validSpan.Sort(new BlobOffsetComparer());
+
+                var currentOffset = 0;
+
+                // 2. Slide each entry as far left as possible
+                for (var i = 0; i < validSpan.Length; i++)
+                {
+                    ref readonly var entry = ref validSpan[i];
+
+                    if (entry.Offset > currentOffset)
+                    {
+                        unsafe
+                        {
+                            // System.Buffer.MemoryCopy safely handles overlapping memory
+                            System.Buffer.MemoryCopy(
+                                (void*)(_buffer + entry.Offset),
+                                (void*)(_buffer + currentOffset),
+                                entry.Size,
+                                entry.Size);
+                        }
+                    }
+
+                    // 3. Update the entry's metadata with its new physical address
+                    var updatedEntry = entry;
+                    updatedEntry.Offset = currentOffset;
+                    _entries[entry.Id] = updatedEntry;
+
+                    currentOffset += entry.Size;
+                }
+
+                // 4. Update the global allocator offset
+                _nextFreeOffset = currentOffset;
             }
-
-            // 4. Update the global allocator offset
-            _nextFreeOffset = currentOffset;
+            finally
+            {
+                pool.Return(scratch);
+            }
 
             OnCompaction?.Invoke(nameof(BlobManager));
         }
@@ -333,5 +362,19 @@ namespace MemoryManager.Core
 
         /// <inheritdoc />
         public string DebugRedirections() => "[BlobRedirects not applicable]";
+
+        /// <inheritdoc />
+        /// <summary>
+        /// Zero-allocation comparer for sorting blobs by offset.
+        /// </summary>
+        /// <seealso cref="System.Collections.Generic.IComparer&lt;MemoryManager.Core.BlobEntry&gt;" />
+        private struct BlobOffsetComparer : IComparer<BlobEntry>
+        {
+            /// <inheritdoc />
+            public int Compare(BlobEntry x, BlobEntry y)
+            {
+                return x.Offset.CompareTo(y.Offset);
+            }
+        }
     }
 }

@@ -15,9 +15,17 @@ namespace MemoryManager.Core
     public enum AllocationHints
     {
         None = 0,
+
+        /// <summary>
+        /// The frame critical flag indicates that the allocated data is critical for the current frame and should be prioritized for allocation in the fast lane.
+        /// </summary>
         FrameCritical = 1 << 0,
         Cold = 1 << 1,
         Old = 1 << 2,
+
+        /// <summary>
+        /// The evictable flag indicates that the allocated data can be evicted from the fast lane when memory pressure occurs.
+        /// </summary>
         Evictable = Cold | Old
     }
 }

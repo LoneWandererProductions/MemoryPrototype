@@ -45,9 +45,11 @@ namespace MemoryManager.Core
         }
 
         /// <summary>
-        ///     Resolves this handle to a raw memory pointer.
+        /// Resolves this handle to a raw memory pointer.
         /// </summary>
-        /// <returns>An <see cref="nint" /> pointing to the allocated memory block.</returns>
+        /// <returns>
+        /// An <see cref="nint" /> pointing to the allocated memory block.
+        /// </returns>
         public nint GetPointer()
         {
             return _lane.Resolve(this);

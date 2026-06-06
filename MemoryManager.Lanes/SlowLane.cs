@@ -519,7 +519,8 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public int StubCount()
         {
-            return MemoryLaneUtils.StubCount(EntryCount, _entries);
+            ReadOnlySpan<AllocationEntry> span = _entries.AsSpan(0, EntryCount);
+            return MemoryLaneUtils.StubCount(span);
         }
 
         /// <inheritdoc />
@@ -537,7 +538,7 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public string DebugVisualMap()
         {
-            return MemoryLaneUtils.DebugVisualMap(_entries, EntryCount, Capacity);
+            return MemoryLaneUtils.DebugVisualMap(_entries, Capacity);
         }
 
         /// <inheritdoc />

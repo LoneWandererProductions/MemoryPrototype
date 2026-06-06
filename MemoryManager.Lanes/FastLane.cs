@@ -505,7 +505,10 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            return MemoryLaneUtils.StubCount(EntryCount, _entries);
+            // Convert the relevant segment of the array into a ReadOnlySpan
+            ReadOnlySpan<AllocationEntry> span = _entries.AsSpan(0, EntryCount);
+
+            return MemoryLaneUtils.StubCount(span);
         }
 
         /// <summary>
@@ -547,7 +550,7 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
 
-            return MemoryLaneUtils.DebugVisualMap(_entries, EntryCount, Capacity);
+            return MemoryLaneUtils.DebugVisualMap(_entries, Capacity);
         }
 
         /// <summary>

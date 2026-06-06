@@ -301,7 +301,11 @@ namespace MemoryManager.Lanes
         public int FreeSpace() => Capacity - _nextFreeOffset;
 
         /// <inheritdoc />
-        public int StubCount() => MemoryLaneUtils.StubCount(EntryCount, _entries!);
+        public int StubCount()
+        {
+            ReadOnlySpan<AllocationEntry> span = _entries.AsSpan(0, EntryCount);
+            return MemoryLaneUtils.StubCount(span);
+        }
 
         /// <inheritdoc />
         public int EstimateFragmentation()
@@ -348,7 +352,7 @@ namespace MemoryManager.Lanes
         public string DebugDump() => MemoryLaneUtils.DebugDump(_entries!, EntryCount);
 
         /// <inheritdoc />
-        public string DebugVisualMap() => MemoryLaneUtils.DebugVisualMap(_entries!, EntryCount, Capacity);
+        public string DebugVisualMap() => MemoryLaneUtils.DebugVisualMap(_entries!, Capacity);
 
         /// <inheritdoc />
         public string DebugRedirections() => MemoryLaneUtils.DebugRedirections(_entries!, EntryCount, null);
