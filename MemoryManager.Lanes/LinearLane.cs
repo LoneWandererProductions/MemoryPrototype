@@ -138,7 +138,7 @@ namespace MemoryManager.Lanes
             if (!string.IsNullOrEmpty(debugName)) _debugNames[id] = debugName;
 #endif
             _versions[id % _versions.Length]++;
-            byte currentVersion = _versions[id % _versions.Length];
+            var currentVersion = _versions[id % _versions.Length];
 
             _entries[EntryCount] = new AllocationEntry
             {
@@ -210,7 +210,7 @@ namespace MemoryManager.Lanes
             if (_entries == null || EntryCount == 0) return;
 
             // PASS 1: Evict old data to SlowLane (This creates stubs)
-            for (int i = EntryCount - 1; i >= 0; i--)
+            for (var i = EntryCount - 1; i >= 0; i--)
             {
                 var entry = _entries[i];
                 if (!entry.IsStub && ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames,
@@ -364,7 +364,7 @@ namespace MemoryManager.Lanes
                 if (_handleIndex.TryGetValue(id, out var index))
                 {
                     // Grab the generation from the actual entry
-                    byte version = _entries[index].Version;
+                    var version = _entries[index].Version;
 
                     // Return the "Smart Handle" with its proof-of-life
                     yield return new MemoryHandle(id, version, this);

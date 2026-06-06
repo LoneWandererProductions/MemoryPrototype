@@ -40,7 +40,7 @@ namespace MemoryManager.Tests
                 // 2. Free the middle block (Creates a 100-byte hole/fragmentation)
                 blobManager.Free(h2);
 
-                int fragBefore = blobManager.EstimateFragmentation();
+                var fragBefore = blobManager.EstimateFragmentation();
                 Assert.IsTrue(fragBefore > 0, "Fragmentation should be greater than 0 after freeing the middle blob.");
 
                 Trace.WriteLine("--- BEFORE COMPACTION ---");
@@ -49,7 +49,7 @@ namespace MemoryManager.Tests
                 // 3. Compact (The Snowplow)
                 blobManager.Compact();
 
-                int fragAfter = blobManager.EstimateFragmentation();
+                var fragAfter = blobManager.EstimateFragmentation();
                 Assert.AreEqual(0, fragAfter, "Fragmentation should be exactly 0 after compaction.");
 
                 Trace.WriteLine("\n--- AFTER COMPACTION ---");

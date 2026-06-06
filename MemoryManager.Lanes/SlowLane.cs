@@ -194,9 +194,9 @@ namespace MemoryManager.Lanes
                 _debugNames[id] = debugName;
             }
 #endif
-            int versionIndex = Math.Abs(id) % _versions.Length;
+            var versionIndex = Math.Abs(id) % _versions.Length;
             _versions[versionIndex]++;
-            byte currentVersion = _versions[versionIndex];
+            var currentVersion = _versions[versionIndex];
 
             _entries[slotIndex] = new AllocationEntry
             {

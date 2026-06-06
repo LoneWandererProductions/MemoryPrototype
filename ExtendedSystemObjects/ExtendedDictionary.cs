@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using ExtendedSystemObjects.Helper;
@@ -111,6 +112,7 @@ namespace ExtendedSystemObjects
         /// <param name="value">Value to add</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AddDistinct<TKey, TValue>(this Dictionary<TKey, TValue> dic, TKey key, TValue value)
+            where TKey : notnull
         {
             dic[key] = value;
         }
@@ -126,6 +128,7 @@ namespace ExtendedSystemObjects
         /// <param name="value">The value of the key-value pair to add.</param>
         /// <exception cref="ArgumentException">Thrown if the key or value already exist in the dictionary.</exception>
         public static void AddDistinctKeyValue<TKey, TValue>(this Dictionary<TKey, TValue> dic, TKey key, TValue value)
+            where TKey : notnull
         {
             if (dic.ContainsKey(key))
             {
@@ -150,6 +153,7 @@ namespace ExtendedSystemObjects
         /// <param name="dic">Internal Target Dictionary</param>
         /// <returns>Sorted Dictionary</returns>
         public static Dictionary<TKey, TValue> Sort<TKey, TValue>(this Dictionary<TKey, TValue> dic)
+            where TKey : notnull
         {
             var sortedPairs = dic.OrderBy(pair => pair.Key).ToList();
 
@@ -171,7 +175,7 @@ namespace ExtendedSystemObjects
         /// <param name="dic">Internal Target Dictionary</param>
         /// <returns>If Dictionary is Null or has zero Elements</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool IsNullOrEmpty<TKey, TValue>(this Dictionary<TKey, TValue> dic)
+        public static bool IsNullOrEmpty<TKey, TValue>([NotNullWhen(false)] this IDictionary<TKey, TValue>? dic)
         {
             if (dic == null)
             {
@@ -190,6 +194,7 @@ namespace ExtendedSystemObjects
         /// <typeparam name="TKey">Internal Key</typeparam>
         /// <typeparam name="TValue">Internal Value</typeparam>
         public static bool ContainsKeys<TKey, TValue>(this Dictionary<TKey, TValue> dic, IEnumerable<TKey> enumerable)
+            where TKey : notnull
         {
             return enumerable.All(dic.ContainsKey);
         }
@@ -201,7 +206,7 @@ namespace ExtendedSystemObjects
         /// <typeparam name="TValue">Internal Value</typeparam>
         /// <param name="dic">Internal Target Dictionary</param>
         /// <returns>If Dictionary has distinct Values</returns>
-        public static bool IsValueDistinct<TKey, TValue>(this Dictionary<TKey, TValue> dic)
+        public static bool IsValueDistinct<TKey, TValue>(this Dictionary<TKey, TValue> dic) where TKey : notnull
         {
             var uniqueValues = new HashSet<TValue>();
 
@@ -291,7 +296,8 @@ namespace ExtendedSystemObjects
         /// <typeparam name="TValue">Internal Value</typeparam>
         /// <param name="dic">Internal Target Dictionary</param>
         /// <returns>Clone of the Input Dictionary</returns>
-        public static Dictionary<TKey, TValue> Clone<TKey, TValue>(this IDictionary<TKey, TValue> dic)
+        public static Dictionary<TKey, TValue>? Clone<TKey, TValue>(this IDictionary<TKey, TValue> dic)
+            where TKey : notnull
         {
             return dic?.ToDictionary(dctClone => dctClone.Key, dctClone => dctClone.Value);
         }
@@ -346,7 +352,7 @@ namespace ExtendedSystemObjects
         ///     A list with the Key as id
         /// </returns>
         public static List<TValue> ToListId<TId, TValue>(this Dictionary<TId, TValue> dic)
-            where TValue : IIdHandling<TId>
+            where TValue : IIdHandling<TId> where TId : notnull
         {
             var lst = new List<TValue>();
 

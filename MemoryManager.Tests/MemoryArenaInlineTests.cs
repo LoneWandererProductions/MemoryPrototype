@@ -67,7 +67,7 @@ namespace MemoryManager.Tests
 
             // 1. Allocate something
             var originalHandle = arena.Store(100);
-            byte firstVersion = originalHandle.Version;
+            var firstVersion = originalHandle.Version;
 
             // 2. Free it
             arena.Free(originalHandle);

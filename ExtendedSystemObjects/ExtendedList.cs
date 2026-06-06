@@ -12,6 +12,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -32,7 +33,7 @@ namespace ExtendedSystemObjects
         /// <param name="lst">List we want to check</param>
         /// <returns>Empty or not</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static bool IsNullOrEmpty<TValue>(this List<TValue> lst)
+        public static bool IsNullOrEmpty<TValue>([NotNullWhen(false)] this ICollection<TValue>? lst)
         {
             if (lst == null)
             {
@@ -64,18 +65,51 @@ namespace ExtendedSystemObjects
         /// <returns>if [true] item was added, else [false]</returns>
         public static bool AddDistinct<TValue>(this List<TValue> lst, TValue item)
         {
-            var hashSet = new HashSet<TValue>(lst);
+            if (lst.Contains(item)) return false;
 
-            // Check if the item already exists in the HashSet
-            if (hashSet.Contains(item))
-            {
-                return false; // Item already exists, no need to add
-            }
-
-            // Add the item to the list since it doesn't already exist
             lst.Add(item);
-
             return true;
+        }
+
+        /// <summary>
+        /// Removes element from ist fast.
+        /// Destroys order though.
+        /// </summary>
+        /// <typeparam name="TValue">Generic data Type</typeparam>
+        /// <param name="list">The list.</param>
+        /// <param name="item">The item.</param>
+        public static void RemoveFast<TValue>(this List<TValue> list, TValue item)
+        {
+            var index = list.IndexOf(item);
+            if (index < 0) return; // Item not found
+
+            var lastIndex = list.Count - 1;
+
+            // Move the last element into the slot of the element to remove
+            list[index] = list[lastIndex];
+
+            // Remove the now-redundant last element
+            list.RemoveAt(lastIndex);
+        }
+
+        /// <summary>
+        /// Removes element at index fast by swapping with the last element.
+        /// Destroys order.
+        /// </summary>
+        /// <typeparam name="TValue">The type of the value.</typeparam>
+        /// <param name="list">The list.</param>
+        /// <param name="index">The index.</param>
+        public static void RemoveAtFast<TValue>(this List<TValue> list, int index)
+        {
+            if (index < 0 || index >= list.Count) return;
+
+            var lastIndex = list.Count - 1;
+
+            // Move the last element into the slot of the element to remove
+            list[index] = list[lastIndex];
+
+            // Remove the now-redundant last element
+            list.RemoveAt(lastIndex);
         }
 
         /// <summary>
@@ -84,7 +118,7 @@ namespace ExtendedSystemObjects
         /// <typeparam name="TValue">The type of the value.</typeparam>
         /// <param name="lst">The List.</param>
         /// <returns>A Dictionary from a list with int as the key</returns>
-        public static Dictionary<int, TValue> ToDictionary<TValue>(this IEnumerable<TValue> lst)
+        public static Dictionary<int, TValue>? ToDictionary<TValue>(this IEnumerable<TValue> lst)
         {
             var index = 0;
             return lst?.ToDictionary(_ => index++);
@@ -195,7 +229,7 @@ namespace ExtendedSystemObjects
         /// <typeparam name="TValue">Generic Object Type</typeparam>
         /// <param name="lst">IEnumerable</param>
         /// <returns>Clone of the Input IEnumerable</returns>
-        public static List<TValue> Clone<TValue>(this IEnumerable<TValue> lst)
+        public static List<TValue>? Clone<TValue>(this IEnumerable<TValue>? lst)
         {
             return lst?.ToList();
         }
@@ -238,7 +272,15 @@ namespace ExtendedSystemObjects
                         return false;
                     }
 
-                    return !lst.Where((t, i) => !t.Equals(compare[i])).Any();
+                    for (var i = 0; i < lst.Count; i++)
+                    {
+                        if (!EqualityComparer<TValue>.Default.Equals(lst[i], compare[i]))
+                        {
+                            return false;
+                        }
+                    }
+
+                    return true;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(comparer), comparer, null);
             }
@@ -294,8 +336,8 @@ namespace ExtendedSystemObjects
         /// <returns>
         ///     Dictionary with an conversion from the attribute Id as Key
         /// </returns>
-        public static Dictionary<TId, TValue> ToDictionaryId<TValue, TId>(this IList<TValue> lst)
-            where TValue : IIdHandling<TId>
+        public static Dictionary<TId, TValue> ToDictionaryId<TValue, TId>(this IEnumerable<TValue> lst)
+            where TValue : IIdHandling<TId> where TId : notnull
         {
             var dct = new Dictionary<TId, TValue>();
 

@@ -14,7 +14,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using ExtendedSystemObjects.Helper;
 using ExtendedSystemObjects.Interfaces;
 
@@ -55,12 +54,13 @@ namespace ExtendedSystemObjects
         /// <param name="size">The size.</param>
         public UnmanagedArray(int size)
         {
+            ArgumentOutOfRangeException.ThrowIfNegative(size);
+
             Capacity = size;
             Length = size;
 
-            _buffer = UnmanagedMemoryHelper.Allocate<T>(size);
-            _ptr = (T*)_buffer;
-            UnmanagedMemoryHelper.Clear<T>(_buffer, size);
+            _ptr = (T*)UnmanagedMemoryHelper.Allocate<T>(size);
+            UnmanagedMemoryHelper.Clear<T>(_ptr, size);
         }
 
         /// <summary>
@@ -195,21 +195,15 @@ namespace ExtendedSystemObjects
             EnsureNotDisposed();
             ArgumentOutOfRangeException.ThrowIfNegative(newSize);
 
-            if (newSize == Capacity)
-            {
-                return;
-            }
+            if (newSize == Capacity) return;
 
-            var newBuffer = UnmanagedMemoryHelper.Reallocate<T>(_buffer, newSize);
-            var newPtr = (T*)newBuffer;
+            _ptr = UnmanagedMemoryHelper.Reallocate<T>(_ptr, newSize);
 
             if (newSize > Capacity)
             {
-                UnmanagedMemoryHelper.Clear<T>(new IntPtr(newPtr + Capacity), newSize - Capacity);
+                UnmanagedMemoryHelper.Clear<T>(_ptr + Capacity, newSize - Capacity);
             }
 
-            _buffer = newBuffer;
-            _ptr = newPtr;
             Capacity = newSize;
 
             if (Length > newSize)
@@ -224,8 +218,8 @@ namespace ExtendedSystemObjects
         /// </summary>
         public void Clear()
         {
-            // Use Span<T>.Clear for safety and type correctness
-            UnmanagedMemoryHelper.Clear<T>(_buffer, Length);
+            EnsureNotDisposed();
+            UnmanagedMemoryHelper.Clear<T>(_ptr, Length);
         }
 
         /// <inheritdoc />
@@ -277,16 +271,11 @@ namespace ExtendedSystemObjects
         /// <param name="minCapacity">The minimum capacity.</param>
         public void EnsureCapacity(int minCapacity)
         {
-            if (minCapacity <= Capacity)
-            {
-                return;
-            }
+            EnsureNotDisposed();
+            if (minCapacity <= Capacity) return;
 
-            var newCapacity = Capacity == 0 ? 4 : Capacity;
-            while (newCapacity < minCapacity)
-            {
-                newCapacity *= 2;
-            }
+            var newCapacity = Capacity == 0 ? 4 : Capacity * 2;
+            if (newCapacity < minCapacity) newCapacity = minCapacity;
 
             Resize(newCapacity);
         }
@@ -330,14 +319,17 @@ namespace ExtendedSystemObjects
         {
             if (_disposed) return;
 
-            if (_buffer != IntPtr.Zero)
+            if (_ptr != null)
             {
-                Marshal.FreeHGlobal(_buffer);
-                _buffer = IntPtr.Zero;
-                _ptr = null; // EnsureNotDisposed checks often rely on this being null
+                // Standardized with tracking allocation layers safely
+                UnmanagedMemoryHelper.Free(_ptr);
+                _ptr = null;
             }
 
+            Capacity = 0;
+            Length = 0;
             _disposed = true;
+            _ = disposing;
         }
     }
 }

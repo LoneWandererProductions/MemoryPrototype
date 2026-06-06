@@ -181,7 +181,7 @@ namespace MemoryManager.Lanes
             // --- ZOMBIE KILLER: Increment the version for this ID slot ---
             // This ensures that any old handles still pointing to this ID will be rejected.
             _versions[id % _versions.Length]++;
-            byte currentVersion = _versions[id % _versions.Length];
+            var currentVersion = _versions[id % _versions.Length];
 
 #if DEBUG
             if (!string.IsNullOrEmpty(debugName))
@@ -320,7 +320,7 @@ namespace MemoryManager.Lanes
             // --- PASS 1: THE JANITOR ---
             // Update the "Source of Truth" array directly.
             // We don't sort here; we just find cold data and kick it to the SlowLane.
-            for (int i = 0; i < EntryCount; i++)
+            for (var i = 0; i < EntryCount; i++)
             {
                 if (!_entries[i].IsStub && ShouldMoveToSlowLane(_entries[i], currentFrame, config))
                 {
@@ -432,7 +432,7 @@ namespace MemoryManager.Lanes
                 if (_handleIndex.TryGetValue(id, out var index))
                 {
                     // Grab the version from the actual allocation entry
-                    byte version = _entries[index].Version;
+                    var version = _entries[index].Version;
 
                     // Return the "Smart Handle" with its generational proof-of-life
                     yield return new MemoryHandle(id, version, this);

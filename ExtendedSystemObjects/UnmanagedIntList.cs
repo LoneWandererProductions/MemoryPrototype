@@ -42,11 +42,6 @@ namespace ExtendedSystemObjects
     public sealed unsafe class UnmanagedIntList : IUnmanagedArray<int>, IEnumerable<int>
     {
         /// <summary>
-        ///     The buffer
-        /// </summary>
-        private IntPtr _buffer;
-
-        /// <summary>
         ///     The disposed
         /// </summary>
         private bool _disposed;
@@ -63,8 +58,9 @@ namespace ExtendedSystemObjects
         public UnmanagedIntList(int initialCapacity = 16)
         {
             Capacity = initialCapacity > 0 ? initialCapacity : 16;
-            _buffer = UnmanagedMemoryHelper.Allocate<int>(Capacity);
-            _ptr = (int*)_buffer;
+
+            // Allocate and clear in a single native call
+            _ptr = UnmanagedMemoryHelper.AllocateZeroed<int>(Capacity);
             Clear();
         }
 
@@ -139,6 +135,7 @@ namespace ExtendedSystemObjects
             }
             set
             {
+                EnsureNotDisposed();
 #if DEBUG
                 if (i < 0 || i >= Length)
                 {
@@ -206,7 +203,7 @@ namespace ExtendedSystemObjects
             Length = 0;
 
             // Clear the entire allocated capacity, not just Length items
-            UnmanagedMemoryHelper.Clear<int>(_buffer, Capacity);
+            UnmanagedMemoryHelper.Clear<int>(_ptr, Capacity);
         }
 
         /// <inheritdoc />
@@ -428,8 +425,7 @@ namespace ExtendedSystemObjects
                 return;
             }
 
-            _buffer = UnmanagedMemoryHelper.Reallocate<int>(_buffer, Length);
-            _ptr = (int*)_buffer;
+            _ptr = UnmanagedMemoryHelper.Reallocate<int>(_ptr, Length);
             Capacity = Length;
         }
 
@@ -498,13 +494,15 @@ namespace ExtendedSystemObjects
         /// <exception cref="ArgumentException">Target span too small</exception>
         public void CopyTo(Span<int> target)
         {
+            EnsureNotDisposed();
 #if DEBUG
             if (target.Length < Length)
             {
                 throw new ArgumentException("Target span too small");
             }
 #endif
-            AsSpan().Slice(0, Length).CopyTo(target);
+            // Fixed: Removed redundant .Slice calculation since AsSpan() is already bounded by Length
+            AsSpan().CopyTo(target);
         }
 
         /// <summary>
@@ -535,27 +533,17 @@ namespace ExtendedSystemObjects
         /// </param>
         private void Dispose(bool disposing)
         {
-            if (_disposed)
-            {
-                return;
-            }
+            if (_disposed) return;
 
-            // Free unmanaged resources
-            if (_buffer != IntPtr.Zero)
+            if (_ptr != null)
             {
-                Marshal.FreeHGlobal(_buffer);
-                _buffer = IntPtr.Zero;
+                UnmanagedMemoryHelper.Free(_ptr);
                 _ptr = null;
                 Capacity = 0;
                 Length = 0;
             }
 
-            // If you had managed disposable members and disposing is true,
-            // dispose them here. None exist for now.
-
-            _disposed = true; // Always set to true after dispose
-
-            // Suppress unused parameter warning
+            _disposed = true;
             _ = disposing;
         }
 
@@ -578,8 +566,7 @@ namespace ExtendedSystemObjects
                 newCapacity = min;
             }
 
-            _buffer = UnmanagedMemoryHelper.Reallocate<int>(_buffer, newCapacity);
-            _ptr = (int*)_buffer;
+            _ptr = UnmanagedMemoryHelper.Reallocate<int>(_ptr, newCapacity);
             Capacity = newCapacity;
         }
     }

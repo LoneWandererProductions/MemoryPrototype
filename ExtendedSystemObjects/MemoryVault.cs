@@ -9,6 +9,7 @@
 // ReSharper disable MemberCanBeInternal
 // ReSharper disable MemberCanBePrivate.Global
 // ReSharper disable EventNeverSubscribedTo.Global
+// ReSharper disable UnusedMethodReturnValue.Global
 
 using System;
 using System.Collections.Concurrent;
@@ -18,6 +19,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using ExtendedSystemObjects.Helper;
+
 
 namespace ExtendedSystemObjects
 {
@@ -42,7 +44,7 @@ namespace ExtendedSystemObjects
         /// <summary>
         /// Thread-safe dictionary for storing items.
         /// </summary>
-        private readonly ConcurrentDictionary<long, VaultItem<TU>> _vault;
+        private readonly ConcurrentDictionary<long, VaultItem<TU?>> _vault;
 
         /// <summary>
         ///     Timer for periodic cleanup of expired items.
@@ -99,7 +101,7 @@ namespace ExtendedSystemObjects
             {
                 _cleanupInterval = value;
                 // Reschedule the timer to use the new interval
-                _cleanupTimer?.Change(value, value);
+                _cleanupTimer.Change(value, value);
             }
         }
 
@@ -135,7 +137,7 @@ namespace ExtendedSystemObjects
         /// </summary>
         private MemoryVault()
         {
-            _vault = new ConcurrentDictionary<long, VaultItem<TU>>();
+            _vault = new ConcurrentDictionary<long, VaultItem<TU?>>();
             _nextId = 0;
 
             // Initialize cleanup timer with configurable interval
@@ -149,14 +151,14 @@ namespace ExtendedSystemObjects
         /// <param name="expiryTime">The expiry time.</param>
         /// <param name="description">The description.</param>
         /// <returns>Address of memory</returns>
-        public long Add(TU data, TimeSpan? expiryTime = null, string description = "")
+        public long Add(TU? data, TimeSpan? expiryTime = null, string? description = "")
         {
             EnsureNotDisposed();
 
             // Generate next available unique ID atomically
             var identifier = Interlocked.Increment(ref _nextId);
 
-            var vaultItem = new VaultItem<TU>(data, expiryTime, description);
+            var vaultItem = new VaultItem<TU?>(data, expiryTime, description);
 
             _vault[identifier] = vaultItem;
 
@@ -224,11 +226,11 @@ namespace ExtendedSystemObjects
         /// Returns all non-expired items in the vault.
         /// </summary>
         /// <returns>List with stored data.</returns>
-        public List<TU> GetAll()
+        public List<TU?> GetAll()
         {
             EnsureNotDisposed();
 
-            var results = new List<TU>();
+            var results = new List<TU?>();
             var expiredKeys = new List<long>();
 
             foreach (var kvp in _vault)
@@ -348,7 +350,7 @@ namespace ExtendedSystemObjects
                 if (item != null)
                 {
                     // Add item to vault and preserve metadata via init-only constructor
-                    var vaultItem = new VaultItem<TU>(item.Data, item.ExpiryTime, item.Description)
+                    var vaultItem = new VaultItem<TU?>(item.Data, item.ExpiryTime, item.Description)
                     {
                         AdditionalMetadata = item.AdditionalMetadata
                     };
@@ -372,15 +374,17 @@ namespace ExtendedSystemObjects
         {
             foreach (var kvp in _vault)
             {
-                if (kvp.Value.HasExpireTime && kvp.Value.HasExpired)
+                if (!kvp.Value.HasExpireTime || !kvp.Value.HasExpired)
                 {
-                    if (!_vault.TryRemove(kvp.Key, out var item))
-                    {
-                        continue;
-                    }
-
-                    DecrementMemory(item);
+                    continue;
                 }
+
+                if (!_vault.TryRemove(kvp.Key, out var item))
+                {
+                    continue;
+                }
+
+                DecrementMemory(item);
             }
         }
 

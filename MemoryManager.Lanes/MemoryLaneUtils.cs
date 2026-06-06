@@ -6,7 +6,6 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-#nullable enable
 using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Runtime.CompilerServices;
@@ -28,22 +27,15 @@ namespace MemoryManager.Lanes
         {
             if (entryCount == 0) return capacity;
 
-            var sorted = entries.Take(entryCount).ToArray();
-            Array.Sort(sorted, (a, b) => a.Offset.CompareTo(b.Offset));
-
-            var free = sorted[0].Offset;
-
-            for (var i = 1; i < entryCount; i++)
+            var usedSpace = 0;
+            for (var i = 0; i < entryCount; i++)
             {
-                var endPrev = sorted[i - 1].Offset + sorted[i - 1].Size;
-                var gap = sorted[i].Offset - endPrev;
-                if (gap > 0) free += gap;
+                // If your array contains freed/invalid entries that shouldn't be counted, 
+                // add a check here (e.g., if (!entries[i].IsStub))
+                usedSpace += entries[i].Size;
             }
 
-            var lastEnd = sorted[entryCount - 1].Offset + sorted[entryCount - 1].Size;
-            free += capacity - lastEnd;
-
-            return free;
+            return capacity - usedSpace;
         }
 
         /// <summary>
@@ -53,24 +45,29 @@ namespace MemoryManager.Lanes
         /// <param name="entryCount">The entry count.</param>
         /// <returns>Estimated fragmentation.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int EstimateFragmentation(IEnumerable<AllocationEntry> entries, int entryCount)
+        internal static int EstimateFragmentation(AllocationEntry[] entries, int entryCount)
         {
             if (entryCount == 0) return 0;
 
-            var sorted = entries.Take(entryCount).ToArray();
-            Array.Sort(sorted, (a, b) => a.Offset.CompareTo(b.Offset));
+            var lastEnd = 0;
+            var usedSpace = 0;
 
-            // omit tail space from fragmentation metric
-            var gapSum = sorted[0].Offset;
-
-            for (var i = 1; i < entryCount; i++)
+            for (var i = 0; i < entryCount; i++)
             {
-                var endPrev = sorted[i - 1].Offset + sorted[i - 1].Size;
-                var gap = sorted[i].Offset - endPrev;
-                if (gap > 0) gapSum += gap;
+                // Access by ref to avoid copying the struct
+                ref var entry = ref entries[i];
+
+                usedSpace += entry.Size;
+
+                var end = entry.Offset + entry.Size;
+                if (end > lastEnd)
+                {
+                    lastEnd = end;
+                }
             }
 
-            return (int)((double)gapSum / sorted[entryCount - 1].Offset * 100); // Only count "gaps between entries"
+            var gapSum = lastEnd - usedSpace;
+            return lastEnd == 0 ? 0 : (int)((double)gapSum / lastEnd * 100);
         }
 
         /// <summary>
@@ -167,7 +164,6 @@ namespace MemoryManager.Lanes
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
         /// <returns>Generic debug Dump</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static string DebugDump(AllocationEntry[] entries, int entryCount)
         {
             var sb = new StringBuilder(entryCount * 48);
@@ -190,7 +186,6 @@ namespace MemoryManager.Lanes
         /// <param name="entryCount">The entry count.</param>
         /// <param name="capacity">The capacity.</param>
         /// <returns>Visual map of fragmentation.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static string DebugVisualMap(IEnumerable<AllocationEntry> entries, int entryCount, int capacity)
         {
             if (entryCount == 0)
@@ -289,7 +284,6 @@ namespace MemoryManager.Lanes
         /// <param name="entryCount">The entry count.</param>
         /// <param name="debugNames">Optional dictionary mapping HandleId to DebugName.</param>
         /// <returns>Display all information about stubs and forwarding.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static string DebugRedirections(AllocationEntry[] entries, int entryCount,
             IReadOnlyDictionary<int, string>? debugNames = null)
         {
