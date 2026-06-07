@@ -66,7 +66,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// The versions
         /// </summary>
-        private readonly byte[] _versions;
+        private readonly uint[] _versions;
 
         /// <summary>
         /// The free block count
@@ -88,7 +88,7 @@ namespace MemoryManager.Lanes
             // PRE-ALLOCATE everything based on maxEntries
             _entries = new AllocationEntry[maxEntries];
             _freeBlocks = new FreeBlock[maxEntries]; // Free blocks can theoretically equal maxEntries
-            _versions = new byte[maxEntries];
+            _versions = new uint[maxEntries];
 
             // INITIALIZATION: The entire lane starts as one giant free block
             _freeBlocks[0] = new FreeBlock { Offset = 0, Size = Capacity };
@@ -106,10 +106,6 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public int EntryCount { get; private set; }
 
-        /// <summary>
-        ///     Only contains handles that were replaced with stubs
-        /// </summary>
-        private Dictionary<int, MemoryHandle> Redirects { get; } = new();
 
         /// <inheritdoc />
         public OneWayLane? OneWayLane { get; set; }
@@ -130,7 +126,6 @@ namespace MemoryManager.Lanes
         {
             Marshal.FreeHGlobal(Buffer);
             _handleIndex.Clear();
-            Redirects.Clear();
             _entries = null;
         }
 

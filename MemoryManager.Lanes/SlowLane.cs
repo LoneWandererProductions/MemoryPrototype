@@ -9,7 +9,6 @@
 
 // ReSharper disable EventNeverSubscribedTo.Global
 
-#nullable enable
 using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Diagnostics;

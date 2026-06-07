@@ -24,7 +24,7 @@ namespace MemoryManager.Core
         /// <summary>
         /// The version
         /// </summary>
-        public readonly byte Version;
+        public readonly uint Version;
 
         /// <summary>
         ///     The lane
@@ -37,7 +37,7 @@ namespace MemoryManager.Core
         /// <param name="id">The allocation identifier.</param>
         /// <param name="version">The version.</param>
         /// <param name="lane">The memory lane managing the allocation.</param>
-        public MemoryHandle(int id, byte version, IMemoryLane? lane)
+        public MemoryHandle(int id, uint version, IMemoryLane? lane)
         {
             Id = id;
             Version = version;

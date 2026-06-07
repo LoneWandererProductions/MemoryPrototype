@@ -57,7 +57,7 @@ namespace MemoryManager.Core
         /// <value>
         /// The version.
         /// </value>
-        public byte Version { get; init; }
+        public uint Version { get; init; }
 
         /// <summary>
         /// The redirect version
@@ -65,7 +65,7 @@ namespace MemoryManager.Core
         /// <value>
         /// The redirect version.
         /// </value>
-        public byte RedirectVersion { get; set; }
+        public uint RedirectVersion { get; set; }
 
         /// <summary>
         ///     Priority level of this allocation which can influence eviction or memory management policies.
