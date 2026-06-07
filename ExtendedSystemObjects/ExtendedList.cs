@@ -80,10 +80,10 @@ namespace ExtendedSystemObjects
         /// <param name="item">The item.</param>
         public static void RemoveFast<TValue>(this List<TValue> list, TValue item)
         {
-            var index = list.IndexOf(item);
+            int index = list.IndexOf(item);
             if (index < 0) return; // Item not found
 
-            var lastIndex = list.Count - 1;
+            int lastIndex = list.Count - 1;
 
             // Move the last element into the slot of the element to remove
             list[index] = list[lastIndex];
@@ -103,7 +103,7 @@ namespace ExtendedSystemObjects
         {
             if (index < 0 || index >= list.Count) return;
 
-            var lastIndex = list.Count - 1;
+            int lastIndex = list.Count - 1;
 
             // Move the last element into the slot of the element to remove
             list[index] = list[lastIndex];

@@ -274,7 +274,7 @@ namespace ExtendedSystemObjects
             EnsureNotDisposed();
             if (minCapacity <= Capacity) return;
 
-            var newCapacity = Capacity == 0 ? 4 : Capacity * 2;
+            int newCapacity = Capacity == 0 ? 4 : Capacity * 2;
             if (newCapacity < minCapacity) newCapacity = minCapacity;
 
             Resize(newCapacity);

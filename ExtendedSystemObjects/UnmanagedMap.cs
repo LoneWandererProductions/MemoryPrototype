@@ -103,6 +103,11 @@ namespace ExtendedSystemObjects
         public int Capacity { get; private set; }
 
         /// <summary>
+        /// The disposed
+        /// </summary>
+        private bool _disposed;
+
+        /// <summary>
         /// Gets the keys.
         /// </summary>
         /// <value>
@@ -132,7 +137,10 @@ namespace ExtendedSystemObjects
         /// </value>
         public IEnumerable<TValue> Values
         {
-            get { return GetValuesSnapshot(); }
+            get
+            {
+                return GetValuesSnapshot();
+            }
         }
 
         /// <summary>
@@ -160,8 +168,10 @@ namespace ExtendedSystemObjects
         /// </summary>
         public void Dispose()
         {
+            if (_disposed) return;
             Free();
             GC.SuppressFinalize(this);
+            _disposed = true;
         }
 
         /// <summary>
@@ -195,7 +205,7 @@ namespace ExtendedSystemObjects
 
             for (var i = 0; i < Capacity; i++)
             {
-                // Triangular probing: offset = i*(i+1)/2
+                // linear probing
                 var idx = (hashIndex + i) & mask;
 
                 ref var slot = ref _entries[idx];
@@ -317,7 +327,7 @@ namespace ExtendedSystemObjects
 
             for (var i = 0; i < Capacity; i++)
             {
-                // Triangular probing: offset = i*(i+1)/2
+                // linear probing
                 var idx = (startIndex + i) & mask;
 
                 ref var slot = ref _entries[idx];
@@ -416,7 +426,7 @@ namespace ExtendedSystemObjects
 
             for (var i = 0; i < Capacity; i++)
             {
-                // Triangular probing: offset = i*(i+1)/2
+                // linear probing
                 var idx = (hashIndex + i) & mask;
 
                 if (_entries[idx].used == SharedResources.Empty)
@@ -429,6 +439,8 @@ namespace ExtendedSystemObjects
                     return;
                 }
             }
+
+            throw new InvalidOperationException("InsertRaw failed during rehash.");
         }
 
         /// <summary>
@@ -486,7 +498,7 @@ namespace ExtendedSystemObjects
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GenerateHash(int key, int mask)
         {
-            var h = (uint)key;
+            uint h = (uint)key;
             h ^= h >> 16;
             h *= 0x45d9f3b;
             h ^= h >> 16;

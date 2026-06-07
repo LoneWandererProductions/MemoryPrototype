@@ -26,9 +26,7 @@ namespace ExtendedSystemObjects
         ///      Initializes a new instance of the <see cref="VaultItem{TU}" /> class.
         ///      Needed for Json serialization.
         /// </summary>
-        public VaultItem()
-        {
-        }
+        public VaultItem() { }
 
         /// <summary>
         ///      Initializes a new instance of the <see cref="VaultItem{U}" /> class.
@@ -157,14 +155,8 @@ namespace ExtendedSystemObjects
             // 3. Handle Value Types (Existing)
             if (typeof(T).IsValueType)
             {
-                try
-                {
-                    return Marshal.SizeOf(typeof(T));
-                }
-                catch
-                {
-                    return IntPtr.Size;
-                }
+                try { return Marshal.SizeOf(typeof(T)); }
+                catch { return IntPtr.Size; }
             }
 
             // 4. Handle Reference Types (Existing)

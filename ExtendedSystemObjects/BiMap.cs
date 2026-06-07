@@ -80,9 +80,7 @@ namespace ExtendedSystemObjects
         /// <summary>
         /// Initializes a new instance of the <see cref="T:ExtendedSystemObjects.BiMap`1" /> class.
         /// </summary>
-        public BiMap() : this(0)
-        {
-        }
+        public BiMap() : this(0) { }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BiMap{T}"/> class.
@@ -163,7 +161,7 @@ namespace ExtendedSystemObjects
         {
             lock (_lock)
             {
-                if (!_forward.TryGetValue(left, out var right)) return false;
+                if (!_forward.TryGetValue(left, out T? right)) return false;
 
                 _forward.Remove(left);
                 _reverse.Remove(right);
