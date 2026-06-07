@@ -26,16 +26,6 @@ namespace MemoryManager.Core
         public int Size { get; set; }
 
         /// <summary>
-        ///     A unique identifier handle for this allocation.
-        /// </summary>
-        public int HandleId { get; init; }
-
-        /// <summary>
-        ///     Indicates whether this allocation entry is a stub placeholder (e.g., for deferred allocation or redirection).
-        /// </summary>
-        public bool IsStub { get; set; }
-
-        /// <summary>
         ///     Optional debug name or label for easier identification of this allocation during debugging.
         /// </summary>
         public int RedirectToId;
@@ -68,6 +58,11 @@ namespace MemoryManager.Core
         public uint RedirectVersion { get; set; }
 
         /// <summary>
+        ///     A unique identifier handle for this allocation.
+        /// </summary>
+        public int HandleId { get; init; }
+
+        /// <summary>
         ///     Priority level of this allocation which can influence eviction or memory management policies.
         /// </summary>
         public AllocationPriority Priority { get; init; }
@@ -76,5 +71,10 @@ namespace MemoryManager.Core
         ///     Additional hints or flags for this allocation that can affect behavior in the memory arena.
         /// </summary>
         public AllocationHints Hints { get; init; }
+
+        /// <summary>
+        ///     Indicates whether this allocation entry is a stub placeholder (e.g., for deferred allocation or redirection).
+        /// </summary>
+        public bool IsStub { get; set; }
     }
 }

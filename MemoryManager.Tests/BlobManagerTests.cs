@@ -46,7 +46,7 @@ namespace MemoryManager.Tests
                 Trace.WriteLine("--- BEFORE COMPACTION ---");
                 Trace.WriteLine(blobManager.DebugVisualMap());
 
-                // 3. Compact (The Snowplow)
+                // 3. Compact
                 blobManager.Compact();
 
                 var fragAfter = blobManager.EstimateFragmentation();

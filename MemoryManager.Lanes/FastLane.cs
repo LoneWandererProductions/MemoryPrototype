@@ -127,6 +127,7 @@ namespace MemoryManager.Lanes
             Marshal.FreeHGlobal(Buffer);
             _handleIndex.Clear();
             _entries = null;
+            GC.SuppressFinalize(this);
         }
 
         /// <inheritdoc />
