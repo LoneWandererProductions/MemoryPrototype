@@ -66,7 +66,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// The versions
         /// </summary>
-        private readonly uint[] _versions;
+        private readonly UnmanagedMap<uint> _versions;
 
         /// <summary>
         /// The free block count
@@ -88,7 +88,7 @@ namespace MemoryManager.Lanes
             // PRE-ALLOCATE everything based on maxEntries
             _entries = new AllocationEntry[maxEntries];
             _freeBlocks = new FreeBlock[maxEntries]; // Free blocks can theoretically equal maxEntries
-            _versions = new uint[maxEntries];
+            _versions = new UnmanagedMap<uint>(maxEntries);
 
             // INITIALIZATION: The entire lane starts as one giant free block
             _freeBlocks[0] = new FreeBlock { Offset = 0, Size = Capacity };
@@ -174,10 +174,12 @@ namespace MemoryManager.Lanes
             //So we reuse freed handles here
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
 
-            // --- ZOMBIE KILLER: Increment the version for this ID slot ---
+            // Increment the version for this ID slot ---
             // This ensures that any old handles still pointing to this ID will be rejected.
-            _versions[id % _versions.Length]++;
-            var currentVersion = _versions[id % _versions.Length];
+            _versions.TryGetValue(id, out var version);
+            version++;
+
+            _versions[id] = version;
 
 #if DEBUG
             if (!string.IsNullOrEmpty(debugName))
@@ -194,7 +196,7 @@ namespace MemoryManager.Lanes
                 Priority = priority,
                 Hints = hints,
                 RedirectToId = 0,
-                Version = currentVersion,
+                Version = version,
                 AllocationFrame = currentFrame,
                 LastAccessFrame = currentFrame
             };
@@ -202,7 +204,7 @@ namespace MemoryManager.Lanes
             _handleIndex[id] = EntryCount;
             EntryCount++;
 
-            return new MemoryHandle(id, currentVersion, this);
+            return new MemoryHandle(id, version, this);
         }
 
         /// <inheritdoc />

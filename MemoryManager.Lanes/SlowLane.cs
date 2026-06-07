@@ -86,7 +86,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// The versions
         /// </summary>
-        private readonly byte[] _versions;
+        private readonly UnmanagedMap<uint> _versions;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SlowLane" /> class.
@@ -103,7 +103,7 @@ namespace MemoryManager.Lanes
 
             Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
-            _versions = new byte[maxEntries];
+            _versions = new UnmanagedMap<uint>(maxEntries);
 
             // Use the fraction provided by the config/constructor
             var blobCapacity = (int)(capacity * blobCapacityFraction);
@@ -193,9 +193,11 @@ namespace MemoryManager.Lanes
                 _debugNames[id] = debugName;
             }
 #endif
-            var versionIndex = Math.Abs(id) % _versions.Length;
-            _versions[versionIndex]++;
-            var currentVersion = _versions[versionIndex];
+            var currentVersion = _versions.TryGetValue(id, out var version)
+                ? (ushort)(version + 1)
+                : (ushort)1;
+
+            _versions[id] = currentVersion;
 
             _entries[slotIndex] = new AllocationEntry
             {
