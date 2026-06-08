@@ -177,24 +177,26 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null) throw new InvalidOperationException("FastLane: Memory not reserved");
 
-            var offset = MemoryLaneUtils.FindFreeSpot(size, ref _freeBlocks, ref _freeBlockCount);
+            // Calculate total layout footprint including canary guards
+            int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+            var physicalOffset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount);
 
-            if (offset == -1)
+            if (physicalOffset == -1)
                 throw new OutOfMemoryException("FastLane: Cannot allocate - No contiguous block large enough.");
+
+            // Position the tracked user data offset cleanly past the pre-canary boundary
+            var userOffset = MemoryCanary.GetUserOffset(physicalOffset);
+            MemoryCanary.WriteGuardBands(Buffer, userOffset, size);
 
             EnsureEntryCapacity(EntryCount);
 
-            //So we reuse freed handles here
-            // So we reuse freed handles here
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
 
-            // Ensure our flat array is large enough for this ID
             if (id >= _versionsCapacity)
             {
                 GrowVersions(id + 1);
             }
 
-            // True O(1) Version Bump
             uint version = ++_versions[id];
 
 #if DEBUG
@@ -206,7 +208,7 @@ namespace MemoryManager.Lanes
 
             _entries[EntryCount] = new AllocationEntry
             {
-                Offset = offset,
+                Offset = userOffset, // Target user data directly for O(1) pointer resolution
                 Size = size,
                 HandleId = id,
                 Priority = priority,
@@ -275,7 +277,6 @@ namespace MemoryManager.Lanes
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Free(MemoryHandle handle)
         {
-            // 1. Remove from index first
             if (!_handleIndex.TryRemove(handle.Id, out var index))
                 throw new InvalidOperationException($"FastLane: Invalid handle {handle.Id}");
 
@@ -283,9 +284,15 @@ namespace MemoryManager.Lanes
             _debugNames.Remove(handle.Id);
 #endif
 
-            // 2. Handle SlowLane/Redirects (This is your cold path)
             var entry = _entries[index];
-            MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
+
+            // Assert safety markers are intact before deallocation operations
+            MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, handle.Id);
+
+            // Map user boundaries back to complete layout blocks for the free-list
+            int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+            int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+            MemoryLaneUtils.ReturnFreeSpace(physicalOffset, physicalSize, ref _freeBlocks, ref _freeBlockCount);
 
             if (entry.IsStub && entry.RedirectToId != 0)
             {
@@ -293,21 +300,14 @@ namespace MemoryManager.Lanes
                 _slowLane.Free(slowHandle);
             }
 
-            // 3. Swap-with-tail removal
-            var lastIdx = --EntryCount; // Decrement first to get the last valid index
+            var lastIdx = --EntryCount;
             if (index != lastIdx)
             {
-                // Move the last entry into the hole
                 var movedEntry = _entries[lastIdx];
                 _entries[index] = movedEntry;
-
-                // Update the map to point to the new location
-                // OPTIMIZATION: Use a direct 'Set' or 'Update' if your map allows
-                // to avoid tombstone buildup during updates.
                 _handleIndex[movedEntry.HandleId] = index;
             }
 
-            // 4. Return ID to pool
             _freeIds.Push(handle.Id);
         }
 
@@ -346,7 +346,6 @@ namespace MemoryManager.Lanes
             var newBuffer = Marshal.AllocHGlobal(Capacity);
             var currentOffset = 0;
 
-            // Now take your snapshot for sorting, but ONLY for survivors (non-stubs)
             var survivors = _entries.Take(EntryCount)
                 .Where(e => !e.IsStub)
                 .OrderBy(e => e.Offset)
@@ -354,16 +353,20 @@ namespace MemoryManager.Lanes
 
             foreach (var survivor in survivors)
             {
-                // 1. Move the bytes
-                void* source = (byte*)Buffer + survivor.Offset;
+                // Extract base tracking coordinates for the entire block footprint
+                int srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(survivor.Offset);
+                int physicalSize = MemoryCanary.GetPhysicalSize(survivor.Size);
+
+                // 1. Move the complete physical block (Canary + User Data + Canary)
+                void* source = (byte*)Buffer + srcPhysicalOffset;
                 void* target = (byte*)newBuffer + currentOffset;
-                System.Buffer.MemoryCopy(source, target, Capacity - currentOffset, survivor.Size);
+                System.Buffer.MemoryCopy(source, target, Capacity - currentOffset, physicalSize);
 
-                // 2. Update the OFFSET ONLY in the real metadata
+                // 2. Map user offset coordinates relative to the new layout alignment
                 var index = _handleIndex[survivor.HandleId];
-                _entries[index].Offset = currentOffset;
+                _entries[index].Offset = MemoryCanary.GetUserOffset(currentOffset);
 
-                currentOffset += survivor.Size;
+                currentOffset += physicalSize;
             }
 
             // --- PASS 3: CLEANUP ---
@@ -463,15 +466,17 @@ namespace MemoryManager.Lanes
             if (!_handleIndex.TryGetValue(fastHandle.Id, out var index))
                 throw new InvalidOperationException("FastLane: Invalid handle");
 
-            // Grab the existing entry
             var entry = _entries[index];
 
             entry.IsStub = true;
             entry.RedirectToId = slowHandle.Id;
             entry.RedirectVersion = slowHandle.Version;
 
-            // Cleanup FastLane stats
-            MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
+            // Map boundaries to clean up the underlying block pool space cleanly
+            int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+            int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+            MemoryLaneUtils.ReturnFreeSpace(physicalOffset, physicalSize, ref _freeBlocks, ref _freeBlockCount);
+
             entry.Offset = 0;
             entry.Size = 0;
 

@@ -56,10 +56,6 @@ To move this system out of the prototyping phase and into a hardened, production
   ```csharp
   alignedOffset = (offset + (alignment - 1)) & ~(alignment - 1);
 
-### 4. Zero Defensive Buffer-Overrun Safety Guardrails
-* **Current State:** Resolving a handle exposes a raw native `nint` address space. If code reads or writes outside the structural bounds of that specific entry allocation, it will silently overwrite adjacent allocations or metadata arrays without an error, resulting in impossible-to-trace heap corruption.
-* **Production Fix:** In `#if DEBUG` configurations, implement **Canary Guard Bands**. Inject a known sequence of invariant diagnostic bytes (e.g., `0xDEADBEEF`) directly before and after every physical allocation chunk. During `Free()` or compaction loops, validate these bands to instantly catch memory overruns.
-
 ---
 
 ## 🧩 Config Presets & Advanced Usage

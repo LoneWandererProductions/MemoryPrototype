@@ -1,6 +1,6 @@
 ﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
- * PROJECT:     MemoryManager.Lanes
+ * PROJECT:     MemoryManager.Core
  * FILE:        MemoryCanary.cs
  * PURPOSE:     Centralized unmanaged guard band validation with zero RELEASE overhead.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
@@ -8,14 +8,14 @@
 
 using System.Runtime.CompilerServices;
 
-namespace MemoryManager.Lanes
+namespace MemoryManager.Core
 {
     /// <summary>
     /// Canary class provides a simple mechanism for detecting buffer overruns and underruns in debug builds by placing known "canary" values before and after user allocations. 
     /// In release builds, the canary logic is completely stripped out to ensure zero overhead, 
     /// making it an effective tool for catching memory corruption issues during development without impacting performance in production.
     /// </summary>
-    internal static class MemoryCanary
+    public static class MemoryCanary
     {
         /// <summary>
         /// The size

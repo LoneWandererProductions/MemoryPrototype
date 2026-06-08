@@ -127,18 +127,29 @@ namespace MemoryManager.Lanes
         }
 
         /// <inheritdoc />
-        public bool CanAllocate(int size) => _nextFreeOffset + size <= Capacity;
+        public bool CanAllocate(int size)
+        {
+            // Ensure our validation assesses the complete physical block footprint requirements
+            int physicalSize = MemoryCanary.GetPhysicalSize(size);
+            return _nextFreeOffset + physicalSize <= Capacity;
+        }
 
         /// <inheritdoc />
         public unsafe MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
             AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
         {
             if (_entries == null) throw new InvalidOperationException("LinearLane: Memory not reserved");
-            if (!CanAllocate(size))
+
+            int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+            if (_nextFreeOffset + physicalSizeNeeded > Capacity)
                 throw new OutOfMemoryException("LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
 
-            var offset = _nextFreeOffset;
-            _nextFreeOffset += size;
+            var physicalOffset = _nextFreeOffset;
+            _nextFreeOffset += physicalSizeNeeded; // BUMP!
+
+            // Shift user coordinates past the pre-canary space and stamp the bounds
+            var userOffset = MemoryCanary.GetUserOffset(physicalOffset);
+            MemoryCanary.WriteGuardBands(Buffer, userOffset, size);
 
             EnsureEntryCapacity(EntryCount);
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
@@ -146,7 +157,6 @@ namespace MemoryManager.Lanes
 #if DEBUG
             if (!string.IsNullOrEmpty(debugName)) _debugNames[id] = debugName;
 #endif
-            // Dynamically scale version buffer if recycled handle IDs push past high-water thresholds
             if (id >= _versionsCapacity)
             {
                 GrowVersions(id + 1);
@@ -156,7 +166,7 @@ namespace MemoryManager.Lanes
 
             _entries[EntryCount] = new AllocationEntry
             {
-                Offset = offset,
+                Offset = userOffset, // Target data directly for fast O(1) resolution paths
                 Size = size,
                 HandleId = id,
                 Version = currentVersion,
@@ -206,6 +216,14 @@ namespace MemoryManager.Lanes
 #endif
 
             var entry = _entries[index];
+
+            // FIX: Bypasses canary verification if the entry is an eviction stub, 
+            // preventing false-positive corruption exceptions at offset 0
+            if (!entry.IsStub)
+            {
+                MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, handle.Id);
+            }
+
             if (entry.IsStub && entry.RedirectToId != 0)
             {
                 var slowHandle = new MemoryHandle(entry.RedirectToId, entry.RedirectVersion, _slowLane);
@@ -256,12 +274,17 @@ namespace MemoryManager.Lanes
                 var entry = sortedEntries[i];
                 if (!entry.IsStub)
                 {
-                    void* source = (byte*)Buffer + entry.Offset;
-                    void* target = (byte*)newBuffer + offset;
-                    System.Buffer.MemoryCopy(source, target, Capacity - offset, entry.Size);
+                    // Calculate the raw physical base position and block sizes
+                    int srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                    int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
 
-                    entry.Offset = offset;
-                    offset += entry.Size;
+                    void* source = (byte*)Buffer + srcPhysicalOffset;
+                    void* target = (byte*)newBuffer + offset;
+                    System.Buffer.MemoryCopy(source, target, Capacity - offset, physicalSize);
+
+                    // Update tracking to point directly to user data space inside the new buffer
+                    entry.Offset = MemoryCanary.GetUserOffset(offset);
+                    offset += physicalSize;
                 }
 
                 // Sync the new offset back to the main metadata
@@ -271,7 +294,7 @@ namespace MemoryManager.Lanes
 
             Marshal.FreeHGlobal(Buffer);
             Buffer = newBuffer;
-            _nextFreeOffset = offset; // Reset bump pointer to the end of survivors
+            _nextFreeOffset = offset; // Reset the bump pointer to the exact end of surviving physical blocks
         }
 
         /// <inheritdoc />
@@ -332,7 +355,10 @@ namespace MemoryManager.Lanes
             var usedBytes = 0;
             for (var i = 0; i < EntryCount; i++)
                 if (!_entries![i].IsStub)
-                    usedBytes += _entries[i].Size;
+                {
+                    // Account for full canary boundaries in allocated density assessments
+                    usedBytes += MemoryCanary.GetPhysicalSize(_entries[i].Size);
+                }
 
             if (allocatedBytes == 0) return 0;
 

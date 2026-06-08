@@ -286,6 +286,76 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
+        /// Memories the arena canary catches buffer overrun throws access violation exception.
+        /// </summary>
+        [TestMethod]
+        [TestCategory("Safety")]
+        public unsafe void MemoryArena_CanaryCatchesBufferOverrun_ThrowsAccessViolationException()
+        {
+#if DEBUG
+            // Arrange
+            var config = new MemoryManagerConfig { FastLaneSize = 1024 * 1024 };
+            var arena = new MemoryArena(config);
+
+            // Allocate a small block of 16 bytes
+            var handle = arena.Allocate(16);
+            var entry = arena.GetEntry(handle);
+
+            // Resolve the raw byte pointer to our user data space
+            byte* userDataPtr = (byte*)arena.Resolve(handle);
+
+            // 1. INTENTIONAL CORRUPTION: 
+            // The post-canary sits exactly at (userDataPtr + entry.Size)
+            uint* postCanaryPtr = (uint*)(userDataPtr + entry.Size);
+
+            // Overwrite the original 0xDEADBEEF signature with poison data
+            *postCanaryPtr = 0x00000000;
+
+            // Act & Assert
+            Assert.ThrowsException<AccessViolationException>(() =>
+            {
+                // Freeing the handle triggers the MemoryCanary.Validate phase!
+                arena.Free(handle);
+            }, "The arena compactor/free engine must catch a post-canary breach and halt.");
+#else
+    // In Release mode, pass automatically since canaries aren't compiled
+    Assert.Inconclusive("Canary tests are ignored in Release builds.");
+#endif
+        }
+
+        /// <summary>
+        /// Memories the arena canary catches buffer underrun throws access violation exception.
+        /// </summary>
+        [TestMethod]
+        [TestCategory("Safety")]
+        public unsafe void MemoryArena_CanaryCatchesBufferUnderrun_ThrowsAccessViolationException()
+        {
+#if DEBUG
+            // Arrange
+            var config = new MemoryManagerConfig { FastLaneSize = 1024 * 1024 };
+            var arena = new MemoryArena(config);
+
+            var handle = arena.Allocate(16);
+            byte* userDataPtr = (byte*)arena.Resolve(handle);
+
+            // 2. INTENTIONAL CORRUPTION:
+            // The pre-canary sits exactly 4 bytes behind the user data pointer offset
+            uint* preCanaryPtr = (uint*)(userDataPtr - MemoryCanary.Size);
+
+            // Poison the pre-canary layout signature
+            *preCanaryPtr = 0xBADF00D;
+
+            // Act & Assert
+            Assert.ThrowsException<AccessViolationException>(() =>
+            {
+                arena.Free(handle);
+            }, "The arena compactor/free engine must catch a pre-canary breach and halt.");
+#else
+    Assert.Inconclusive("Canary tests are ignored in Release builds.");
+#endif
+        }
+
+        /// <summary>
         /// Test Struct.
         /// </summary>
         private struct MyStruct

@@ -108,7 +108,7 @@ namespace MemoryManager.Tests
                 handles[i] = _fastLane.Allocate(128);
             }
 
-            // Free 2nd and 4th (Creates holes at Offset 128 and Offset 384)
+            // Free 2nd and 4th (Creates holes)
             _fastLane.Free(handles[1]);
             _fastLane.Free(handles[3]);
 
@@ -123,19 +123,28 @@ namespace MemoryManager.Tests
             Assert.IsTrue(_fastLane.HasHandle(handles[4]));
             Assert.IsTrue(_fastLane.HasHandle(handles[5]));
 
-            // Assert that Free Space did not change (compaction doesn't free memory, it just moves it)
+            // Assert that Free Space did not change
             Assert.AreEqual(expectedFreeSpaceBefore, _fastLane.FreeSpace(),
                 "Free space should remain identical before and after compaction.");
 
-            // THE CRITICAL CHECK: Verify they are perfectly packed!
-            // Handle 0 is at offset 0
-            Assert.AreEqual(0, _fastLane.GetEntry(handles[0]).Offset);
-            // Handle 2 should have slid down into the first hole (Offset 128)
-            Assert.AreEqual(128, _fastLane.GetEntry(handles[2]).Offset);
-            // Handle 4 should have slid down to Offset 256
-            Assert.AreEqual(256, _fastLane.GetEntry(handles[4]).Offset);
-            // Handle 5 should have slid down to Offset 384
-            Assert.AreEqual(384, _fastLane.GetEntry(handles[5]).Offset);
+            // --- FIX: Dynamic, Canary-Aware Offset Assertions ---
+            // Read the actual padding from the first element (4 in DEBUG, 0 in RELEASE)
+            int canaryPadding = _fastLane.GetEntry(handles[0]).Offset;
+
+            // The physical step size of each block is the user size (128) + 2x canary padding
+            int stepSize = 128 + (canaryPadding * 2);
+
+            // Handle 0 is at the baseline padding offset
+            Assert.AreEqual(canaryPadding, _fastLane.GetEntry(handles[0]).Offset);
+
+            // Handle 2 should have slid down tightly next to Handle 0
+            Assert.AreEqual(canaryPadding + stepSize, _fastLane.GetEntry(handles[2]).Offset);
+
+            // Handle 4 should have slid down tightly next to Handle 2
+            Assert.AreEqual(canaryPadding + (stepSize * 2), _fastLane.GetEntry(handles[4]).Offset);
+
+            // Handle 5 should have slid down tightly next to Handle 4
+            Assert.AreEqual(canaryPadding + (stepSize * 3), _fastLane.GetEntry(handles[5]).Offset);
 
             // Check that our FreeList is correctly reset to 1 giant block
             Assert.AreEqual(0, _fastLane.EstimateFragmentation(),

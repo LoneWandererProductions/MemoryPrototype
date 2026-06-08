@@ -19,6 +19,9 @@ namespace MemoryManager.Tests
         /// <summary>
         /// BLOBs the manager allocate free and compact works correctly.
         /// </summary>
+        /// <summary>
+        /// BLOBs the manager allocate free and compact works correctly.
+        /// </summary>
         [TestMethod]
         [TestCategory("BlobManager")]
         public void BlobManager_AllocateFreeAndCompact_WorksCorrectly()
@@ -35,9 +38,14 @@ namespace MemoryManager.Tests
                 var h2 = blobManager.Allocate(100);
                 var h3 = blobManager.Allocate(100);
 
-                Assert.AreEqual(1024 - 300, blobManager.FreeSpace(), "Should have exactly 724 bytes free.");
+                // Dynamically detect canary size from the first block's user offset shift
+                int canarySize = blobManager.GetEntry(h1).Offset; // 4 bytes in DEBUG, 0 bytes in RELEASE
+                int totalCanaryOverhead = 3 * (canarySize * 2);   // 3 blocks * 2 canaries each
+                int expectedFreeSpace = capacity - (300 + totalCanaryOverhead);
 
-                // 2. Free the middle block (Creates a 100-byte hole/fragmentation)
+                Assert.AreEqual(expectedFreeSpace, blobManager.FreeSpace(), $"Should have exactly {expectedFreeSpace} bytes free.");
+
+                // 2. Free the middle block (Creates a hole/fragmentation)
                 blobManager.Free(h2);
 
                 var fragBefore = blobManager.EstimateFragmentation();

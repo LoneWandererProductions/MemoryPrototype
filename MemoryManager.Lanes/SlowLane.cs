@@ -3,12 +3,11 @@
  * PROJECT:     MemoryArenaPrototype.Lane
  * FILE:        SlowLane.cs
  * PURPOSE:     Memory store for long lived data and stuff we could not hold into the fast lane.
- *              Ids for Allocations is always negative here.
+ * Ids for Allocations is always negative here.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 // ReSharper disable EventNeverSubscribedTo.Global
-#nullable enable
 
 using ExtendedSystemObjects;
 using MemoryManager.Core;
@@ -191,10 +190,16 @@ namespace MemoryManager.Lanes
                 return _blobManager.Allocate(size, priority, hints, debugName, currentFrame);
             }
 
-            var offset = MemoryLaneUtils.FindFreeSpot(size, ref _freeBlocks, ref _freeBlockCount);
+            // Calculate tracking footprint dimension rules including canary bytes
+            int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount);
 
             if (offset == -1)
                 throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough.");
+
+            // Shift user coordinates forward safely past the pre-canary buffer space
+            var userOffset = MemoryCanary.GetUserOffset(offset);
+            MemoryCanary.WriteGuardBands(Buffer, userOffset, size);
 
             var slotIndex = _freeSlots.Length > 0 ? _freeSlots.Pop() : EntryCount++;
             EnsureEntryCapacity(slotIndex);
@@ -220,7 +225,7 @@ namespace MemoryManager.Lanes
 
             _entries[slotIndex] = new AllocationEntry
             {
-                Offset = offset,
+                Offset = userOffset, // Resolve() will instantly target this for fast lookups
                 Size = size,
                 HandleId = id,
                 Version = currentVersion,
@@ -246,13 +251,16 @@ namespace MemoryManager.Lanes
                 return _blobManager.CanAllocate(size);
             }
 
+            // Ensure our metrics test the complete physical footprint needed in memory
+            int physicalSize = MemoryCanary.GetPhysicalSize(size);
+
             // --- STANDARD BLOCK ALLOCATION LOGIC ---
-            if (GetUsed() + size > Capacity * (1.0 - SafetyMargin))
+            if (GetUsed() + physicalSize > Capacity * (1.0 - SafetyMargin))
                 return false;
 
             for (var i = 0; i < _freeBlockCount; i++)
             {
-                if (_freeBlocks[i].Size >= size)
+                if (_freeBlocks[i].Size >= physicalSize)
                     return true;
             }
 
@@ -313,8 +321,13 @@ namespace MemoryManager.Lanes
 
             var entry = _entries[index];
 
-            // Reclaim the physical block space inside the main arena tracker!
-            MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
+            // Assert boundary canary guard patterns are intact before deallocation
+            MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, handle.Id);
+
+            // Reconstruct absolute layout footprint blocks to return back to the list
+            int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+            int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+            MemoryLaneUtils.ReturnFreeSpace(physicalOffset, physicalSize, ref _freeBlocks, ref _freeBlockCount);
 
             _entries[index] = default;
             _freeSlots.Push(index);
@@ -357,8 +370,12 @@ namespace MemoryManager.Lanes
 
                 var entry = _entries[index];
 
-                // Return the space to the physical free list for EVERY element in the batch
-                MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
+                // Verify buffer bounds are clear on every block inside the batch operation
+                MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, id);
+
+                int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+                MemoryLaneUtils.ReturnFreeSpace(physicalOffset, physicalSize, ref _freeBlocks, ref _freeBlockCount);
 
                 // Clear entry data
                 _entries[index] = default;
@@ -402,14 +419,20 @@ namespace MemoryManager.Lanes
             {
                 var currentEntry = entry; // Make a local copy to modify
 
-                System.Buffer.MemoryCopy(
-                    (void*)(Buffer + currentEntry.Offset),
-                    (void*)(newBuffer + offset),
-                    currentEntry.Size,
-                    currentEntry.Size);
+                // Extract base track coordinates for the total block footprint
+                int srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(currentEntry.Offset);
+                int physicalSize = MemoryCanary.GetPhysicalSize(currentEntry.Size);
 
-                currentEntry.Offset = offset;
-                offset += currentEntry.Size;
+                // Slide the complete unmanaged layout block (Canary + User Data + Canary)
+                System.Buffer.MemoryCopy(
+                    (void*)(Buffer + srcPhysicalOffset),
+                    (void*)(newBuffer + offset),
+                    physicalSize,
+                    physicalSize);
+
+                // Realign tracked metadata pointers to target the new user offset location
+                currentEntry.Offset = MemoryCanary.GetUserOffset(offset);
+                offset += physicalSize;
 
                 EnsureEntryCapacity(writeIndex);
                 _entries[writeIndex] = currentEntry;
@@ -516,7 +539,7 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///      Gets the used memory.
+        ///      Gets the total physical memory footprint currently in use.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int GetUsed()
@@ -524,7 +547,10 @@ namespace MemoryManager.Lanes
             var used = 0;
             for (var i = 0; i < EntryCount; i++)
                 if (!_entries[i].IsStub)
-                    used += _entries[i].Size;
+                {
+                    // Track complete footprint size density so limits are verified accurately under debug builds
+                    used += MemoryCanary.GetPhysicalSize(_entries[i].Size);
+                }
 
             return used;
         }
@@ -532,7 +558,8 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public int FreeSpace()
         {
-            var mainFreeSpace = MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
+            // FIX: Passes the physical tracking source lists to clear type signature compilation errors
+            var mainFreeSpace = MemoryLaneUtils.CalculateFreeSpace(_freeBlocks, _freeBlockCount);
             var blobFreeSpace = _blobManager?.FreeSpace() ?? 0;
 
             return mainFreeSpace + blobFreeSpace;
@@ -586,7 +613,8 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public int EstimateFragmentation()
         {
-            return MemoryLaneUtils.EstimateFragmentation(_entries, EntryCount);
+            // FIX: Targets the true unmanaged free blocks tracking array for precise fragmentation readout
+            return MemoryLaneUtils.EstimateFragmentation(_freeBlocks, _freeBlockCount);
         }
 
         /// <inheritdoc />

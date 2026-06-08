@@ -75,7 +75,8 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public bool CanAllocate(int size)
         {
-            return _nextFreeOffset + size <= _capacity;
+            int physicalSize = MemoryCanary.GetPhysicalSize(size);
+            return _nextFreeOffset + physicalSize <= _capacity;
         }
 
         /// <inheritdoc />
@@ -86,7 +87,8 @@ namespace MemoryManager.Core
             string? debugName = null,
             int currentFrame = 0)
         {
-            if (!CanAllocate(size))
+            int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+            if (_nextFreeOffset + physicalSizeNeeded > _capacity)
                 throw new OutOfMemoryException(
                     $"BlobManager: Out of memory. Requested {size} bytes, but only {FreeSpace()} available.");
 
@@ -94,16 +96,23 @@ namespace MemoryManager.Core
                 throw new OutOfMemoryException("BlobManager: ID exhaustion. Cannot allocate more IDs.");
 
             var id = _nextId--;
-            int index = StartingId - id; // Maps sequential negative IDs cleanly to 0, 1, 2...
+            int index = StartingId - id;
 
             EnsureCapacity(index);
 
             byte version = 1;
 
+            var physicalOffset = _nextFreeOffset;
+            _nextFreeOffset += physicalSizeNeeded; // Bump advanced by complete physical footprint block size
+
+            // Map user pointer past the pre-canary guard band and stamp the signature bounds
+            var userOffset = MemoryCanary.GetUserOffset(physicalOffset);
+            MemoryCanary.WriteGuardBands(_buffer, userOffset, size);
+
             _entries[index] = new BlobEntry
             {
                 Id = id,
-                Offset = _nextFreeOffset,
+                Offset = userOffset, // Resolve() continues to target this instantly
                 Size = size,
                 AllocationFrame = currentFrame,
                 Version = version
@@ -116,10 +125,7 @@ namespace MemoryManager.Core
             }
 #endif
 
-            // Bump the allocator forward
-            _nextFreeOffset += size;
             EntryCount++;
-
             return new MemoryHandle(id, version, this);
         }
 
@@ -130,6 +136,11 @@ namespace MemoryManager.Core
 
             if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid or double-freed handle {handle.Id}");
+
+            ref readonly var entry = ref _entries[index];
+
+            // Assert safety guard signatures are perfectly intact before deletion sweeps
+            MemoryCanary.Validate(_buffer, entry.Offset, entry.Size, handle.Id);
 
             _entries[index] = default;
             EntryCount--;
@@ -237,23 +248,29 @@ namespace MemoryManager.Core
                 {
                     ref readonly var entry = ref validSpan[i];
 
-                    if (entry.Offset > currentOffset)
+                    // Reconstruct exact physical positions and block dimensions
+                    int srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                    int destPhysicalOffset = currentOffset;
+                    int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+
+                    if (srcPhysicalOffset > destPhysicalOffset)
                     {
                         unsafe
                         {
+                            // Copy complete physical layout block footprints concurrently
                             System.Buffer.MemoryCopy(
-                                (void*)(_buffer + entry.Offset),
-                                (void*)(_buffer + currentOffset),
-                                entry.Size,
-                                entry.Size);
+                                (void*)(_buffer + srcPhysicalOffset),
+                                (void*)(_buffer + destPhysicalOffset),
+                                physicalSize,
+                                physicalSize);
                         }
                     }
 
-                    // Update the offset inside our primary dense track tracking array slot directly
+                    // Sync user data offsets based on newly modified position tracking indices
                     int index = StartingId - entry.Id;
-                    _entries[index].Offset = currentOffset;
+                    _entries[index].Offset = MemoryCanary.GetUserOffset(destPhysicalOffset);
 
-                    currentOffset += entry.Size;
+                    currentOffset += physicalSize;
                 }
 
                 _nextFreeOffset = currentOffset;
@@ -287,7 +304,8 @@ namespace MemoryManager.Core
             {
                 if (_entries[i].Size > 0)
                 {
-                    livingBytes += _entries[i].Size;
+                    // Evaluate tracking states using total physical block footprints
+                    livingBytes += MemoryCanary.GetPhysicalSize(_entries[i].Size);
                 }
             }
 
@@ -317,6 +335,7 @@ namespace MemoryManager.Core
         }
 
         /// <inheritdoc />
+        /// <inheritdoc />
         public string DebugVisualMap()
         {
             if (_capacity == 0) return "[]";
@@ -332,21 +351,28 @@ namespace MemoryManager.Core
 
                 if (startByte >= _nextFreeOffset)
                 {
-                    map[i] = '░';
+                    map[i] = '░'; // Totally unallocated space past the bump pointer
                     continue;
                 }
 
                 var isLiving = false;
                 for (var j = 0; j < _entries.Length; j++)
                 {
-                    if (_entries[j].Size > 0 && _entries[j].Offset < endByte && _entries[j].Offset + _entries[j].Size > startByte)
+                    if (_entries[j].Size > 0)
                     {
-                        isLiving = true;
-                        break;
+                        // Extract absolute physical footprints so boundaries match raw heap tracking properties
+                        int physicalStart = MemoryCanary.GetPhysicalOffset(_entries[j].Offset);
+                        int physicalEnd = physicalStart + MemoryCanary.GetPhysicalSize(_entries[j].Size);
+
+                        if (physicalStart < endByte && physicalEnd > startByte)
+                        {
+                            isLiving = true;
+                            break;
+                        }
                     }
                 }
 
-                map[i] = isLiving ? '█' : '-';
+                map[i] = isLiving ? '█' : '-'; // Render '█' for allocated memory blocks and '-' for active gaps
             }
 
             return $"Blob Map: [{new string(map)}]\nLegend: █=Used, -=Gap, ░=Free";
