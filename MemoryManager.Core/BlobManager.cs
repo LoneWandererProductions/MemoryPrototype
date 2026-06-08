@@ -11,8 +11,8 @@ namespace MemoryManager.Core
     /// <inheritdoc />
     /// <summary>
     /// A Linear/Bump allocator designed for large or unpredictable blobs of memory.
-    /// Allocations are extremely fast, but memory is only reclaimed when the entire
-    /// manager is compacted/cleared.
+    /// Allocations are extremely fast, leveraging a dense flat array for metadata tracking.
+    /// Memory is physically reclaimed and consolidated during explicit compaction.
     /// </summary>
     /// <seealso cref="IMemoryLane" />
     public sealed class BlobManager : IMemoryLane
@@ -43,9 +43,9 @@ namespace MemoryManager.Core
         private int _nextFreeOffset;
 
         /// <summary>
-        ///     Maps the handle IDs to their actual blob metadata.
+        /// Dense flat array mapping handles directly to their metadata via (StartingId - Id)
         /// </summary>
-        private readonly Dictionary<int, BlobEntry> _entries = new();
+        private BlobEntry[] _entries = new BlobEntry[128];
 
 #if DEBUG
         /// <summary>
@@ -55,16 +55,12 @@ namespace MemoryManager.Core
 #endif
 
         /// <inheritdoc />
-        public int EntryCount => _entries.Count;
+        public int EntryCount { get; private set; }
 
         /// <inheritdoc />
         public event Action<string>? OnCompaction;
 
         /// <inheritdoc />
-        /// <summary>#
-        ///  Defined by interface, but not utilized in a fixed-size bump allocator
-        /// Occurs when [on allocation extension].
-        /// </summary>
         public event Action<string, int, int>? OnAllocationExtension;
 
         /// <summary>
@@ -77,18 +73,12 @@ namespace MemoryManager.Core
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Checks if the memory lane can allocate a block of the specified size.
-        /// </summary>
         public bool CanAllocate(int size)
         {
             return _nextFreeOffset + size <= _capacity;
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Allocates a contiguous block of memory by bumping the offset forward.
-        /// </summary>
         public MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
@@ -100,19 +90,20 @@ namespace MemoryManager.Core
                 throw new OutOfMemoryException(
                     $"BlobManager: Out of memory. Requested {size} bytes, but only {FreeSpace()} available.");
 
-            // Prevent negative ID underflow wrapping into positive integers
             if (_nextId == int.MinValue)
-                throw new OutOfMemoryException("BlobManager: ID exhaustion. Cannot allocate more IDs without violating negative ID convention.");
+                throw new OutOfMemoryException("BlobManager: ID exhaustion. Cannot allocate more IDs.");
 
             var id = _nextId--;
-            var allocatedOffset = _nextFreeOffset;
+            int index = StartingId - id; // Maps sequential negative IDs cleanly to 0, 1, 2...
+
+            EnsureCapacity(index);
 
             byte version = 1;
 
-            _entries[id] = new BlobEntry
+            _entries[index] = new BlobEntry
             {
                 Id = id,
-                Offset = allocatedOffset,
+                Offset = _nextFreeOffset,
                 Size = size,
                 AllocationFrame = currentFrame,
                 Version = version
@@ -127,19 +118,21 @@ namespace MemoryManager.Core
 
             // Bump the allocator forward
             _nextFreeOffset += size;
+            EntryCount++;
 
             return new MemoryHandle(id, version, this);
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Invalidates the handle.
-        ///     Note: As a bump allocator, this does NOT immediately reclaim the physical memory bytes.
-        /// </summary>
         public void Free(MemoryHandle handle)
         {
-            if (!_entries.Remove(handle.Id))
+            int index = StartingId - handle.Id;
+
+            if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid or double-freed handle {handle.Id}");
+
+            _entries[index] = default;
+            EntryCount--;
 
 #if DEBUG
             _debugNames.Remove(handle.Id);
@@ -147,9 +140,8 @@ namespace MemoryManager.Core
         }
 
         /// <summary>
-        /// Frees the many.
+        /// Frees multiple handles sequentially.
         /// </summary>
-        /// <param name="handles">The handles.</param>
         public void FreeMany(IEnumerable<MemoryHandle> handles)
         {
             foreach (var handle in handles)
@@ -161,8 +153,12 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public nint Resolve(MemoryHandle handle)
         {
-            if (!_entries.TryGetValue(handle.Id, out var entry))
+            int index = StartingId - handle.Id;
+
+            if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
+
+            ref readonly var entry = ref _entries[index];
 
             if (entry.Version != handle.Version)
                 throw new AccessViolationException($"Blob Zombie: ID {handle.Id} version mismatch.");
@@ -171,13 +167,21 @@ namespace MemoryManager.Core
         }
 
         /// <inheritdoc />
-        public bool HasHandle(MemoryHandle handle) => _entries.ContainsKey(handle.Id);
+        public bool HasHandle(MemoryHandle handle)
+        {
+            int index = StartingId - handle.Id;
+            return index >= 0 && index < _entries.Length && _entries[index].Size > 0;
+        }
 
         /// <inheritdoc />
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
-            if (!_entries.TryGetValue(handle.Id, out var blob))
+            int index = StartingId - handle.Id;
+
+            if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
+
+            ref readonly var blob = ref _entries[index];
 
             return new AllocationEntry
             {
@@ -197,41 +201,38 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public int GetAllocationSize(MemoryHandle handle)
         {
-            if (!_entries.TryGetValue(handle.Id, out var blob))
+            int index = StartingId - handle.Id;
+
+            if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
 
-            return blob.Size;
+            return _entries[index].Size;
         }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     WARNING: For a linear allocator, compaction means a total reset.
-        ///     This wipes all entries and resets the offset to 0.
-        /// </summary>
         public void Compact()
         {
-            if (_entries.Count == 0) return;
+            if (EntryCount == 0) return;
 
-            // 1. Rent a temporary buffer for zero-allocation sorting
             var pool = System.Buffers.ArrayPool<BlobEntry>.Shared;
-            var scratch = pool.Rent(_entries.Count);
+            var scratch = pool.Rent(EntryCount);
 
             try
             {
                 var validCount = 0;
-                foreach (var entry in _entries.Values)
+                for (var i = 0; i < _entries.Length; i++)
                 {
-                    scratch[validCount++] = entry;
+                    if (_entries[i].Size > 0)
+                    {
+                        scratch[validCount++] = _entries[i];
+                    }
                 }
 
                 var validSpan = scratch.AsSpan(0, validCount);
-
-                // Sort natively using a struct to avoid delegate allocation
                 validSpan.Sort(new BlobOffsetComparer());
 
                 var currentOffset = 0;
 
-                // 2. Slide each entry as far left as possible
                 for (var i = 0; i < validSpan.Length; i++)
                 {
                     ref readonly var entry = ref validSpan[i];
@@ -240,7 +241,6 @@ namespace MemoryManager.Core
                     {
                         unsafe
                         {
-                            // System.Buffer.MemoryCopy safely handles overlapping memory
                             System.Buffer.MemoryCopy(
                                 (void*)(_buffer + entry.Offset),
                                 (void*)(_buffer + currentOffset),
@@ -249,15 +249,13 @@ namespace MemoryManager.Core
                         }
                     }
 
-                    // 3. Update the entry's metadata with its new physical address
-                    var updatedEntry = entry;
-                    updatedEntry.Offset = currentOffset;
-                    _entries[entry.Id] = updatedEntry;
+                    // Update the offset inside our primary dense track tracking array slot directly
+                    int index = StartingId - entry.Id;
+                    _entries[index].Offset = currentOffset;
 
                     currentOffset += entry.Size;
                 }
 
-                // 4. Update the global allocator offset
                 _nextFreeOffset = currentOffset;
             }
             finally
@@ -271,30 +269,29 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public double UsagePercentage()
         {
-            return _nextFreeOffset / (double)_capacity * 100.0;
+            // Normalizes return behavior with FastLane/SlowLane metrics (returns scale 0.0 - 1.0 instead of 0.0 - 100.0)
+            return _capacity == 0 ? 0.0 : _nextFreeOffset / (double)_capacity;
         }
 
         /// <inheritdoc />
         public int FreeSpace() => _capacity - _nextFreeOffset;
 
         /// <inheritdoc />
-        /// <summary>
-        /// Calculates the percentage of "dead" space behind the bump pointer
-        /// that can be reclaimed via Compaction.
-        /// </summary>
         public int EstimateFragmentation()
         {
             var allocatedBytes = _nextFreeOffset;
             if (allocatedBytes == 0) return 0;
 
             var livingBytes = 0;
-            foreach (var blob in _entries.Values)
+            for (var i = 0; i < _entries.Length; i++)
             {
-                livingBytes += blob.Size;
+                if (_entries[i].Size > 0)
+                {
+                    livingBytes += _entries[i].Size;
+                }
             }
 
             var wastedBytes = allocatedBytes - livingBytes;
-
             return (int)((double)wastedBytes / allocatedBytes * 100);
         }
 
@@ -304,29 +301,27 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public IEnumerable<MemoryHandle> GetHandles()
         {
-            foreach (var entry in _entries.Values)
+            for (var i = 0; i < _entries.Length; i++)
             {
-                // Return the correct, versioned handle
-                yield return new MemoryHandle(entry.Id, entry.Version, this);
+                if (_entries[i].Size > 0)
+                {
+                    yield return new MemoryHandle(_entries[i].Id, _entries[i].Version, this);
+                }
             }
         }
 
         /// <inheritdoc />
         public string DebugDump()
         {
-            return $"BlobManager Dump\nAllocations: {_entries.Count}\nUsed: {_nextFreeOffset}/{_capacity} bytes";
+            return $"BlobManager Dump\nAllocations: {EntryCount}\nUsed: {_nextFreeOffset}/{_capacity} bytes";
         }
 
         /// <inheritdoc />
-        /// <summary>
-        /// Generates a visual string representation of the BlobManager's memory layout.
-        /// █ = Living Data, - = Dead Gap (Wasted), ░ = Untouched Capacity
-        /// </summary>
         public string DebugVisualMap()
         {
             if (_capacity == 0) return "[]";
 
-            const int mapResolution = 80; // Width of the console map
+            const int mapResolution = 80;
             var map = new char[mapResolution];
             var bytesPerChar = (double)_capacity / mapResolution;
 
@@ -335,19 +330,16 @@ namespace MemoryManager.Core
                 var startByte = i * bytesPerChar;
                 var endByte = (i + 1) * bytesPerChar;
 
-                // If this bucket is completely past the bump pointer, it's untouched.
                 if (startByte >= _nextFreeOffset)
                 {
                     map[i] = '░';
                     continue;
                 }
 
-                // Otherwise, check if any living blob intersects this bucket
                 var isLiving = false;
-                foreach (var blob in _entries.Values)
+                for (var j = 0; j < _entries.Length; j++)
                 {
-                    // Intersection math: Blob starts before bucket ends AND Blob ends after bucket starts
-                    if (blob.Offset < endByte && blob.Offset + blob.Size > startByte)
+                    if (_entries[j].Size > 0 && _entries[j].Offset < endByte && _entries[j].Offset + _entries[j].Size > startByte)
                     {
                         isLiving = true;
                         break;
@@ -363,14 +355,27 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public string DebugRedirections() => "[BlobRedirects not applicable]";
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Resizes the tracking entry metadata array geometric pool size.
+        /// </summary>
+        private void EnsureCapacity(int requiredIndex)
+        {
+            if (requiredIndex >= _entries.Length)
+            {
+                var oldSize = _entries.Length;
+                var newSize = oldSize * 2;
+                if (newSize <= requiredIndex) newSize = requiredIndex + 1;
+
+                Array.Resize(ref _entries, newSize);
+                OnAllocationExtension?.Invoke(nameof(BlobManager), oldSize, newSize);
+            }
+        }
+
         /// <summary>
         /// Zero-allocation comparer for sorting blobs by offset.
         /// </summary>
-        /// <seealso cref="System.Collections.Generic.IComparer&lt;MemoryManager.Core.BlobEntry&gt;" />
         private struct BlobOffsetComparer : IComparer<BlobEntry>
         {
-            /// <inheritdoc />
             public int Compare(BlobEntry x, BlobEntry y)
             {
                 return x.Offset.CompareTo(y.Offset);
