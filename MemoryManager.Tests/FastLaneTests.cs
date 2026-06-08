@@ -73,7 +73,7 @@ namespace MemoryManager.Tests
             // 2. Move to SlowLane
             arena.MoveFastToSlow(fastHandle);
 
-            arena.DebugDump();
+            arena.LogDump();
 
             // 3. Assertions
             // The FastLane MUST still have the handle (it's a stub now!)

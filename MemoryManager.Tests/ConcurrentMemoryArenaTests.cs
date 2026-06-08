@@ -78,6 +78,7 @@ namespace MemoryManager.Tests
                 arena.Free(handle);
             }
 
+            arena.DebugDump(); // Optional: Visualize the arena state after the test
             arena.Dispose();
         }
 
@@ -147,6 +148,7 @@ namespace MemoryManager.Tests
             threadA.Join();
             threadB.Join();
 
+            arena.DebugDump(); // Optional: Visualize the arena state after the test
             // Cleanup
             arena.Dispose();
         }
@@ -183,6 +185,8 @@ namespace MemoryManager.Tests
 
             // Clean verification pass
             arena.Free(largeHandle);
+
+            arena.LogDump(); // Optional: Visualize the arena state after the test
             arena.Dispose();
         }
     }

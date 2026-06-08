@@ -73,7 +73,7 @@ namespace MemoryManager.Tests
             // 2. Move to FastLane (The method returns the NEW handle!)
             var fastHandle = arena.MoveSlowToFast(slowHandle);
 
-            arena.DebugDump();
+            arena.LogDump();
 
             // 3. Verify the old handle is dead
             Assert.IsFalse(arena.SlowLane.HasHandle(slowHandle), "SlowLane should no longer have the old handle.");

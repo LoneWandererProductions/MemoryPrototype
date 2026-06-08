@@ -49,7 +49,7 @@ namespace MemoryManager.Tests
 
             var handle = arena.Allocate(size);
 
-            arena.DebugDump();
+            arena.LogDump();
 
             Assert.IsTrue(arena.Resolve(handle) != nint.Zero);
             //Assert.IsTrue(arena.FastLane.GetAllocationSize() < _config.FastLaneSize);

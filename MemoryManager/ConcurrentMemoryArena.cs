@@ -11,6 +11,7 @@ using MemoryManager.Core;
 using MemoryManager.Lanes;
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading;
 
 namespace MemoryManager
@@ -259,6 +260,23 @@ namespace MemoryManager
                 }
             }
         }
+
+        /// <inheritdoc />
+        public string DebugDump()
+        {
+            var localLane = _threadLocalFastLane.Value;
+            string laneStatus = localLane != null ? localLane.DebugDump() : "Uninitialized Local Track";
+
+            return $"=== CONCURRENT ARENA DIAGNOSTICS ===\n" +
+                   $"Calling Thread ID: {System.Threading.Thread.CurrentThread.ManagedThreadId}\n" +
+                   $"Remote Free Backlog: {_remoteFreeQueue.Count} Handles Pending\n" +
+                   $"[HOT TIER]  {localLane?.GetType().Name ?? "None"} -> {laneStatus}\n" +
+                   $"[COLD TIER] Global SlowLane -> {_globalSlowLane.DebugDump()}\n" +
+                   $"====================================";
+        }
+
+        /// <inheritdoc />
+        public void LogDump() => Trace.WriteLine(DebugDump());
 
         /// <summary>
         /// Flushes memory structures cleanly across all thread execution tracks.

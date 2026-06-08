@@ -360,6 +360,10 @@ namespace MemoryManager.Lanes
             }
         }
 
+        /// <summary>
+        /// Ensures the entry capacity.
+        /// </summary>
+        /// <param name="requiredSlotIndex">Index of the required slot.</param>
         private void EnsureEntryCapacity(int requiredSlotIndex)
         {
             var oldSize = _entries!.Length;
@@ -367,6 +371,10 @@ namespace MemoryManager.Lanes
             if (newSize > oldSize) OnAllocationExtension?.Invoke(nameof(SlabLane), oldSize, newSize);
         }
 
+        /// <summary>
+        /// Grows the versions.
+        /// </summary>
+        /// <param name="minCapacity">The minimum capacity.</param>
         [MethodImpl(MethodImplOptions.NoInlining)]
         private unsafe void GrowVersions(int minCapacity)
         {

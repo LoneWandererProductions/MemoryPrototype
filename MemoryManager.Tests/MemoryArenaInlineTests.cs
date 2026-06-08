@@ -198,7 +198,7 @@ namespace MemoryManager.Tests
             }
 
             // 5. Check final health
-            arena.DebugDump();
+            arena.LogDump();
             Assert.AreEqual(0, arena.FastLane.EstimateFragmentation());
         }
 

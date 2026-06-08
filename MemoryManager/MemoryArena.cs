@@ -358,28 +358,42 @@ namespace MemoryManager
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Debugdump.
         /// </summary>
-        public void DebugDump()
+        public string DebugDump()
         {
             lock (_lock)
             {
-                Trace.WriteLine("===== MemoryArena Dump =====");
-                Trace.WriteLine($"Fast Lane Usage: {FastLane.UsagePercentage():P2}, Free: {FastLane.FreeSpace()} bytes, Entries: {FastLane.EntryCount}, Stubs: {FastLane.StubCount()}");
-                Trace.WriteLine($"Estimated Fragmentation: {FastLane.EstimateFragmentation()}%");
-                Trace.WriteLine(FastLane.DebugDump());
-                Trace.WriteLine(FastLane.DebugVisualMap());
-                Trace.WriteLine(FastLane.DebugRedirections());
+                var sb = new System.Text.StringBuilder();
 
-                Trace.WriteLine($"Slow Lane Usage: {SlowLane.UsagePercentage():P2}, Free: {SlowLane.FreeSpace()} bytes, Entries: {SlowLane.EntryCount}, Stubs: {SlowLane.StubCount()}");
-                Trace.WriteLine($"Estimated Fragmentation: {SlowLane.EstimateFragmentation()}%");
-                Trace.WriteLine(SlowLane.DebugDump());
-                Trace.WriteLine(SlowLane.DebugVisualMap());
-                Trace.WriteLine(SlowLane.DebugRedirections());
-                Trace.WriteLine("============================");
+                sb.AppendLine("===== MemoryArena Dump =====");
+
+                // Hot Path Telemetry
+                sb.AppendLine($"Fast Lane Usage: {FastLane.UsagePercentage():P2}, Free: {FastLane.FreeSpace()} bytes, Entries: {FastLane.EntryCount}, Stubs: {FastLane.StubCount()}");
+                sb.AppendLine($"Estimated Fragmentation: {FastLane.EstimateFragmentation()}%");
+                sb.AppendLine(FastLane.DebugDump());
+                sb.AppendLine(FastLane.DebugVisualMap());
+                sb.AppendLine(FastLane.DebugRedirections());
+
+                sb.AppendLine(); // Clean spacing break
+
+                // Cold Path Telemetry
+                sb.AppendLine($"Slow Lane Usage: {SlowLane.UsagePercentage():P2}, Free: {SlowLane.FreeSpace()} bytes, Entries: {SlowLane.EntryCount}, Stubs: {SlowLane.StubCount()}");
+                sb.AppendLine($"Estimated Fragmentation: {SlowLane.EstimateFragmentation()}%");
+                sb.AppendLine(SlowLane.DebugDump());
+                sb.AppendLine(SlowLane.DebugVisualMap());
+                sb.AppendLine(SlowLane.DebugRedirections());
+
+                sb.AppendLine("============================");
+
+                return sb.ToString();
             }
         }
+
+        /// <inheritdoc />
+        public void LogDump() => Trace.WriteLine(DebugDump());
 
         // --- UNLOCKED INTERNAL PATHS ---
 

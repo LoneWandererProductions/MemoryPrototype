@@ -7,6 +7,8 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+using System.Diagnostics;
+
 namespace MemoryManager.Core
 {
     /// <summary>
@@ -52,5 +54,16 @@ namespace MemoryManager.Core
         /// <param name="handle">The handle.</param>
         /// <returns>An <see cref="AllocationEntry"/> representing the allocation entry.</returns>
         AllocationEntry GetEntry(MemoryHandle handle);
+
+        /// <summary>
+        /// Generates a highly detailed string snapshot of the internal clockwork and moving parts.
+        /// </summary>
+        /// <returns>A string representing the internal state of the allocator.</returns>
+        string DebugDump();
+
+        /// <summary>
+        /// Default Interface Method: Automatically pushes the DebugDump straight to the system Trace.
+        /// </summary>
+        public void LogDump();
     }
 }
