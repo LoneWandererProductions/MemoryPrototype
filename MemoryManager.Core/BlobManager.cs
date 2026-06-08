@@ -75,7 +75,7 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public bool CanAllocate(int size)
         {
-            int physicalSize = MemoryCanary.GetPhysicalSize(size);
+            var physicalSize = MemoryCanary.GetPhysicalSize(size);
             return _nextFreeOffset + physicalSize <= _capacity;
         }
 
@@ -87,7 +87,7 @@ namespace MemoryManager.Core
             string? debugName = null,
             int currentFrame = 0)
         {
-            int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+            var physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
             if (_nextFreeOffset + physicalSizeNeeded > _capacity)
                 throw new OutOfMemoryException(
                     $"BlobManager: Out of memory. Requested {size} bytes, but only {FreeSpace()} available.");
@@ -96,7 +96,7 @@ namespace MemoryManager.Core
                 throw new OutOfMemoryException("BlobManager: ID exhaustion. Cannot allocate more IDs.");
 
             var id = _nextId--;
-            int index = StartingId - id;
+            var index = StartingId - id;
 
             EnsureCapacity(index);
 
@@ -132,7 +132,7 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public void Free(MemoryHandle handle)
         {
-            int index = StartingId - handle.Id;
+            var index = StartingId - handle.Id;
 
             if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid or double-freed handle {handle.Id}");
@@ -164,7 +164,7 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public nint Resolve(MemoryHandle handle)
         {
-            int index = StartingId - handle.Id;
+            var index = StartingId - handle.Id;
 
             if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
@@ -180,14 +180,14 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public bool HasHandle(MemoryHandle handle)
         {
-            int index = StartingId - handle.Id;
+            var index = StartingId - handle.Id;
             return index >= 0 && index < _entries.Length && _entries[index].Size > 0;
         }
 
         /// <inheritdoc />
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
-            int index = StartingId - handle.Id;
+            var index = StartingId - handle.Id;
 
             if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
@@ -212,7 +212,7 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public int GetAllocationSize(MemoryHandle handle)
         {
-            int index = StartingId - handle.Id;
+            var index = StartingId - handle.Id;
 
             if (index < 0 || index >= _entries.Length || _entries[index].Size == 0)
                 throw new InvalidOperationException($"BlobManager: Invalid handle {handle.Id}");
@@ -249,9 +249,9 @@ namespace MemoryManager.Core
                     ref readonly var entry = ref validSpan[i];
 
                     // Reconstruct exact physical positions and block dimensions
-                    int srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-                    int destPhysicalOffset = currentOffset;
-                    int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+                    var srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                    var destPhysicalOffset = currentOffset;
+                    var physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
 
                     if (srcPhysicalOffset > destPhysicalOffset)
                     {
@@ -267,7 +267,7 @@ namespace MemoryManager.Core
                     }
 
                     // Sync user data offsets based on newly modified position tracking indices
-                    int index = StartingId - entry.Id;
+                    var index = StartingId - entry.Id;
                     _entries[index].Offset = MemoryCanary.GetUserOffset(destPhysicalOffset);
 
                     currentOffset += physicalSize;
@@ -361,8 +361,8 @@ namespace MemoryManager.Core
                     if (_entries[j].Size > 0)
                     {
                         // Extract absolute physical footprints so boundaries match raw heap tracking properties
-                        int physicalStart = MemoryCanary.GetPhysicalOffset(_entries[j].Offset);
-                        int physicalEnd = physicalStart + MemoryCanary.GetPhysicalSize(_entries[j].Size);
+                        var physicalStart = MemoryCanary.GetPhysicalOffset(_entries[j].Offset);
+                        var physicalEnd = physicalStart + MemoryCanary.GetPhysicalSize(_entries[j].Size);
 
                         if (physicalStart < endByte && physicalEnd > startByte)
                         {

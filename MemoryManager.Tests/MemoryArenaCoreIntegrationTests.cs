@@ -13,21 +13,21 @@ namespace MemoryManager.Tests
     [TestClass]
     public class MemoryArenaCoreIntegrationTests
     {
-        private MemoryManagerConfig _config;
+        private MemoryManagerConfig? _config;
 
         [TestInitialize]
         public void Setup()
         {
             _config = new MemoryManagerConfig
             {
-                FastLaneSize = 256 * 1024,      // 256 KB
-                SlowLaneSize = 1024 * 1024,     // 1 MB
-                Threshold = 4 * 1024,           // 4 KB Lane Boundary
+                FastLaneSize = 256 * 1024, // 256 KB
+                SlowLaneSize = 1024 * 1024, // 1 MB
+                Threshold = 4 * 1024, // 4 KB Lane Boundary
                 FastLaneUsageThreshold = 0.85f,
                 SlowLaneUsageThreshold = 0.80f,
                 CompactionThreshold = 0.85f,
                 SlowLaneSafetyMargin = 0.10f,
-                EnableAutoCompaction = false,   // Controlled manually within integration steps
+                EnableAutoCompaction = false, // Controlled manually within integration steps
                 PolicyCheckInterval = TimeSpan.Zero
             };
         }
@@ -38,7 +38,7 @@ namespace MemoryManager.Tests
         public void Allocate_SizeBelowThreshold_RoutesToFastLane()
         {
             var arena = new MemoryArena(_config);
-            int size = 2 * 1024; // 2 KB (< 4 KB Threshold)
+            var size = 2 * 1024; // 2 KB (< 4 KB Threshold)
 
             var handle = arena.Allocate(size);
 
@@ -50,7 +50,7 @@ namespace MemoryManager.Tests
         public void Allocate_SizeAboveThreshold_RoutesToSlowLane()
         {
             var arena = new MemoryArena(_config);
-            int size = 8 * 1024; // 8 KB (> 4 KB Threshold)
+            var size = 8 * 1024; // 8 KB (> 4 KB Threshold)
 
             var handle = arena.Allocate(size);
 
@@ -73,19 +73,18 @@ namespace MemoryManager.Tests
 
             var handle = smallArena.Allocate(1500);
 
-            Assert.IsTrue(handle.Id < 0, "If the FastLane cannot fit the requested block size, the orchestrator must fallback to the SlowLane.");
+            Assert.IsTrue(handle.Id < 0,
+                "If the FastLane cannot fit the requested block size, the orchestrator must fallback to the SlowLane.");
         }
 
         [TestMethod]
         public void Allocate_BothLanesExhausted_ThrowsOutOfMemoryException()
         {
             var arena = new MemoryArena(_config);
-            int impossibleSize = 2 * 1024 * 1024; // 2 MB (Exceeds total system capacity allocation bounds)
+            var impossibleSize = 2 * 1024 * 1024; // 2 MB (Exceeds total system capacity allocation bounds)
 
-            Assert.ThrowsException<OutOfMemoryException>(() =>
-            {
-                arena.Allocate(impossibleSize);
-            }, "Requesting more memory than total workspace partitions allow must throw an explicit OutOfMemoryException.");
+            Assert.ThrowsException<OutOfMemoryException>(() => { arena.Allocate(impossibleSize); },
+                "Requesting more memory than total workspace partitions allow must throw an explicit OutOfMemoryException.");
         }
 
         #endregion
@@ -96,12 +95,13 @@ namespace MemoryManager.Tests
         public void Extensions_StoreAndGetPrimitive_MaintainsValueFlawlessly()
         {
             var arena = new MemoryArena(_config);
-            double diagnosticValue = 12345.67890;
+            var diagnosticValue = 12345.67890;
 
             var handle = arena.Store(diagnosticValue);
-            double retrievedValue = arena.Get<double>(handle);
+            var retrievedValue = arena.Get<double>(handle);
 
-            Assert.AreEqual(diagnosticValue, retrievedValue, "Primitive type serialization extensions must guarantee bitwise alignment reading back data values.");
+            Assert.AreEqual(diagnosticValue, retrievedValue,
+                "Primitive type serialization extensions must guarantee bitwise alignment reading back data values.");
         }
 
         [TestMethod]
@@ -115,7 +115,8 @@ namespace MemoryManager.Tests
 
             var outputSpan = arena.GetSpan<int>(handle, sourceData.Length);
 
-            CollectionAssert.AreEqual(sourceData, outputSpan.ToArray(), "Bulk span transfers onto flat allocated structural block memory coordinates failed data parity checks.");
+            CollectionAssert.AreEqual(sourceData, outputSpan.ToArray(),
+                "Bulk span transfers onto flat allocated structural block memory coordinates failed data parity checks.");
         }
 
         [TestMethod]
@@ -125,25 +126,24 @@ namespace MemoryManager.Tests
             var handle = arena.AllocateArray<short>(5); // Space reserved for 10 bytes
             short[] overflowingPayload = { 1, 2, 3, 4, 5, 6, 7, 8 }; // Payload size requirements = 16 bytes
 
-            Assert.ThrowsException<ArgumentException>(() =>
-            {
-                arena.BulkSet<short>(handle, overflowingPayload);
-            }, "Writing an array payload that exceeds the structural entry allocation size boundaries must throw an explicit ArgumentException.");
+            Assert.ThrowsException<ArgumentException>(() => { arena.BulkSet<short>(handle, overflowingPayload); },
+                "Writing an array payload that exceeds the structural entry allocation size boundaries must throw an explicit ArgumentException.");
         }
 
         [TestMethod]
         public void Extensions_StoreStringUTF8_DecodesAccurately()
         {
             var arena = new MemoryArena(_config);
-            string initialText = "Wayfarer Memory Manager Test String Token #2026!";
+            var initialText = "Wayfarer Memory Manager Test String Token #2026!";
 
             var handle = arena.StoreString(initialText);
             var entry = arena.GetEntry(handle);
 
             var payloadSpan = arena.GetSpan<byte>(handle, entry.Size);
-            string reconstitutedText = System.Text.Encoding.UTF8.GetString(payloadSpan);
+            var reconstitutedText = System.Text.Encoding.UTF8.GetString(payloadSpan);
 
-            Assert.AreEqual(initialText, reconstitutedText, "String serialization extensions must accurately marshal strings to UTF8 workspace tracks.");
+            Assert.AreEqual(initialText, reconstitutedText,
+                "String serialization extensions must accurately marshal strings to UTF8 workspace tracks.");
         }
 
         #endregion
@@ -165,17 +165,18 @@ namespace MemoryManager.Tests
             var fastHandle = arena.MoveSlowToFast(slowHandle);
 
             // 3. Assert structural position flipping properties
-            Assert.IsTrue(fastHandle.Id > 0, "The newly assigned structural reference handle must point to the FastLane namespace.");
+            Assert.IsTrue(fastHandle.Id > 0,
+                "The newly assigned structural reference handle must point to the FastLane namespace.");
 
             var migratedStruct = arena.Get<SampleMetric>(fastHandle);
-            Assert.AreEqual(baselineStruct.IdField, migratedStruct.IdField, "Data properties dropped or tracking corruption noted during lane promotion.");
-            Assert.AreEqual(baselineStruct.Velocity, migratedStruct.Velocity, "Floating point alignment errors inside structure allocation layout shifts.");
+            Assert.AreEqual(baselineStruct.IdField, migratedStruct.IdField,
+                "Data properties dropped or tracking corruption noted during lane promotion.");
+            Assert.AreEqual(baselineStruct.Velocity, migratedStruct.Velocity,
+                "Floating point alignment errors inside structure allocation layout shifts.");
 
             // 4. Assert the old SlowLane handles are cleanly destroyed 
-            Assert.ThrowsException<InvalidOperationException>(() =>
-            {
-                arena.Resolve(slowHandle);
-            }, "Resolving the old slow lane index handle after execution transfers must trigger invalid token failures.");
+            Assert.ThrowsException<InvalidOperationException>(() => { arena.Resolve(slowHandle); },
+                "Resolving the old slow lane index handle after execution transfers must trigger invalid token failures.");
         }
 
         [TestMethod]
@@ -184,10 +185,8 @@ namespace MemoryManager.Tests
             var arena = new MemoryArena(_config);
             var fastHandle = arena.Store(42);
 
-            Assert.ThrowsException<ArgumentException>(() =>
-            {
-                arena.MoveSlowToFast(fastHandle);
-            }, "Invoking a slow-to-fast migration using a fast handle identifier must crash validation steps immediately.");
+            Assert.ThrowsException<ArgumentException>(() => { arena.MoveSlowToFast(fastHandle); },
+                "Invoking a slow-to-fast migration using a fast handle identifier must crash validation steps immediately.");
         }
 
         #endregion
@@ -206,8 +205,8 @@ namespace MemoryManager.Tests
             };
             var arena = new MemoryArena(threadedConfig);
 
-            int taskCount = 8;
-            int allocationsPerTask = 100;
+            var taskCount = 8;
+            var allocationsPerTask = 100;
             var barrier = new Barrier(taskCount + 1); // Blocks synched tracks + 1 compaction thread
 
             var allocatedHandles = new System.Collections.Concurrent.ConcurrentBag<MemoryHandle>();
@@ -216,13 +215,13 @@ namespace MemoryManager.Tests
             var allocationTasks = Enumerable.Range(0, taskCount).Select(t => Task.Run(() =>
             {
                 barrier.SignalAndWait(); // Synchronize all workers for high contention
-                for (int i = 0; i < allocationsPerTask; i++)
+                for (var i = 0; i < allocationsPerTask; i++)
                 {
                     var handle = arena.AllocateAndStore(i + (t * 1000));
                     allocatedHandles.Add(handle);
 
                     // Simulate processing cycles by resolving and updating values immediately
-                    ref int currentVal = ref arena.Get<int>(handle);
+                    ref var currentVal = ref arena.Get<int>(handle);
                     currentVal += 5;
                 }
             })).ToList();
@@ -231,7 +230,7 @@ namespace MemoryManager.Tests
             var compactionTask = Task.Run(() =>
             {
                 barrier.SignalAndWait();
-                for (int i = 0; i < 5; i++)
+                for (var i = 0; i < 5; i++)
                 {
                     arena.RunMaintenanceCycle();
                     arena.CompactAll();
@@ -243,13 +242,15 @@ namespace MemoryManager.Tests
             Task.WaitAll(allocationTasks.Concat(new[] { compactionTask }).ToArray());
 
             // Post-execution data verification block
-            Assert.AreEqual(taskCount * allocationsPerTask, allocatedHandles.Count, "Total completed allocation counts do not match configured expectations.");
+            Assert.AreEqual(taskCount * allocationsPerTask, allocatedHandles.Count,
+                "Total completed allocation counts do not match configured expectations.");
 
             foreach (var handle in allocatedHandles)
             {
                 // Every resolved int value should remain accessible and valid
-                int storedVal = arena.Get<int>(handle);
-                Assert.IsTrue(storedVal >= 5, "Unsynchronized background data sweeps corrupted active memory data footprints.");
+                var storedVal = arena.Get<int>(handle);
+                Assert.IsTrue(storedVal >= 5,
+                    "Unsynchronized background data sweeps corrupted active memory data footprints.");
             }
         }
 
@@ -276,12 +277,10 @@ namespace MemoryManager.Tests
 
             // Construct a fake handle targeting the exact same ID slot tracking address, 
             // but inject a spoofed generational token sequence signature.
-            var forgedHandle = new MemoryHandle(trueHandle.Id, (uint)(trueHandle.Version + 5), arena.FastLane);
+            var forgedHandle = new MemoryHandle(trueHandle.Id, trueHandle.Version + 5, arena.FastLane);
 
-            Assert.ThrowsException<AccessViolationException>(() =>
-            {
-                arena.Get<int>(forgedHandle);
-            }, "Submitting expired, stale, or tampered handles must trigger access validation crashes.");
+            Assert.ThrowsException<AccessViolationException>(() => { arena.Get<int>(forgedHandle); },
+                "Submitting expired, stale, or tampered handles must trigger access validation crashes.");
         }
 
         #endregion

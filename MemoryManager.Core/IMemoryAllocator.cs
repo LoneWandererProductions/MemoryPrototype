@@ -25,7 +25,8 @@ namespace MemoryManager.Core
         /// <param name="debugName">Name of the debug.</param>
         /// <param name="currentFrame">The current frame.</param>
         /// <returns>A <see cref="MemoryHandle"/> representing the allocated memory.</returns>
-        MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0);
+        MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
+            AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0);
 
         /// <summary>
         /// Frees the specified handle.

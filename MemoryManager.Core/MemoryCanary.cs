@@ -52,7 +52,7 @@ namespace MemoryManager.Core
         {
 #if DEBUG
             // Raw physical size needs space for front tracking layout padding, user data payload, and post-canary trail bytes
-            int rawSize = FrontPadding + userSize + Size;
+            var rawSize = FrontPadding + userSize + Size;
             return (rawSize + (Alignment - 1)) & ~(Alignment - 1);
 #else
             return (userSize + (Alignment - 1)) & ~(Alignment - 1);
@@ -111,8 +111,8 @@ namespace MemoryManager.Core
         public static unsafe void Validate(nint buffer, int userOffset, int userSize, int handleId)
         {
 #if DEBUG
-            uint preCanary = *(uint*)(buffer + userOffset - Size);
-            uint postCanary = *(uint*)(buffer + userOffset + userSize);
+            var preCanary = *(uint*)(buffer + userOffset - Size);
+            var postCanary = *(uint*)(buffer + userOffset + userSize);
 
             if (preCanary != Magic || postCanary != Magic)
             {

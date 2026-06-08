@@ -6,6 +6,8 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+// ReSharper disable UnusedMember.Global
+
 using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Diagnostics;
@@ -130,7 +132,7 @@ namespace MemoryManager.Lanes
         public bool CanAllocate(int size)
         {
             // Ensure our validation assesses the complete physical block footprint requirements
-            int physicalSize = MemoryCanary.GetPhysicalSize(size);
+            var physicalSize = MemoryCanary.GetPhysicalSize(size);
             return _nextFreeOffset + physicalSize <= Capacity;
         }
 
@@ -140,7 +142,7 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null) throw new InvalidOperationException("LinearLane: Memory not reserved");
 
-            int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+            var physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
             if (_nextFreeOffset + physicalSizeNeeded > Capacity)
                 throw new OutOfMemoryException("LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
 
@@ -162,7 +164,7 @@ namespace MemoryManager.Lanes
                 GrowVersions(id + 1);
             }
 
-            uint currentVersion = ++_versions[id];
+            var currentVersion = ++_versions[id];
 
             _entries[EntryCount] = new AllocationEntry
             {
@@ -245,7 +247,7 @@ namespace MemoryManager.Lanes
         public void Compact() => Compact(0, new MemoryManagerConfig());
 
         /// <inheritdoc />
-        public unsafe void Compact(int currentFrame, MemoryManagerConfig config)
+        public unsafe void Compact(int currentFrame, MemoryManagerConfig? config)
         {
             if (_entries == null || EntryCount == 0) return;
 
@@ -275,8 +277,8 @@ namespace MemoryManager.Lanes
                 if (!entry.IsStub)
                 {
                     // Calculate the raw physical base position and block sizes
-                    int srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-                    int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+                    var srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                    var physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
 
                     void* source = (byte*)Buffer + srcPhysicalOffset;
                     void* target = (byte*)newBuffer + offset;
@@ -424,7 +426,9 @@ namespace MemoryManager.Lanes
             _versionsCapacity = newCapacity;
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Logs the dump.
+        /// </summary>
         public void LogDump() => Trace.WriteLine(DebugDump());
     }
 }

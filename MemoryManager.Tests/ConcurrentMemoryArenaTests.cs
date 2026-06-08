@@ -26,7 +26,7 @@ namespace MemoryManager.Tests
             // Arrange
             var config = new MemoryManagerConfig
             {
-                FastLaneSize = 256 * 1024,      // 256 KB per thread lane
+                FastLaneSize = 256 * 1024, // 256 KB per thread lane
                 SlowLaneSize = 2 * 1024 * 1024, // 2 MB shared backup
                 Threshold = 128,
                 FastLaneStrategy = AllocatorStrategy.Slab // Test with our high-speed Slab strategy
@@ -41,11 +41,11 @@ namespace MemoryManager.Tests
             var tasks = new List<Task>();
 
             // Act
-            for (int t = 0; t < threadCount; t++)
+            for (var t = 0; t < threadCount; t++)
             {
                 tasks.Add(Task.Run(() =>
                 {
-                    for (int i = 0; i < allocationsPerThread; i++)
+                    for (var i = 0; i < allocationsPerThread; i++)
                     {
                         // Every thread allocates concurrently under zero-lock hot paths
                         var handle = arena.Allocate(32);
@@ -54,7 +54,7 @@ namespace MemoryManager.Tests
                         // Basic write verification to hit cache-lines simultaneously
                         unsafe
                         {
-                            int* ptr = (int*)arena.Resolve(handle);
+                            var ptr = (int*)arena.Resolve(handle);
                             *ptr = Thread.CurrentThread.ManagedThreadId;
                         }
                     }
@@ -65,13 +65,14 @@ namespace MemoryManager.Tests
             Task.WaitAll(tasks.ToArray());
 
             // Assert
-            Assert.AreEqual(threadCount * allocationsPerThread, allHandles.Count, "All requested allocations must succeed across threads.");
+            Assert.AreEqual(threadCount * allocationsPerThread, allHandles.Count,
+                "All requested allocations must succeed across threads.");
 
             // Verify address uniqueness across the batch
             var uniqueAddresses = new HashSet<nint>();
             foreach (var handle in allHandles)
             {
-                nint ptr = arena.Resolve(handle);
+                var ptr = arena.Resolve(handle);
                 Assert.IsTrue(uniqueAddresses.Add(ptr), $"Duplicate address collision discovered at pointer: {ptr}");
 
                 // Free the handles to verify concurrent deallocation pathways
@@ -102,7 +103,7 @@ namespace MemoryManager.Tests
 
             var arena = new ConcurrentMemoryArena(config);
             MemoryHandle sharedHandle = default;
-            nint originalPointer = nint.Zero;
+            var originalPointer = nint.Zero;
 
             // ManualResetEvents to orchestrate our two worker threads cleanly
             using var allocationComplete = new ManualResetEvent(false);
@@ -116,14 +117,15 @@ namespace MemoryManager.Tests
                 *(int*)originalPointer = 999;
 
                 allocationComplete.Set(); // Wake up Thread B
-                freeComplete.WaitOne();   // Wait until Thread B frees our slot
+                freeComplete.WaitOne(); // Wait until Thread B frees our slot
 
                 // Thread A triggers a new allocation. This forces it to drain its remote inbox queue first!
                 var recycledHandle = arena.Allocate(32);
-                nint recycledPointer = arena.Resolve(recycledHandle);
+                var recycledPointer = arena.Resolve(recycledHandle);
 
                 // ASSERT: The slot must be perfectly recycled back onto Thread A's local stack context
-                Assert.AreEqual(originalPointer, recycledPointer, "Thread A must successfully reclaim its slot after Thread B remote-freed it.");
+                Assert.AreEqual(originalPointer, recycledPointer,
+                    "Thread A must successfully reclaim its slot after Thread B remote-freed it.");
             });
 
             // 2. Thread B: Intercepts the handle and deletes it cross-thread lines
@@ -132,7 +134,7 @@ namespace MemoryManager.Tests
                 allocationComplete.WaitOne(); // Wait until Thread A finishes allocation
 
                 // Verify the payload survived data transitions
-                int currentVal = *(int*)arena.Resolve(sharedHandle);
+                var currentVal = *(int*)arena.Resolve(sharedHandle);
                 Assert.AreEqual(999, currentVal);
 
                 // CROSS-THREAD FREE: Thread B deletes memory it doesn't own
@@ -177,7 +179,8 @@ namespace MemoryManager.Tests
             var largeHandle = arena.Allocate(200);
 
             // Assert
-            Assert.IsTrue(largeHandle.Id < 0, "Allocations shifting to the SlowLane must register with negative handle identifiers.");
+            Assert.IsTrue(largeHandle.Id < 0,
+                "Allocations shifting to the SlowLane must register with negative handle identifiers.");
 
             var entry = arena.GetEntry(largeHandle);
             Assert.AreEqual(200, entry.Size);

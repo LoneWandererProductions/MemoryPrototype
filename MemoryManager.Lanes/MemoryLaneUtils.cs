@@ -35,6 +35,7 @@ namespace MemoryManager.Lanes
             {
                 totalFree += freeBlocks[i].Size;
             }
+
             return totalFree;
         }
 
@@ -97,7 +98,8 @@ namespace MemoryManager.Lanes
         /// <param name="strategy">The allocation strategy layout constraint to use.</param>
         /// <returns>First free next offset for the allocator, or -1 if Out of Memory.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int FindFreeSpot(int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount, AllocationStrategy strategy)
+        internal static int FindFreeSpot(int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount,
+            AllocationStrategy strategy)
         {
             var targetIndex = -1;
 
@@ -113,6 +115,7 @@ namespace MemoryManager.Lanes
                             break; // Exit instantly on the first validation match
                         }
                     }
+
                     break;
 
                 case AllocationStrategy.BestFit:
@@ -123,7 +126,7 @@ namespace MemoryManager.Lanes
                     {
                         if (freeBlocks[i].Size >= size)
                         {
-                            int remainder = freeBlocks[i].Size - size;
+                            var remainder = freeBlocks[i].Size - size;
 
                             // Track the hole that leaves behind the smallest possible wasted remnant
                             if (remainder < minRemainder)
@@ -136,6 +139,7 @@ namespace MemoryManager.Lanes
                             }
                         }
                     }
+
                     break;
             }
 
@@ -272,8 +276,8 @@ namespace MemoryManager.Lanes
                     ref readonly var e = ref validSpan[i];
 
                     // Visual mapping handles canary alignment offsets cleanly
-                    int physicalOffset = MemoryCanary.GetPhysicalOffset(e.Offset);
-                    int physicalSize = MemoryCanary.GetPhysicalSize(e.Size);
+                    var physicalOffset = MemoryCanary.GetPhysicalOffset(e.Offset);
+                    var physicalSize = MemoryCanary.GetPhysicalSize(e.Size);
 
                     double startByte = physicalOffset;
                     double endByte = physicalOffset + physicalSize;

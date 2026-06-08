@@ -87,9 +87,9 @@ namespace MemoryManager.Lanes
             _entries = new AllocationEntry[maxEntries];
 
             // 1. DYNAMIC BIN GENERATION: Establish power-of-two size tracks up to threshold rules
-            int maxThreshold = config?.Threshold ?? (1024 * 1024 / 4);
+            var maxThreshold = config?.Threshold ?? (1024 * 1024 / 4);
             var sizeClasses = new List<int>();
-            int currentClass = 16;
+            var currentClass = 16;
 
             while (currentClass <= maxThreshold)
             {
@@ -98,22 +98,27 @@ namespace MemoryManager.Lanes
             }
 
             _bins = new SlabBin[sizeClasses.Count];
-            int bytesPerBin = size / _bins.Length;
-            int currentOffset = 0;
+            var bytesPerBin = size / _bins.Length;
+            var currentOffset = 0;
 
             // 2. BUFFER SEGMENTATION: Sub-slice buffer evenly into isolated uniform partitions
-            for (int i = 0; i < _bins.Length; i++)
+            for (var i = 0; i < _bins.Length; i++)
             {
-                int userSize = sizeClasses[i];
-                int physicalSlotSize = MemoryCanary.GetPhysicalSize(userSize);
-                int calculatedSlots = bytesPerBin / physicalSlotSize;
+                var userSize = sizeClasses[i];
+                var physicalSlotSize = MemoryCanary.GetPhysicalSize(userSize);
+                var calculatedSlots = bytesPerBin / physicalSlotSize;
 
                 _bins[i] = new SlabBin(userSize, physicalSlotSize, currentOffset, calculatedSlots);
                 currentOffset += bytesPerBin;
             }
         }
 
-        /// <inheritdoc />
+        /// <summary>
+        /// Gets the capacity.
+        /// </summary>
+        /// <value>
+        /// The capacity.
+        /// </value>
         public int Capacity { get; }
 
         /// <inheritdoc />
@@ -130,7 +135,7 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public bool CanAllocate(int size)
         {
-            int binIndex = FindBinIndex(size);
+            var binIndex = FindBinIndex(size);
             if (binIndex == -1) return false;
             return _bins[binIndex].FreeCount > 0;
         }
@@ -141,12 +146,13 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null) throw new InvalidOperationException("SlabLane: Memory not reserved");
 
-            int binIndex = FindBinIndex(size);
+            var binIndex = FindBinIndex(size);
             if (binIndex == -1 || _bins[binIndex].FreeCount == 0)
-                throw new OutOfMemoryException($"SlabLane: Size bin exhausted for size {size} bytes. Requires eviction collection.");
+                throw new OutOfMemoryException(
+                    $"SlabLane: Size bin exhausted for size {size} bytes. Requires eviction collection.");
 
             ref var bin = ref _bins[binIndex];
-            int physicalOffset = bin.PopSlotOffset();
+            var physicalOffset = bin.PopSlotOffset();
 
             // Write safety structures via localized masking coordinates
             var userOffset = MemoryCanary.GetUserOffset(physicalOffset);
@@ -160,7 +166,7 @@ namespace MemoryManager.Lanes
 #endif
             if (id >= _versionsCapacity) GrowVersions(id + 1);
 
-            uint currentVersion = ++_versions[id];
+            var currentVersion = ++_versions[id];
 
             _entries[EntryCount] = new AllocationEntry
             {
@@ -218,8 +224,8 @@ namespace MemoryManager.Lanes
                 MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, handle.Id);
 
                 // Return physical address back to its respective size bin stack instantly
-                int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-                int binIndex = FindBinIndex(entry.Size);
+                var physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                var binIndex = FindBinIndex(entry.Size);
                 _bins[binIndex].PushSlotOffset(physicalOffset);
             }
             else if (entry.RedirectToId != 0)
@@ -243,7 +249,7 @@ namespace MemoryManager.Lanes
         public void Compact() => Compact(0, new MemoryManagerConfig());
 
         /// <inheritdoc />
-        public void Compact(int currentFrame, MemoryManagerConfig config)
+        public void Compact(int currentFrame, MemoryManagerConfig? config)
         {
             if (_entries == null || EntryCount == 0) return;
 
@@ -252,7 +258,8 @@ namespace MemoryManager.Lanes
             for (var i = EntryCount - 1; i >= 0; i--)
             {
                 var entry = _entries[i];
-                if (!entry.IsStub && (entry.Hints.HasFlag(AllocationHints.Cold) || currentFrame - entry.AllocationFrame > config.MaxFastLaneAgeFrames))
+                if (!entry.IsStub && (entry.Hints.HasFlag(AllocationHints.Cold) ||
+                                      currentFrame - entry.AllocationFrame > config.MaxFastLaneAgeFrames))
                 {
                     var h = new MemoryHandle(entry.HandleId, entry.Version, this);
                     OneWayLane?.MoveFromFastToSlow(h);
@@ -271,8 +278,8 @@ namespace MemoryManager.Lanes
             var entry = _entries[index];
 
             // Clean up the local physical slot registration within the parent bucket
-            int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-            int binIndex = FindBinIndex(entry.Size);
+            var physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+            var binIndex = FindBinIndex(entry.Size);
             _bins[binIndex].PushSlotOffset(physicalOffset);
 
             entry.IsStub = true;
@@ -287,17 +294,18 @@ namespace MemoryManager.Lanes
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int FindBinIndex(int size)
         {
-            for (int i = 0; i < _bins.Length; i++)
+            for (var i = 0; i < _bins.Length; i++)
             {
                 if (_bins[i].SizeClass >= size) return i;
             }
+
             return -1;
         }
 
         /// <inheritdoc />
         public int FreeSpace()
         {
-            int freeSpace = 0;
+            var freeSpace = 0;
             foreach (var bin in _bins) freeSpace += bin.FreeCount * bin.PhysicalSlotSize;
             return freeSpace;
         }
@@ -311,7 +319,7 @@ namespace MemoryManager.Lanes
             long totalPhysicalActiveBytes = 0;
             long totalUserRequestedBytes = 0;
 
-            for (int i = 0; i < EntryCount; i++)
+            for (var i = 0; i < EntryCount; i++)
             {
                 var entry = _entries![i];
                 if (!entry.IsStub)
@@ -332,10 +340,12 @@ namespace MemoryManager.Lanes
         public int StubCount() => MemoryLaneUtils.StubCount(_entries.AsSpan(0, EntryCount));
 
         /// <inheritdoc />
-        public AllocationEntry GetEntry(MemoryHandle handle) => MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries!, nameof(SlabLane));
+        public AllocationEntry GetEntry(MemoryHandle handle) =>
+            MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries!, nameof(SlabLane));
 
         /// <inheritdoc />
-        public int GetAllocationSize(MemoryHandle handle) => MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries!, nameof(SlabLane));
+        public int GetAllocationSize(MemoryHandle handle) =>
+            MemoryLaneUtils.GetAllocationSize(handle, _handleIndex, _entries!, nameof(SlabLane));
 
         /// <inheritdoc />
         public bool HasHandle(MemoryHandle handle) => MemoryLaneUtils.HasHandle(handle, _handleIndex);
@@ -386,6 +396,7 @@ namespace MemoryManager.Lanes
                 Unsafe.CopyBlock(newVersions, _versions, (uint)(_versionsCapacity * sizeof(uint)));
                 NativeMemory.Free(_versions);
             }
+
             _versions = newVersions;
             _versionsCapacity = newCapacity;
         }
@@ -393,8 +404,18 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public unsafe void Dispose()
         {
-            if (Buffer != IntPtr.Zero) { Marshal.FreeHGlobal(Buffer); Buffer = IntPtr.Zero; }
-            if (_versions != null) { NativeMemory.Free(_versions); _versions = null; }
+            if (Buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(Buffer);
+                Buffer = IntPtr.Zero;
+            }
+
+            if (_versions != null)
+            {
+                NativeMemory.Free(_versions);
+                _versions = null;
+            }
+
             _handleIndex.Clear();
             _entries = null;
             GC.SuppressFinalize(this);

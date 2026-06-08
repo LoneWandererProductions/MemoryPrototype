@@ -80,10 +80,10 @@ namespace ExtendedSystemObjects
         /// <param name="item">The item.</param>
         public static void RemoveFast<TValue>(this List<TValue> list, TValue item)
         {
-            int index = list.IndexOf(item);
+            var index = list.IndexOf(item);
             if (index < 0) return; // Item not found
 
-            int lastIndex = list.Count - 1;
+            var lastIndex = list.Count - 1;
 
             // Move the last element into the slot of the element to remove
             list[index] = list[lastIndex];
@@ -103,7 +103,7 @@ namespace ExtendedSystemObjects
         {
             if (index < 0 || index >= list.Count) return;
 
-            int lastIndex = list.Count - 1;
+            var lastIndex = list.Count - 1;
 
             // Move the last element into the slot of the element to remove
             list[index] = list[lastIndex];
@@ -118,7 +118,7 @@ namespace ExtendedSystemObjects
         /// <typeparam name="TValue">The type of the value.</typeparam>
         /// <param name="lst">The List.</param>
         /// <returns>A Dictionary from a list with int as the key</returns>
-        public static Dictionary<int, TValue>? ToDictionary<TValue>(this IEnumerable<TValue> lst)
+        public static Dictionary<int, TValue>? ToDictionary<TValue>(this IEnumerable<TValue>? lst)
         {
             var index = 0;
             return lst?.ToDictionary(_ => index++);

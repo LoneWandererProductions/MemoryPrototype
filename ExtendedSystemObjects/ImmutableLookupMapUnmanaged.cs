@@ -7,6 +7,8 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+// ReSharper disable UnusedMember.Global
+
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -122,12 +124,11 @@ namespace ExtendedSystemObjects
         /// </summary>
         public void Dispose()
         {
-            if(_disposed) return;
+            if (_disposed) return;
             _entries.Dispose();
             _disposed = true;
         }
 
-        /// <inheritdoc />
         /// <summary>
         ///      Gets the value associated with the specified key.
         /// </summary>
@@ -224,7 +225,7 @@ namespace ExtendedSystemObjects
         /// </summary>
         /// <seealso cref="System.IDisposable" />
         /// <seealso cref="System.Collections.Generic.IEnumerable&lt;System.Collections.Generic.KeyValuePair&lt;TKey, TValue&gt;&gt;" />
-        public unsafe struct Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>
+        public struct Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>
         {
             private readonly Entry* _entries;
             private readonly int _capacity;
@@ -247,13 +248,14 @@ namespace ExtendedSystemObjects
                 // Nutzt superschnelle Pointer-Arithmetik statt des Array-Indexers
                 while (++_index < _capacity)
                 {
-                    Entry* entry = _entries + _index;
+                    var entry = _entries + _index;
                     if (entry->IsPresent != 0)
                     {
                         _current = new KeyValuePair<TKey, TValue>(entry->Key, entry->Value);
                         return true;
                     }
                 }
+
                 return false;
             }
 

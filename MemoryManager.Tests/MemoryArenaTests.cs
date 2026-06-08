@@ -16,7 +16,7 @@ namespace MemoryManager.Tests
         /// <summary>
         ///     The configuration
         /// </summary>
-        private MemoryManagerConfig _config;
+        private MemoryManagerConfig? _config;
 
         /// <summary>
         ///     Setups this instance.

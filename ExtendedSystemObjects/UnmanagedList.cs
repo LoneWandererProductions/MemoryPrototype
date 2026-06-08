@@ -9,6 +9,7 @@
 // ReSharper disable MemberCanBeInternal
 // ReSharper disable UnusedMember.Global
 // ReSharper disable MemberCanBePrivate.Global
+// ReSharper disable UnusedType.Global
 
 using System;
 using System.Collections;
@@ -27,11 +28,6 @@ namespace ExtendedSystemObjects
     /// <seealso cref="T:System.IDisposable" />
     public sealed unsafe class UnmanagedList<T> : IUnmanagedArray<T>, IEnumerable<T> where T : unmanaged
     {
-        /// <summary>
-        ///     The buffer
-        /// </summary>
-        private IntPtr _buffer;
-
         /// <summary>
         ///     Check if we disposed the object
         /// </summary>
@@ -356,7 +352,7 @@ namespace ExtendedSystemObjects
             EnsureNotDisposed();
             if (min <= Capacity) return;
 
-            int newCapacity = Capacity == 0 ? 4 : Capacity * 2;
+            var newCapacity = Capacity == 0 ? 4 : Capacity * 2;
             if (newCapacity < min) newCapacity = min;
 
             // Routed safely through Resize to handle geometric updates and zeroing consistently

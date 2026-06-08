@@ -38,7 +38,7 @@ namespace MemoryManager.Lanes
         /// or
         /// slowLane
         /// </exception>
-        public OneWayLane(IFastLane fastLane, IMemoryLane slowLane)
+        public OneWayLane(IFastLane? fastLane, IMemoryLane slowLane)
         {
             _fastLane = fastLane ?? throw new ArgumentNullException(nameof(fastLane));
             _slowLane = slowLane ?? throw new ArgumentNullException(nameof(slowLane));
@@ -106,7 +106,7 @@ namespace MemoryManager.Lanes
                     (void*)fastPtr,
                     (void*)slowPtr,
                     fastEntry.Size, // Destination capacity limit
-                    fastEntry.Size  // Raw bytes to copy
+                    fastEntry.Size // Raw bytes to copy
                 );
 
                 // SUCCESS: Only swap to stub if the copy operation completely succeeded

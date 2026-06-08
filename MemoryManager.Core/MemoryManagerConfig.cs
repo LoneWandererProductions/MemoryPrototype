@@ -237,7 +237,7 @@ namespace MemoryManager.Core
                 SlowLaneSize = (int)(totalBudget * 0.75),
                 FastLaneSize = (int)(totalBudget * 0.25),
                 FastLaneStrategy = AllocatorStrategy.LinearBump, // Maximum speed
-                MaxFastLaneAgeFrames = 300,                      // Evict to SlowLane faster
+                MaxFastLaneAgeFrames = 300, // Evict to SlowLane faster
                 FastLaneUsageThreshold = 0.85,
                 CompactionThreshold = 0.75,
                 EnableAutoCompaction = true,
@@ -261,10 +261,10 @@ namespace MemoryManager.Core
                 SlowLaneSize = (int)(totalBudget * 0.85),
                 FastLaneSize = (int)(totalBudget * 0.15),
                 FastLaneStrategy = AllocatorStrategy.FreeList, // Out-of-order safety
-                FastLaneLargeEntryThreshold = 16384,          // Allow up to 16KB in the hot lane
-                MaxFastLaneAgeFrames = 1200,                  // Let data sit longer before moving
+                FastLaneLargeEntryThreshold = 16384, // Allow up to 16KB in the hot lane
+                MaxFastLaneAgeFrames = 1200, // Let data sit longer before moving
                 SlowLaneUsageThreshold = 0.80,
-                SlowLaneBlobThreshold = 512,                  // Route larger fragments to blobs
+                SlowLaneBlobThreshold = 512, // Route larger fragments to blobs
                 PolicyCheckInterval = TimeSpan.FromSeconds(2), // Low maintenance overhead
 
                 // Heterogeneous presets: prioritize high allocation velocity on FastLane, anti-fragmentation on SlowLane
@@ -282,14 +282,14 @@ namespace MemoryManager.Core
         {
             return new MemoryManagerConfig
             {
-                FastLaneSize = 256 * 1024,                      // 256 KB
-                SlowLaneSize = 1024 * 1024,                     // 1 MB
+                FastLaneSize = 256 * 1024, // 256 KB
+                SlowLaneSize = 1024 * 1024, // 1 MB
                 FastLaneStrategy = AllocatorStrategy.FreeList,
                 EnableAutoCompaction = true,
-                CompactionThreshold = 0.60,                    // Compact very early
+                CompactionThreshold = 0.60, // Compact very early
                 FastLaneUsageThreshold = 0.70,
                 SlowLaneUsageThreshold = 0.70,
-                SlowLaneBlobCapacityFraction = 0.35,           // Allocate more space for tiny fragments
+                SlowLaneBlobCapacityFraction = 0.35, // Allocate more space for tiny fragments
                 PolicyCheckInterval = TimeSpan.FromMilliseconds(500),
 
                 // Low-Footprint presets: Use BestFit everywhere to squeeze the max data out of limited space limits
@@ -311,12 +311,13 @@ namespace MemoryManager.Core
                 SlowLaneSize = (int)(totalBudget * 0.70),
                 FastLaneSize = (int)(totalBudget * 0.30),
                 FastLaneStrategy = AllocatorStrategy.Slab, // Deploy the new Slab architecture!
-                Threshold = 512,                           // Bins up to 512 bytes (perfect for game components/entities)
-                MaxFastLaneAgeFrames = 2400,               // Let objects sit longer in hot bins
-                FastLaneLargeEntryThreshold = 512,         // Keep the slots compact and matching our max bin size
+                Threshold = 512, // Bins up to 512 bytes (perfect for game components/entities)
+                MaxFastLaneAgeFrames = 2400, // Let objects sit longer in hot bins
+                FastLaneLargeEntryThreshold = 512, // Keep the slots compact and matching our max bin size
                 EnableAutoCompaction = true,
                 PolicyCheckInterval = TimeSpan.FromMilliseconds(500),
-                SlowLaneFreeListStrategy = AllocationStrategy.BestFit // SlowLane catches larger spills via clean best-fit
+                SlowLaneFreeListStrategy =
+                    AllocationStrategy.BestFit // SlowLane catches larger spills via clean best-fit
             };
         }
     }

@@ -302,11 +302,11 @@ namespace MemoryManager.Tests
             var entry = arena.GetEntry(handle);
 
             // Resolve the raw byte pointer to our user data space
-            byte* userDataPtr = (byte*)arena.Resolve(handle);
+            var userDataPtr = (byte*)arena.Resolve(handle);
 
             // 1. INTENTIONAL CORRUPTION: 
             // The post-canary sits exactly at (userDataPtr + entry.Size)
-            uint* postCanaryPtr = (uint*)(userDataPtr + entry.Size);
+            var postCanaryPtr = (uint*)(userDataPtr + entry.Size);
 
             // Overwrite the original 0xDEADBEEF signature with poison data
             *postCanaryPtr = 0x00000000;
@@ -336,20 +336,18 @@ namespace MemoryManager.Tests
             var arena = new MemoryArena(config);
 
             var handle = arena.Allocate(16);
-            byte* userDataPtr = (byte*)arena.Resolve(handle);
+            var userDataPtr = (byte*)arena.Resolve(handle);
 
             // 2. INTENTIONAL CORRUPTION:
             // The pre-canary sits exactly 4 bytes behind the user data pointer offset
-            uint* preCanaryPtr = (uint*)(userDataPtr - MemoryCanary.Size);
+            var preCanaryPtr = (uint*)(userDataPtr - MemoryCanary.Size);
 
             // Poison the pre-canary layout signature
             *preCanaryPtr = 0xBADF00D;
 
             // Act & Assert
-            Assert.ThrowsException<AccessViolationException>(() =>
-            {
-                arena.Free(handle);
-            }, "The arena compactor/free engine must catch a pre-canary breach and halt.");
+            Assert.ThrowsException<AccessViolationException>(() => { arena.Free(handle); },
+                "The arena compactor/free engine must catch a pre-canary breach and halt.");
 #else
     Assert.Inconclusive("Canary tests are ignored in Release builds.");
 #endif

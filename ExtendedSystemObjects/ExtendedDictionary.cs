@@ -296,7 +296,7 @@ namespace ExtendedSystemObjects
         /// <typeparam name="TValue">Internal Value</typeparam>
         /// <param name="dic">Internal Target Dictionary</param>
         /// <returns>Clone of the Input Dictionary</returns>
-        public static Dictionary<TKey, TValue>? Clone<TKey, TValue>(this IDictionary<TKey, TValue> dic)
+        public static Dictionary<TKey, TValue>? Clone<TKey, TValue>(this IDictionary<TKey, TValue>? dic)
             where TKey : notnull
         {
             return dic?.ToDictionary(dctClone => dctClone.Key, dctClone => dctClone.Value);

@@ -50,7 +50,7 @@ namespace MemoryManager.Core
             _top = totalSlots;
 
             // Populate lookup index coordinates backwards to create high-speed LIFO cache hits
-            for (int i = 0; i < totalSlots; i++)
+            for (var i = 0; i < totalSlots; i++)
             {
                 _freeOffsets[i] = baseOffset + i * physicalSlotSize;
             }

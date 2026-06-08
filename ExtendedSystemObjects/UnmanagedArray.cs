@@ -28,11 +28,6 @@ namespace ExtendedSystemObjects
     public sealed unsafe class UnmanagedArray<T> : IUnmanagedArray<T>, IEnumerable<T> where T : unmanaged
     {
         /// <summary>
-        ///     The buffer
-        /// </summary>
-        private IntPtr _buffer;
-
-        /// <summary>
         ///     Check if we disposed the object
         /// </summary>
         private bool _disposed;
@@ -274,7 +269,7 @@ namespace ExtendedSystemObjects
             EnsureNotDisposed();
             if (minCapacity <= Capacity) return;
 
-            int newCapacity = Capacity == 0 ? 4 : Capacity * 2;
+            var newCapacity = Capacity == 0 ? 4 : Capacity * 2;
             if (newCapacity < minCapacity) newCapacity = minCapacity;
 
             Resize(newCapacity);

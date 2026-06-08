@@ -20,12 +20,12 @@ namespace MemoryManager.Tests
         /// <summary>
         ///     The configuration
         /// </summary>
-        private MemoryManagerConfig _config;
+        private MemoryManagerConfig? _config;
 
         /// <summary>
         ///     The FastLane
         /// </summary>
-        private FastLane _fastLane;
+        private FastLane? _fastLane;
 
         /// <summary>
         ///     Setups this instance.
@@ -129,10 +129,10 @@ namespace MemoryManager.Tests
 
             // --- FIX: Dynamic, Canary-Aware Offset Assertions ---
             // Read the actual padding from the first element (4 in DEBUG, 0 in RELEASE)
-            int canaryPadding = _fastLane.GetEntry(handles[0]).Offset;
+            var canaryPadding = _fastLane.GetEntry(handles[0]).Offset;
 
             // The physical step size of each block is the user size (128) + 2x canary padding
-            int stepSize = 128 + (canaryPadding * 2);
+            var stepSize = 128 + (canaryPadding * 2);
 
             // Handle 0 is at the baseline padding offset
             Assert.AreEqual(canaryPadding, _fastLane.GetEntry(handles[0]).Offset);

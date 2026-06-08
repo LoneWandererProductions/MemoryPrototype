@@ -36,10 +36,11 @@ namespace MemoryManager.Tests
                 var h3 = blobManager.Allocate(100);
 
                 // Query the core alignment engine directly to determine the true physical footprint
-                int physicalBlockSize = MemoryCanary.GetPhysicalSize(100);
-                int expectedFreeSpace = capacity - (3 * physicalBlockSize);
+                var physicalBlockSize = MemoryCanary.GetPhysicalSize(100);
+                var expectedFreeSpace = capacity - (3 * physicalBlockSize);
 
-                Assert.AreEqual(expectedFreeSpace, blobManager.FreeSpace(), $"Should have exactly {expectedFreeSpace} bytes free.");
+                Assert.AreEqual(expectedFreeSpace, blobManager.FreeSpace(),
+                    $"Should have exactly {expectedFreeSpace} bytes free.");
 
                 // 2. Free the middle block (Creates a hole/fragmentation)
                 blobManager.Free(h2);
@@ -82,8 +83,8 @@ namespace MemoryManager.Tests
 
             // Calculate capacity using the true aligned physical size, 
             // and add a small 4KB cushion padding to accommodate non-reclaiming warmup bumps
-            int physicalSize = MemoryCanary.GetPhysicalSize(size);
-            int capacity = (count * physicalSize) + 4096;
+            var physicalSize = MemoryCanary.GetPhysicalSize(size);
+            var capacity = (count * physicalSize) + 4096;
 
             // Both lanes require a SlowLane reference in their constructors
             using var slowLane = new SlowLane(capacity);

@@ -26,7 +26,7 @@ namespace MemoryManager
         /// <summary>
         /// The configuration
         /// </summary>
-        private readonly MemoryManagerConfig _config;
+        private readonly MemoryManagerConfig? _config;
 
         /// <summary>
         /// The lock
@@ -46,7 +46,7 @@ namespace MemoryManager
         /// <summary>
         /// Gets the active fast lane engine instance.
         /// </summary>
-        public IFastLane FastLane { get; set; }
+        public IFastLane? FastLane { get; set; }
 
         /// <summary>
         /// Gets the active slow lane engine instance.
@@ -62,7 +62,7 @@ namespace MemoryManager
         /// Initializes a new instance of the <see cref="MemoryArena" /> class.
         /// </summary>
         /// <param name="config">The memory configuration blueprint.</param>
-        public MemoryArena(MemoryManagerConfig config)
+        public MemoryArena(MemoryManagerConfig? config)
         {
             _lock = new object();
             _config = config;
@@ -109,7 +109,8 @@ namespace MemoryManager
             FastLane.OneWayLane = new OneWayLane(FastLane, SlowLane);
 
             if (config.PolicyCheckInterval > TimeSpan.Zero)
-                _policyTimer = new Timer(_ => CheckPolicies(), null, config.PolicyCheckInterval, config.PolicyCheckInterval);
+                _policyTimer = new Timer(_ => CheckPolicies(), null, config.PolicyCheckInterval,
+                    config.PolicyCheckInterval);
         }
 
         /// <summary>
@@ -307,7 +308,8 @@ namespace MemoryManager
         {
             lock (_lock)
             {
-                return AllocateInternal(size, priority, hints, debugName, currentFrame == 0 ? CurrentFrame : currentFrame);
+                return AllocateInternal(size, priority, hints, debugName,
+                    currentFrame == 0 ? CurrentFrame : currentFrame);
             }
         }
 
@@ -345,7 +347,6 @@ namespace MemoryManager
             }
         }
 
-        /// <inheritdoc />
         /// <summary>
         /// Forces physical compaction and fragment collection across all tiers.
         /// </summary>
@@ -371,7 +372,8 @@ namespace MemoryManager
                 sb.AppendLine("===== MemoryArena Dump =====");
 
                 // Hot Path Telemetry
-                sb.AppendLine($"Fast Lane Usage: {FastLane.UsagePercentage():P2}, Free: {FastLane.FreeSpace()} bytes, Entries: {FastLane.EntryCount}, Stubs: {FastLane.StubCount()}");
+                sb.AppendLine(
+                    $"Fast Lane Usage: {FastLane.UsagePercentage():P2}, Free: {FastLane.FreeSpace()} bytes, Entries: {FastLane.EntryCount}, Stubs: {FastLane.StubCount()}");
                 sb.AppendLine($"Estimated Fragmentation: {FastLane.EstimateFragmentation()}%");
                 sb.AppendLine(FastLane.DebugDump());
                 sb.AppendLine(FastLane.DebugVisualMap());
@@ -380,7 +382,8 @@ namespace MemoryManager
                 sb.AppendLine(); // Clean spacing break
 
                 // Cold Path Telemetry
-                sb.AppendLine($"Slow Lane Usage: {SlowLane.UsagePercentage():P2}, Free: {SlowLane.FreeSpace()} bytes, Entries: {SlowLane.EntryCount}, Stubs: {SlowLane.StubCount()}");
+                sb.AppendLine(
+                    $"Slow Lane Usage: {SlowLane.UsagePercentage():P2}, Free: {SlowLane.FreeSpace()} bytes, Entries: {SlowLane.EntryCount}, Stubs: {SlowLane.StubCount()}");
                 sb.AppendLine($"Estimated Fragmentation: {SlowLane.EstimateFragmentation()}%");
                 sb.AppendLine(SlowLane.DebugDump());
                 sb.AppendLine(SlowLane.DebugVisualMap());
@@ -408,7 +411,8 @@ namespace MemoryManager
         /// <returns>The allocated memory handle.</returns>
         /// <exception cref="System.OutOfMemoryException">Neither lane could allocate memory. Requested size: {size}, " +
         ///                 $"FastLane free: {FastLane.FreeSpace()}, SlowLane free: {SlowLane.FreeSpace()}</exception>
-        private MemoryHandle AllocateInternal(int size, AllocationPriority priority, AllocationHints hints, string? debugName, int frame)
+        private MemoryHandle AllocateInternal(int size, AllocationPriority priority, AllocationHints hints,
+            string? debugName, int frame)
         {
             if (size <= Threshold && FastLane.CanAllocate(size))
                 return FastLane.Allocate(size, priority, hints, debugName, frame);
@@ -453,10 +457,10 @@ namespace MemoryManager
             if (SlowLane.UsagePercentage() <= _config.SlowLaneUsageThreshold)
                 return;
 
-            double fragmentationFraction = SlowLane.EstimateFragmentation() / 100.0;
+            var fragmentationFraction = SlowLane.EstimateFragmentation() / 100.0;
             double currentFreeSpace = SlowLane.FreeSpace();
             double totalSize = SlowLane.Capacity;
-            double predictedFreeAfterCompaction = currentFreeSpace + (fragmentationFraction * totalSize);
+            var predictedFreeAfterCompaction = currentFreeSpace + (fragmentationFraction * totalSize);
 
             if (predictedFreeAfterCompaction / totalSize >= _config.SlowLaneSafetyMargin)
             {

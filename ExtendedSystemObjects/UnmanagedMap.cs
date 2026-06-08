@@ -137,10 +137,7 @@ namespace ExtendedSystemObjects
         /// </value>
         public IEnumerable<TValue> Values
         {
-            get
-            {
-                return GetValuesSnapshot();
-            }
+            get { return GetValuesSnapshot(); }
         }
 
         /// <summary>
@@ -498,7 +495,7 @@ namespace ExtendedSystemObjects
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GenerateHash(int key, int mask)
         {
-            uint h = (uint)key;
+            var h = (uint)key;
             h ^= h >> 16;
             h *= 0x45d9f3b;
             h ^= h >> 16;

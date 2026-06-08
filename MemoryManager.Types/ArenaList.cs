@@ -57,7 +57,8 @@ namespace MemoryManager.Types
         /// <summary>
         /// Initializes a new instance of the <see cref="ArenaList{T}"/> class.
         /// </summary>
-        public ArenaList(MemoryArena arena, int initialCapacity = 8, AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
+        public ArenaList(MemoryArena arena, int initialCapacity = 8,
+            AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
             if (initialCapacity <= 0) initialCapacity = 8;
 
@@ -97,7 +98,8 @@ namespace MemoryManager.Types
         public ref T Get(int index)
         {
             if (index < 0 || index >= Count)
-                throw new IndexOutOfRangeException($"Index {index} is outside the active boundaries of the ArenaList (Count: {Count}).");
+                throw new IndexOutOfRangeException(
+                    $"Index {index} is outside the active boundaries of the ArenaList (Count: {Count}).");
 
             var span = _arena.GetSpan<T>(_handle, _capacity);
             return ref span[index];

@@ -18,12 +18,12 @@ namespace MemoryManager.Tests
         /// <summary>
         ///     The configuration
         /// </summary>
-        private MemoryManagerConfig _config;
+        private MemoryManagerConfig? _config;
 
         /// <summary>
         ///     The FastLane
         /// </summary>
-        private SlowLane _slowLane;
+        private SlowLane? _slowLane;
 
         /// <summary>
         ///     Setups this instance.

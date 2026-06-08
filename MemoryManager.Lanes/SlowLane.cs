@@ -105,6 +105,7 @@ namespace MemoryManager.Lanes
         /// <param name="blobCapacityFraction">The BLOB capacity fraction.</param>
         /// <param name="blobThreshold">The BLOB threshold.</param>
         /// <param name="maxEntries">The maximum entries.</param>
+        /// <param name="slowLaneFreeListStrategy">The slow lane free list strategy.</param>
         public unsafe SlowLane(int capacity, double blobCapacityFraction = 0.20, int blobThreshold = 256,
             int maxEntries = 1024, AllocationStrategy slowLaneFreeListStrategy = default)
         {
@@ -199,8 +200,9 @@ namespace MemoryManager.Lanes
             }
 
             // Calculate tracking footprint dimension rules including canary bytes
-            int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
-            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount, _searchStrategy);
+            var physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount,
+                _searchStrategy);
 
             if (offset == -1)
                 throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough.");
@@ -222,14 +224,14 @@ namespace MemoryManager.Lanes
             }
 #endif
             // Map sequential negative ID directly to positive array coordinates
-            int versionIdx = -id;
+            var versionIdx = -id;
             if (versionIdx >= _versionsCapacity)
             {
                 GrowVersions(versionIdx + 1);
             }
 
             // True O(1) Version Bump
-            uint currentVersion = ++_versions[versionIdx];
+            var currentVersion = ++_versions[versionIdx];
 
             _entries[slotIndex] = new AllocationEntry
             {
@@ -260,7 +262,7 @@ namespace MemoryManager.Lanes
             }
 
             // Ensure our metrics test the complete physical footprint needed in memory
-            int physicalSize = MemoryCanary.GetPhysicalSize(size);
+            var physicalSize = MemoryCanary.GetPhysicalSize(size);
 
             // --- STANDARD BLOCK ALLOCATION LOGIC ---
             if (GetUsed() + physicalSize > Capacity * (1.0 - SafetyMargin))
@@ -333,8 +335,8 @@ namespace MemoryManager.Lanes
             MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, handle.Id);
 
             // Reconstruct absolute layout footprint blocks to return back to the list
-            int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-            int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+            var physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+            var physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
             MemoryLaneUtils.ReturnFreeSpace(physicalOffset, physicalSize, ref _freeBlocks, ref _freeBlockCount);
 
             _entries[index] = default;
@@ -381,8 +383,8 @@ namespace MemoryManager.Lanes
                 // Verify buffer bounds are clear on every block inside the batch operation
                 MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, id);
 
-                int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-                int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+                var physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                var physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
                 MemoryLaneUtils.ReturnFreeSpace(physicalOffset, physicalSize, ref _freeBlocks, ref _freeBlockCount);
 
                 // Clear entry data
@@ -428,8 +430,8 @@ namespace MemoryManager.Lanes
                 var currentEntry = entry; // Make a local copy to modify
 
                 // Extract base track coordinates for the total block footprint
-                int srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(currentEntry.Offset);
-                int physicalSize = MemoryCanary.GetPhysicalSize(currentEntry.Size);
+                var srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(currentEntry.Offset);
+                var physicalSize = MemoryCanary.GetPhysicalSize(currentEntry.Size);
 
                 // Slide the complete unmanaged layout block (Canary + User Data + Canary)
                 System.Buffer.MemoryCopy(

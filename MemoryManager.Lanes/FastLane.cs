@@ -90,7 +90,8 @@ namespace MemoryManager.Lanes
         /// <param name="slowLane">The slow lane.</param>
         /// <param name="maxEntries">The maximum entries.</param>
         /// <param name="fastLaneFreeListStrategy">The fast lane free list strategy.</param>
-        public unsafe FastLane(int size, SlowLane slowLane, int maxEntries = 1024, AllocationStrategy fastLaneFreeListStrategy = default)
+        public unsafe FastLane(int size, SlowLane slowLane, int maxEntries = 1024,
+            AllocationStrategy fastLaneFreeListStrategy = default)
         {
             _slowLane = slowLane;
             Capacity = size;
@@ -187,8 +188,9 @@ namespace MemoryManager.Lanes
             if (_entries == null) throw new InvalidOperationException("FastLane: Memory not reserved");
 
             // Calculate total layout footprint including canary guards
-            int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
-            var physicalOffset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount, _searchStrategy);
+            var physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+            var physicalOffset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount,
+                _searchStrategy);
 
             if (physicalOffset == -1)
                 throw new OutOfMemoryException("FastLane: Cannot allocate - No contiguous block large enough.");
@@ -206,7 +208,7 @@ namespace MemoryManager.Lanes
                 GrowVersions(id + 1);
             }
 
-            uint version = ++_versions[id];
+            var version = ++_versions[id];
 
 #if DEBUG
             if (!string.IsNullOrEmpty(debugName))
@@ -299,8 +301,8 @@ namespace MemoryManager.Lanes
             MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, handle.Id);
 
             // Map user boundaries back to complete layout blocks for the free-list
-            int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-            int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+            var physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+            var physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
             MemoryLaneUtils.ReturnFreeSpace(physicalOffset, physicalSize, ref _freeBlocks, ref _freeBlockCount);
 
             if (entry.IsStub && entry.RedirectToId != 0)
@@ -334,7 +336,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         ///     Compacts this instance.
         /// </summary>
-        public unsafe void Compact(int currentFrame, MemoryManagerConfig config)
+        public unsafe void Compact(int currentFrame, MemoryManagerConfig? config)
         {
             if (_entries == null || EntryCount == 0) return;
 
@@ -363,8 +365,8 @@ namespace MemoryManager.Lanes
             foreach (var survivor in survivors)
             {
                 // Extract base tracking coordinates for the entire block footprint
-                int srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(survivor.Offset);
-                int physicalSize = MemoryCanary.GetPhysicalSize(survivor.Size);
+                var srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(survivor.Offset);
+                var physicalSize = MemoryCanary.GetPhysicalSize(survivor.Size);
 
                 // 1. Move the complete physical block (Canary + User Data + Canary)
                 void* source = (byte*)Buffer + srcPhysicalOffset;
@@ -482,8 +484,8 @@ namespace MemoryManager.Lanes
             entry.RedirectVersion = slowHandle.Version;
 
             // Map boundaries to clean up the underlying block pool space cleanly
-            int physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-            int physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+            var physicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+            var physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
             MemoryLaneUtils.ReturnFreeSpace(physicalOffset, physicalSize, ref _freeBlocks, ref _freeBlockCount);
 
             entry.Offset = 0;
@@ -644,7 +646,7 @@ namespace MemoryManager.Lanes
         /// <param name="currentFrame">The current frame.</param>
         /// <param name="config">The configuration.</param>
         /// <returns>True if the entry should be moved to the slow lane; otherwise, false.</returns>
-        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, MemoryManagerConfig config)
+        private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, MemoryManagerConfig? config)
         {
             // 1. EXPLICIT TELEMETRY:
             // Did the developer tag this as "Cold" or "LongLived" during allocation?

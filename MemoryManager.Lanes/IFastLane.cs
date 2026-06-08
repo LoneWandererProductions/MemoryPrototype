@@ -29,7 +29,7 @@ namespace MemoryManager.Lanes
         /// </summary>
         /// <param name="currentFrame">The current frame.</param>
         /// <param name="config">The configuration.</param>
-        void Compact(int currentFrame, MemoryManagerConfig config);
+        void Compact(int currentFrame, MemoryManagerConfig? config);
 
         /// <summary>
         /// Replaces the with stub.

@@ -27,7 +27,7 @@ namespace MemoryManager.Core
         /// <value>
         /// The lane controlling this memory handle.
         /// </value>
-        public IMemoryLane Lane => _lane;
+        public IMemoryLane? Lane => _lane;
 
         /// <summary>
         /// The version
@@ -37,7 +37,7 @@ namespace MemoryManager.Core
         /// <summary>
         ///     The lane
         /// </summary>
-        private readonly IMemoryLane _lane;
+        private readonly IMemoryLane? _lane;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MemoryHandle" /> struct with the specified ID and memory lane.

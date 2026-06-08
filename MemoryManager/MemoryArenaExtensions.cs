@@ -99,7 +99,9 @@ namespace MemoryManager
         /// Handle to stored data.
         /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static MemoryHandle StoreString(this IMemoryAllocator allocator, string? text, AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None, string? debugName = null)
+        public static MemoryHandle StoreString(this IMemoryAllocator allocator, string? text,
+            AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None,
+            string? debugName = null)
         {
             if (string.IsNullOrEmpty(text)) return default;
 
@@ -108,7 +110,7 @@ namespace MemoryManager
             var handle = allocator.Allocate(byteCount, priority, hints, debugName);
 
             // Rent a temporary array to convert strings without allocating garbage
-            byte[] managedBuffer = Encoding.UTF8.GetBytes(text);
+            var managedBuffer = Encoding.UTF8.GetBytes(text);
             allocator.BulkSet<byte>(handle, managedBuffer);
 
             return handle;
@@ -123,7 +125,8 @@ namespace MemoryManager
         /// <param name="handle">The handle.</param>
         /// <param name="source">The source.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void BulkSet<T>(this IMemoryAllocator arena, MemoryHandle handle, Span<T> source) where T : unmanaged
+        public static void BulkSet<T>(this IMemoryAllocator arena, MemoryHandle handle, Span<T> source)
+            where T : unmanaged
         {
             // Bypasses instance type inference by passing T explicitly
             arena.BulkSet<T>(handle, source);

@@ -3,9 +3,12 @@
  * PROJECT:     MemoryManager
  * FILE:        ConcurrentMemoryArena.cs
  * PURPOSE:     A thread-isolated, high-scaling wrapper around Memory Lanes.
- * Uses Thread-Local Storage (TLS) to eliminate hot-path allocation locks.
+ *              Uses Thread-Local Storage (TLS) to eliminate hot-path allocation locks.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
+
+// ReSharper disable MemberCanBePrivate.Global
+
 
 using MemoryManager.Core;
 using MemoryManager.Lanes;
@@ -22,14 +25,31 @@ namespace MemoryManager
     /// </summary>
     public sealed class ConcurrentMemoryArena : IMemoryAllocator, IDisposable
     {
+        /// <summary>
+        /// The configuration
+        /// </summary>
         private readonly MemoryManagerConfig _config;
+
+        /// <summary>
+        /// The global slow lane
+        /// </summary>
         private readonly SlowLane _globalSlowLane;
+
+        /// <summary>
+        /// The global lock
+        /// </summary>
         private readonly object _globalLock;
 
-        // The Magic Engine: Provisions a distinct, completely isolated fast lane instance per thread
-        private readonly ThreadLocal<IFastLane> _threadLocalFastLane;
+        /// <summary>
+        /// The thread local fast lane
+        /// Provisions a distinct, completely isolated fast lane instance per thread
+        /// </summary>
+        private readonly ThreadLocal<IFastLane?> _threadLocalFastLane;
 
-        // The Cross-Thread Safety Net: Collects handles freed by foreign threads
+        /// <summary>
+        /// The remote free queue
+        /// The Cross-Thread Safety Net: Collects handles freed by foreign threads
+        /// </summary>
         private readonly ConcurrentQueue<MemoryHandle> _remoteFreeQueue;
 
         /// <summary>
@@ -56,15 +76,16 @@ namespace MemoryManager
                 config.SlowLaneFreeListStrategy);
 
             // Thread-local factory allocation assignment profile
-            _threadLocalFastLane = new ThreadLocal<IFastLane>(() =>
+            _threadLocalFastLane = new ThreadLocal<IFastLane?>(() =>
             {
-                IFastLane localLane;
+                IFastLane? localLane;
 
                 // Instantiate the configured allocation strategy completely isolated on this thread
                 switch (_config.FastLaneStrategy)
                 {
                     case AllocatorStrategy.FreeList:
-                        localLane = new FastLane(_config.FastLaneSize, _globalSlowLane, _config.MaxEntries, _config.FastLaneFreeListStrategy);
+                        localLane = new FastLane(_config.FastLaneSize, _globalSlowLane, _config.MaxEntries,
+                            _config.FastLaneFreeListStrategy);
                         break;
                     case AllocatorStrategy.Slab:
                         localLane = new SlabLane(_config.FastLaneSize, _globalSlowLane, _config.MaxEntries, _config);
@@ -85,7 +106,8 @@ namespace MemoryManager
         /// Allocates memory from the calling thread's isolated fast lane (lock-free) 
         /// or routes to the shared slow lane.
         /// </summary>
-        public MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
+        public MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
+            AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
         {
             // Housekeeping: Clean up any work other threads sent back to us before allocating fresh slots
             DrainRemoteFreesForCurrentThread();
@@ -116,6 +138,11 @@ namespace MemoryManager
         /// <summary>
         /// Resolves a memory handle safely, checking local thread coordinates or crossing thread lines.
         /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>
+        /// A <see cref="T:System.IntPtr" /> pointing to the allocated memory block.
+        /// </returns>
+        /// <exception cref="System.InvalidOperationException">Cannot resolve an invalid handle.</exception>
         public nint Resolve(MemoryHandle handle)
         {
             if (handle.IsInvalid) throw new InvalidOperationException("Cannot resolve an invalid handle.");
@@ -136,6 +163,8 @@ namespace MemoryManager
         /// <summary>
         /// Safely reclaims memory, instantly assessing if this is a local or foreign cross-thread free operation.
         /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <exception cref="System.InvalidOperationException">Cannot free an invalid handle.</exception>
         public void Free(MemoryHandle handle)
         {
             if (handle.IsInvalid) throw new InvalidOperationException("Cannot free an invalid handle.");
@@ -147,6 +176,7 @@ namespace MemoryManager
                 {
                     _globalSlowLane.Free(handle);
                 }
+
                 return;
             }
 
@@ -168,6 +198,11 @@ namespace MemoryManager
         /// Copies a source span of data atomically into the unmanaged memory referenced by the handle.
         /// Guaranteed thread-safe based on data-lane isolation layout constraints.
         /// </summary>
+        /// <typeparam name="T">The type of the elements.</typeparam>
+        /// <param name="handle">The handle.</param>
+        /// <param name="source">The source.</param>
+        /// <exception cref="System.InvalidOperationException">Invalid handle</exception>
+        /// <exception cref="System.ArgumentException">Destination allocation ({entry.Size} bytes) is too small for source data ({requiredSize} bytes).</exception>
         public unsafe void BulkSet<T>(MemoryHandle handle, ReadOnlySpan<T> source) where T : unmanaged
         {
             if (handle.IsInvalid) throw new InvalidOperationException("Invalid handle");
@@ -179,7 +214,8 @@ namespace MemoryManager
                 var requiredSize = System.Runtime.CompilerServices.Unsafe.SizeOf<T>() * source.Length;
 
                 if (entry.Size < requiredSize)
-                    throw new ArgumentException($"Destination allocation ({entry.Size} bytes) is too small for source data ({requiredSize} bytes).");
+                    throw new ArgumentException(
+                        $"Destination allocation ({entry.Size} bytes) is too small for source data ({requiredSize} bytes).");
 
                 var dest = handle.Lane.Resolve(handle).ToPointer();
                 fixed (T* srcPtr = source)
@@ -196,7 +232,8 @@ namespace MemoryManager
                     var requiredSize = System.Runtime.CompilerServices.Unsafe.SizeOf<T>() * source.Length;
 
                     if (entry.Size < requiredSize)
-                        throw new ArgumentException($"Destination allocation ({entry.Size} bytes) is too small for source data ({requiredSize} bytes).");
+                        throw new ArgumentException(
+                            $"Destination allocation ({entry.Size} bytes) is too small for source data ({requiredSize} bytes).");
 
                     var dest = _globalSlowLane.Resolve(handle).ToPointer();
                     fixed (T* srcPtr = source)
@@ -210,6 +247,11 @@ namespace MemoryManager
         /// <summary>
         /// Retrieves the full allocation entry metadata for a given handle.
         /// </summary>
+        /// <param name="handle">The handle.</param>
+        /// <returns>
+        /// An <see cref="T:MemoryManager.Core.AllocationEntry" /> representing the allocation entry.
+        /// </returns>
+        /// <exception cref="System.InvalidOperationException">Invalid handle</exception>
         public AllocationEntry GetEntry(MemoryHandle handle)
         {
             if (handle.IsInvalid) throw new InvalidOperationException("Invalid handle");
@@ -232,11 +274,11 @@ namespace MemoryManager
         {
             if (_remoteFreeQueue.IsEmpty) return;
 
-            int initialCount = _remoteFreeQueue.Count;
+            var initialCount = _remoteFreeQueue.Count;
             var localLane = _threadLocalFastLane.Value!;
 
             // Process outstanding cross-thread requests bounded by current snapshot depths
-            for (int i = 0; i < initialCount; i++)
+            for (var i = 0; i < initialCount; i++)
             {
                 if (_remoteFreeQueue.TryPeek(out var handle))
                 {
@@ -265,10 +307,10 @@ namespace MemoryManager
         public string DebugDump()
         {
             var localLane = _threadLocalFastLane.Value;
-            string laneStatus = localLane != null ? localLane.DebugDump() : "Uninitialized Local Track";
+            var laneStatus = localLane != null ? localLane.DebugDump() : "Uninitialized Local Track";
 
             return $"=== CONCURRENT ARENA DIAGNOSTICS ===\n" +
-                   $"Calling Thread ID: {System.Threading.Thread.CurrentThread.ManagedThreadId}\n" +
+                   $"Calling Thread ID: {Thread.CurrentThread.ManagedThreadId}\n" +
                    $"Remote Free Backlog: {_remoteFreeQueue.Count} Handles Pending\n" +
                    $"[HOT TIER]  {localLane?.GetType().Name ?? "None"} -> {laneStatus}\n" +
                    $"[COLD TIER] Global SlowLane -> {_globalSlowLane.DebugDump()}\n" +
