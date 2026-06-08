@@ -50,6 +50,11 @@ To move this system out of the prototyping phase and into a hardened, production
 * **Current State:** When compaction triggers, the compactor engine allocates an entirely new unmanaged heap block via `Marshal.AllocHGlobal` and slides all survivors over via memory block copying. For massive heaps (e.g., 512MB+), this causes noticeable block stutters (latency spikes) and temporarily forces a **double memory footprint**.
 * **Production Fix:** Implement an **Incremental/Phased Compactor** that only relocates a small chunk of fragmented blocks per frame tick, or enforce strict zero-compaction rules where arenas are completely cleared and cycled out at deterministic boundaries (e.g., scene changes).
 
+### 3. Add bool IsFragmented() to trigger Compact() on threshold
+* ** Current State:** The compactor is only triggered when the arena is completely full. This allows fragmentation to grow unchecked until the last possible moment, causing more severe stutters and higher memory usage.
+* **Production Fix:** Introduce an `IsFragmented()` method that evaluates the current fragmentation level against a predefined threshold. If the fragmentation exceeds the threshold, trigger the `Compact()` method proactively to maintain optimal memory usage and reduce latency spikes.
+
+- 
 ---
 
 ## 🧩 Config Presets & Advanced Usage

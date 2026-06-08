@@ -67,28 +67,42 @@ namespace MemoryManager
             _config = config;
             Threshold = config.Threshold;
 
-            // PASS 1: Pass the anti-fragmentation strategy flag straight into the SlowLane
+            // PASS 1: Initialize the anti-fragmentation persistent tier
             SlowLane = new SlowLane(
                 config.SlowLaneSize,
                 config.SlowLaneBlobCapacityFraction,
                 config.SlowLaneBlobThreshold,
                 config.MaxEntries,
-                config.SlowLaneFreeListStrategy); // Added strategy selection
+                config.SlowLaneFreeListStrategy);
 
-            if (config.FastLaneStrategy == AllocatorStrategy.FreeList)
+            // PASS 2: Factory Selector for the FastLane layout blueprint
+            switch (config.FastLaneStrategy)
             {
-                // PASS 2: Pass the high-velocity strategy flag into the Free-List FastLane
-                FastLane = new FastLane(
-                    config.FastLaneSize,
-                    SlowLane,
-                    config.MaxEntries,
-                    config.FastLaneFreeListStrategy); // Added strategy selection
-            }
-            else
-            {
-                // NOTE: LinearLane is a pure O(1) bump allocator. It does not scan holes, 
-                // so it does not take an AllocationStrategy configuration parameter.
-                FastLane = new LinearLane(config.FastLaneSize, SlowLane, config.MaxEntries);
+                case AllocatorStrategy.FreeList:
+                    FastLane = new FastLane(
+                        config.FastLaneSize,
+                        SlowLane,
+                        config.MaxEntries,
+                        config.FastLaneFreeListStrategy);
+                    break;
+
+                case AllocatorStrategy.Slab:
+                    // Drop-in our new dynamic segregated storage bucket allocator
+                    FastLane = new SlabLane(
+                        config.FastLaneSize,
+                        SlowLane,
+                        config.MaxEntries,
+                        config);
+                    break;
+
+                case AllocatorStrategy.LinearBump:
+                default:
+                    // Fall back to our ultra-high speed frame-based linear bump allocator
+                    FastLane = new LinearLane(
+                        config.FastLaneSize,
+                        SlowLane,
+                        config.MaxEntries);
+                    break;
             }
 
             FastLane.OneWayLane = new OneWayLane(FastLane, SlowLane);

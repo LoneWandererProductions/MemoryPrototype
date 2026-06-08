@@ -297,5 +297,27 @@ namespace MemoryManager.Core
                 SlowLaneFreeListStrategy = AllocationStrategy.BestFit
             };
         }
+
+        /// <summary>
+        /// NEW PRESET: Creates a configuration tuned for ultra-fast, predictable object pooling.
+        /// Employs the zero-compaction, fixed-bin segregated SlabLane strategy.
+        /// </summary>
+        /// <param name="totalBudget">The total budget.</param>
+        /// <returns>MemoryManagerConfig instance configured for object pooling.</returns>
+        public static MemoryManagerConfig CreateForObjectPooling(int totalBudget = 32 * 1024 * 1024)
+        {
+            return new MemoryManagerConfig
+            {
+                SlowLaneSize = (int)(totalBudget * 0.70),
+                FastLaneSize = (int)(totalBudget * 0.30),
+                FastLaneStrategy = AllocatorStrategy.Slab, // Deploy the new Slab architecture!
+                Threshold = 512,                           // Bins up to 512 bytes (perfect for game components/entities)
+                MaxFastLaneAgeFrames = 2400,               // Let objects sit longer in hot bins
+                FastLaneLargeEntryThreshold = 512,         // Keep the slots compact and matching our max bin size
+                EnableAutoCompaction = true,
+                PolicyCheckInterval = TimeSpan.FromMilliseconds(500),
+                SlowLaneFreeListStrategy = AllocationStrategy.BestFit // SlowLane catches larger spills via clean best-fit
+            };
+        }
     }
 }

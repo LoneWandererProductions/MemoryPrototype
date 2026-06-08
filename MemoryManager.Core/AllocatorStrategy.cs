@@ -8,6 +8,9 @@
 
 namespace MemoryManager.Core
 {
+    /// <summary>
+    /// Enum for possible allocation strategies. This is used to determine which lane to use for a given allocation request, and can be configured globally or per-allocation.
+    /// </summary>
     public enum AllocatorStrategy
     {
         /// <summary>
@@ -21,5 +24,11 @@ namespace MemoryManager.Core
         /// Absolute maximum speed, requires frequent compactions
         /// </summary>
         LinearBump = 1,
+
+        /// <summary>
+        /// The slab lane,
+        /// Uses fixed-size bins for small allocations, excellent for uniform patterns, but can lead to fragmentation if misused.
+        /// </summary>
+        Slab = 2
     }
 }
