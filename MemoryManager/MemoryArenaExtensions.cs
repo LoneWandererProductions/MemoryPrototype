@@ -10,9 +10,13 @@ using MemoryManager.Core;
 using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace MemoryManager
 {
+    /// <summary>
+    /// Extension methods for the MemoryArena, providing convenient overloads for common patterns like allocating specific types, storing strings, and bulk copying data.
+    /// </summary>
     public static class MemoryArenaExtensions
     {
         /// <summary>
@@ -22,7 +26,7 @@ namespace MemoryManager
         /// <param name="arena">The arena.</param>
         /// <returns>Handle to stored data.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static MemoryHandle Allocate<T>(this MemoryArena arena) where T : unmanaged
+        public static MemoryHandle Allocate<T>(this IMemoryAllocator arena) where T : unmanaged
         {
             return arena.Allocate(Unsafe.SizeOf<T>());
         }
@@ -35,7 +39,7 @@ namespace MemoryManager
         /// <param name="value">The value.</param>
         /// <returns>Handle to stored data.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static MemoryHandle Store<T>(this MemoryArena arena, T value) where T : unmanaged
+        public static MemoryHandle Store<T>(this IMemoryAllocator arena, T value) where T : unmanaged
         {
             var handle = arena.Allocate(Unsafe.SizeOf<T>());
             arena.BulkSet(handle, MemoryMarshal.CreateReadOnlySpan(ref value, 1));
@@ -50,7 +54,7 @@ namespace MemoryManager
         /// <param name="count">The count.</param>
         /// <returns>An allocated Array and handle to said array.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static MemoryHandle AllocateArray<T>(this MemoryArena arena, int count) where T : unmanaged
+        public static MemoryHandle AllocateArray<T>(this IMemoryAllocator arena, int count) where T : unmanaged
         {
             return arena.Allocate(Unsafe.SizeOf<T>() * count);
         }
@@ -64,7 +68,7 @@ namespace MemoryManager
         /// <param name="source">The source data to copy from.</param>
         /// <exception cref="ArgumentException">Thrown if the destination allocation is too small.</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe void BulkSet<T>(this MemoryArena arena, MemoryHandle handle, ReadOnlySpan<T> source)
+        public static unsafe void BulkSet<T>(this IMemoryAllocator arena, MemoryHandle handle, ReadOnlySpan<T> source)
             where T : unmanaged
         {
             var entry = arena.GetEntry(handle);
@@ -86,20 +90,26 @@ namespace MemoryManager
         /// <summary>
         /// Encodes and stores a string as a raw UTF8 payload array inside the arena workspace.
         /// </summary>
-        /// <param name="arena">The arena.</param>
+        /// <param name="allocator">The allocator.</param>
         /// <param name="text">The text.</param>
-        /// <returns>Handle to stored data.</returns>
+        /// <param name="priority">The priority.</param>
+        /// <param name="hints">The hints.</param>
+        /// <param name="debugName">Name of the debug.</param>
+        /// <returns>
+        /// Handle to stored data.
+        /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static MemoryHandle StoreString(this MemoryArena arena, string text)
+        public static MemoryHandle StoreString(this IMemoryAllocator allocator, string? text, AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None, string? debugName = null)
         {
-            // Convert to bytes
-            var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+            if (string.IsNullOrEmpty(text)) return default;
 
-            // Allocate space
-            var handle = arena.AllocateArray<byte>(bytes.Length);
+            // Extract transient binary buffer mapping matching UTF8 layouts
+            var byteCount = Encoding.UTF8.GetByteCount(text);
+            var handle = allocator.Allocate(byteCount, priority, hints, debugName);
 
-            // FIX: Explicitly provide the <byte> type token to satisfy the instance method
-            arena.BulkSet<byte>(handle, bytes);
+            // Rent a temporary array to convert strings without allocating garbage
+            byte[] managedBuffer = Encoding.UTF8.GetBytes(text);
+            allocator.BulkSet<byte>(handle, managedBuffer);
 
             return handle;
         }
@@ -113,7 +123,7 @@ namespace MemoryManager
         /// <param name="handle">The handle.</param>
         /// <param name="source">The source.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void BulkSet<T>(this MemoryArena arena, MemoryHandle handle, Span<T> source) where T : unmanaged
+        public static void BulkSet<T>(this IMemoryAllocator arena, MemoryHandle handle, Span<T> source) where T : unmanaged
         {
             // Bypasses instance type inference by passing T explicitly
             arena.BulkSet<T>(handle, source);

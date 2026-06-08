@@ -17,10 +17,11 @@ using System.Threading;
 
 namespace MemoryManager
 {
+    /// <inheritdoc />
     /// <summary>
     /// The thread-safe wrapper around the different Memory Arena Components.
     /// </summary>
-    public sealed class MemoryArena
+    public sealed class MemoryArena : IMemoryAllocator
     {
         /// <summary>
         /// The configuration
@@ -127,6 +128,7 @@ namespace MemoryManager
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Retrieves the full allocation entry metadata for a given handle by routing to the correct lane.
         /// </summary>
@@ -250,6 +252,7 @@ namespace MemoryManager
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Copies a source span of data atomically into the unmanaged memory referenced by the handle.
         /// Guarantees thread-safety against background compaction sweeps during bulk memory transfers.
@@ -285,6 +288,7 @@ namespace MemoryManager
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Allocates a contiguous block of memory from the appropriate lane based on size threshold policies.
         /// </summary>
@@ -307,6 +311,7 @@ namespace MemoryManager
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Resolves the memory handle to a reliable native address space pointer.
         /// </summary>
@@ -320,6 +325,7 @@ namespace MemoryManager
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Reclaims unmanaged workspace tied to a specific allocation tracking registration.
         /// </summary>
@@ -339,6 +345,7 @@ namespace MemoryManager
             }
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Forces physical compaction and fragment collection across all tiers.
         /// </summary>
@@ -351,6 +358,9 @@ namespace MemoryManager
             }
         }
 
+        /// <summary>
+        /// Debugdump.
+        /// </summary>
         public void DebugDump()
         {
             lock (_lock)
@@ -372,6 +382,18 @@ namespace MemoryManager
         }
 
         // --- UNLOCKED INTERNAL PATHS ---
+
+        /// <summary>
+        /// Allocates the internal.
+        /// </summary>
+        /// <param name="size">The size.</param>
+        /// <param name="priority">The priority.</param>
+        /// <param name="hints">The hints.</param>
+        /// <param name="debugName">Name of the debug.</param>
+        /// <param name="frame">The frame.</param>
+        /// <returns>The allocated memory handle.</returns>
+        /// <exception cref="System.OutOfMemoryException">Neither lane could allocate memory. Requested size: {size}, " +
+        ///                 $"FastLane free: {FastLane.FreeSpace()}, SlowLane free: {SlowLane.FreeSpace()}</exception>
         private MemoryHandle AllocateInternal(int size, AllocationPriority priority, AllocationHints hints, string? debugName, int frame)
         {
             if (size <= Threshold && FastLane.CanAllocate(size))

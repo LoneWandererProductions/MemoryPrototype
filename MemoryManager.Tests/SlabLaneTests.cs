@@ -6,11 +6,8 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-using System;
-using System.Collections.Generic;
 using MemoryManager.Core;
 using MemoryManager.Lanes;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace MemoryManager.Tests
 {

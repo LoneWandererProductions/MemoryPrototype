@@ -22,6 +22,14 @@ namespace MemoryManager.Core
         public int Id { get; }
 
         /// <summary>
+        /// Gets the current memory lane.
+        /// </summary>
+        /// <value>
+        /// The lane controlling this memory handle.
+        /// </value>
+        public IMemoryLane Lane => _lane;
+
+        /// <summary>
         /// The version
         /// </summary>
         public readonly uint Version;
