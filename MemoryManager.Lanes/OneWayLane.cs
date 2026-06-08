@@ -102,7 +102,7 @@ namespace MemoryManager.Lanes
                 var slowPtr = _slowLane.Resolve(slowHandle);
 
                 // Direct unmanaged copy
-                System.Buffer.MemoryCopy(
+                Buffer.MemoryCopy(
                     (void*)fastPtr,
                     (void*)slowPtr,
                     fastEntry.Size, // Destination capacity limit

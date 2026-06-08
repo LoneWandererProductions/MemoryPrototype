@@ -123,7 +123,7 @@ namespace MemoryManager
         {
             if (handle.IsInvalid) throw new InvalidOperationException("Invalid handle");
 
-            lock (_lock) // FIX: Thread synchronization safeguard added for background sweeps
+            lock (_lock)
             {
                 return handle.Id > 0
                     ? FastLane.GetEntry(handle)
@@ -152,7 +152,7 @@ namespace MemoryManager
         /// </summary>
         public void MoveFastToSlow(MemoryHandle fastHandle)
         {
-            lock (_lock) // FIX: Thread-safety added to prevent mid-flight pointer invalidation
+            lock (_lock)
             {
                 FastLane.OneWayLane?.MoveFromFastToSlow(fastHandle);
             }
@@ -167,7 +167,7 @@ namespace MemoryManager
         /// <exception cref="System.OutOfMemoryException">Not enough space in FastLane to move from SlowLane.</exception>
         public unsafe MemoryHandle MoveSlowToFast(MemoryHandle slowHandle)
         {
-            lock (_lock) // FIX: Fully synchronized layout transfer boundary
+            lock (_lock)
             {
                 if (slowHandle.IsInvalid || slowHandle.Id >= 0)
                     throw new ArgumentException("Handle must be a valid SlowLane handle (negative ID).");
@@ -180,8 +180,7 @@ namespace MemoryManager
 
                 var fastHandle = FastLane.Allocate(size, slowEntry.Priority, slowEntry.Hints, null, CurrentFrame);
 
-                // FIX: Specified System namespace to clear structural ambiguous compilation errors
-                System.Buffer.MemoryCopy(
+                Buffer.MemoryCopy(
                     (void*)(SlowLane.Buffer + slowEntry.Offset),
                     (void*)FastLane.Resolve(fastHandle),
                     size,
@@ -267,7 +266,7 @@ namespace MemoryManager
                 // 3. Execute bitwise copy while holding the system lockout lock
                 fixed (T* srcPtr = source)
                 {
-                    System.Buffer.MemoryCopy(srcPtr, dest, entry.Size, requiredSize);
+                    Buffer.MemoryCopy(srcPtr, dest, entry.Size, requiredSize);
                 }
             }
         }
@@ -424,7 +423,7 @@ namespace MemoryManager
             {
                 if (!_config.EnableAutoCompaction) return;
 
-                // FIX: Consolidated and streamlined dual-threshold checks into unified sequential evaluation pass
+                //  Consolidated and streamlined dual-threshold checks into unified sequential evaluation pass
                 var usage = FastLane.UsagePercentage();
                 if (usage >= _config.CompactionThreshold || usage > _config.FastLaneUsageThreshold)
                 {

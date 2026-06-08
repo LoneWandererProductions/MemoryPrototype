@@ -258,7 +258,7 @@ namespace MemoryManager.Core
                         unsafe
                         {
                             // Copy complete physical layout block footprints concurrently
-                            System.Buffer.MemoryCopy(
+                            Buffer.MemoryCopy(
                                 (void*)(_buffer + srcPhysicalOffset),
                                 (void*)(_buffer + destPhysicalOffset),
                                 physicalSize,
