@@ -2,12 +2,13 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryArenaPrototype.Lane
  * FILE:        SlowLane.cs
- * PURPOSE:     Memory store for long lived data and stuff we could not hold into he slow lane.
+ * PURPOSE:     Memory store for long lived data and stuff we could not hold into the fast lane.
  *              Ids for Allocations is always negative here.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 // ReSharper disable EventNeverSubscribedTo.Global
+#nullable enable
 
 using ExtendedSystemObjects;
 using MemoryManager.Core;
@@ -19,7 +20,7 @@ namespace MemoryManager.Lanes
 {
     /// <inheritdoc cref="IMemoryLane" />
     /// <summary>
-    ///     The SlowLane for all the sorted out stuff and bigger longer resting data.
+    ///      The SlowLane for all the sorted out stuff and bigger longer resting data.
     /// </summary>
     /// <seealso cref="T:Core.IMemoryLane" />
     /// <seealso cref="T:System.IDisposable" />
@@ -33,32 +34,32 @@ namespace MemoryManager.Lanes
 #endif
 
         /// <summary>
-        ///     The safety margin
+        ///      The safety margin
         /// </summary>
         private const double SafetyMargin = 0.10; // 10% free space reserved
 
         /// <summary>
-        ///     The free ids
+        ///      The free ids
         /// </summary>
         private readonly UnmanagedIntList _freeIds = new(128);
 
         /// <summary>
-        ///     The free slots, we reuse freed slots
+        ///      The free slots, we reuse freed slots
         /// </summary>
         private readonly UnmanagedIntList _freeSlots = new(128);
 
         /// <summary>
-        ///     The handle index
+        ///      The handle index
         /// </summary>
         private readonly UnmanagedMap<int> _handleIndex = new(7); // handleId -> entries array index
 
         /// <summary>
-        ///     The allocated entries
+        ///      The allocated entries
         /// </summary>
         private AllocationEntry[] _entries;
 
         /// <summary>
-        ///     The next handle identifier
+        ///      The next handle identifier
         /// </summary>
         private int _nextHandleId = -1;
 
@@ -73,20 +74,25 @@ namespace MemoryManager.Lanes
         private int _freeBlockCount;
 
         /// <summary>
-        ///     The threshold. Anything smaller than this goes to the BlobManager.
-        ///     e.g., 256 bytes
+        ///      The threshold. Anything smaller than this goes to the BlobManager.
+        ///      e.g., 256 bytes
         /// </summary>
         private readonly int _blobThreshold = 256;
 
         /// <summary>
-        ///     The specialized manager for tiny/unpredictable allocations.
+        ///      The specialized manager for tiny/unpredictable allocations.
         /// </summary>
         private readonly BlobManager? _blobManager;
 
         /// <summary>
-        /// The versions
+        /// Pointer to the flat versions array. Index matches absolute handle ID (-id).
         /// </summary>
-        private readonly UnmanagedMap<uint> _versions;
+        private unsafe uint* _versions;
+
+        /// <summary>
+        /// Current capacity of the versions array.
+        /// </summary>
+        private int _versionsCapacity;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SlowLane" /> class.
@@ -95,7 +101,7 @@ namespace MemoryManager.Lanes
         /// <param name="blobCapacityFraction">The BLOB capacity fraction.</param>
         /// <param name="blobThreshold">The BLOB threshold.</param>
         /// <param name="maxEntries">The maximum entries.</param>
-        public SlowLane(int capacity, double blobCapacityFraction = 0.20, int blobThreshold = 256,
+        public unsafe SlowLane(int capacity, double blobCapacityFraction = 0.20, int blobThreshold = 256,
             int maxEntries = 1024)
         {
             Capacity = capacity;
@@ -103,7 +109,10 @@ namespace MemoryManager.Lanes
 
             Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
-            _versions = new UnmanagedMap<uint>(maxEntries);
+
+            // INITIALIZATION: Allocate flat tracking for versions (+1 to accommodate 1-based indexing of absolute IDs)
+            _versionsCapacity = maxEntries + 1;
+            _versions = (uint*)NativeMemory.AllocZeroed((nuint)_versionsCapacity, sizeof(uint));
 
             // Use the fraction provided by the config/constructor
             var blobCapacity = (int)(capacity * blobCapacityFraction);
@@ -115,30 +124,29 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Gets or sets the buffer.
+        ///      Gets or sets the buffer.
         /// </summary>
         /// <value>
-        ///     The buffer.
+        ///      The buffer.
         /// </value>
         public nint Buffer { get; private set; }
 
         /// <summary>
-        ///     Gets the capacity.
+        ///      Gets the capacity.
         /// </summary>
         /// <value>
-        ///     The capacity.
+        ///      The capacity.
         /// </value>
         public int Capacity { get; }
-
 
         /// <inheritdoc />
         public int EntryCount { get; private set; }
 
         /// <inheritdoc />
         /// <summary>
-        ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        ///      Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
-        public void Dispose()
+        public unsafe void Dispose()
         {
             Marshal.FreeHGlobal(Buffer);
             EntryCount = 0;
@@ -146,12 +154,19 @@ namespace MemoryManager.Lanes
             _freeSlots.Clear();
             _freeIds.Clear();
 
+            // clean up unmanaged versions array to prevent memory leaks
+            if (_versions != null)
+            {
+                NativeMemory.Free(_versions);
+                _versions = null;
+            }
+
             _blobManager?.Compact();
         }
 
         /// <inheritdoc />
         /// <summary>
-        ///     Allocates the specified size.
+        ///      Allocates the specified size.
         /// </summary>
         /// <param name="size">The size.</param>
         /// <param name="priority">The priority.</param>
@@ -160,7 +175,7 @@ namespace MemoryManager.Lanes
         /// <param name="currentFrame">The current frame.</param>
         /// <returns>Allocated memory and a reference.</returns>
         /// <exception cref="T:System.OutOfMemoryException">SlowLane: Cannot allocate</exception>
-        public MemoryHandle Allocate(
+        public unsafe MemoryHandle Allocate(
             int size,
             AllocationPriority priority = AllocationPriority.Normal,
             AllocationHints hints = AllocationHints.None,
@@ -184,7 +199,7 @@ namespace MemoryManager.Lanes
             var slotIndex = _freeSlots.Length > 0 ? _freeSlots.Pop() : EntryCount++;
             EnsureEntryCapacity(slotIndex);
 
-            //So we reuse freed handles here
+            // So we reuse freed handles here (Yields sequential negative IDs, e.g., -1, -2, -3...)
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
 
 #if DEBUG
@@ -193,11 +208,15 @@ namespace MemoryManager.Lanes
                 _debugNames[id] = debugName;
             }
 #endif
-            var currentVersion = _versions.TryGetValue(id, out var version)
-                ? (ushort)(version + 1)
-                : (ushort)1;
+            // Map sequential negative ID directly to positive array coordinates
+            int versionIdx = -id;
+            if (versionIdx >= _versionsCapacity)
+            {
+                GrowVersions(versionIdx + 1);
+            }
 
-            _versions[id] = currentVersion;
+            // True O(1) Version Bump
+            uint currentVersion = ++_versions[versionIdx];
 
             _entries[slotIndex] = new AllocationEntry
             {
@@ -242,14 +261,14 @@ namespace MemoryManager.Lanes
 
         /// <inheritdoc />
         /// <summary>
-        ///     Resolves the specified handle.
+        ///      Resolves the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <returns>Pointer to the stored data.</returns>
         /// <exception cref="T:System.InvalidOperationException">
-        ///     SlowLane: Invalid handle
-        ///     or
-        ///     SlowLane: Cannot resolve stub entry without redirection
+        ///      SlowLane: Invalid handle
+        ///      or
+        ///      SlowLane: Cannot resolve stub entry without redirection
         /// </exception>
         public nint Resolve(MemoryHandle handle)
         {
@@ -276,7 +295,7 @@ namespace MemoryManager.Lanes
 
         /// <inheritdoc />
         /// <summary>
-        ///     Frees the specified handle.
+        ///      Frees the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <exception cref="T:System.InvalidOperationException">SlowLane: Invalid handle</exception>
@@ -292,6 +311,11 @@ namespace MemoryManager.Lanes
             if (!_handleIndex.TryRemove(handle.Id, out var index))
                 throw new InvalidOperationException($"SlowLane: Invalid handle {handle.Id}");
 
+            var entry = _entries[index];
+
+            // Reclaim the physical block space inside the main arena tracker!
+            MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
+
             _entries[index] = default;
             _freeSlots.Push(index);
             _freeIds.Push(handle.Id);
@@ -306,12 +330,13 @@ namespace MemoryManager.Lanes
         /// </summary>
         /// <param name="handles">The handles.</param>
         /// <exception cref="InvalidOperationException">SlowLane: Invalid handle {handle.Id}</exception>
-        public unsafe void FreeMany(MemoryHandle[] handles) // Or ReadOnlySpan<MemoryHandle>
+        public unsafe void FreeMany(MemoryHandle[] handles)
         {
             var span = handles.AsSpan();
             var count = span.Length;
 
-            // We'll collect the IDs and Indices in temporary buffers to batch-push
+            if (count == 0) return;
+
             // Using stackalloc for small-to-medium batches avoids GC pressure
             var ids = stackalloc int[count];
             var indices = stackalloc int[count];
@@ -320,8 +345,20 @@ namespace MemoryManager.Lanes
             {
                 var id = span[i].Id;
 
+                // Route tiny blobs safely away from structural array paths
+                if (id <= BlobManager.StartingId && _blobManager != null)
+                {
+                    _blobManager.Free(span[i]);
+                    continue;
+                }
+
                 if (!_handleIndex.TryRemove(id, out var index))
                     throw new InvalidOperationException($"SlowLane: Invalid handle {id}");
+
+                var entry = _entries[index];
+
+                // Return the space to the physical free list for EVERY element in the batch
+                MemoryLaneUtils.ReturnFreeSpace(entry.Offset, entry.Size, ref _freeBlocks, ref _freeBlockCount);
 
                 // Clear entry data
                 _entries[index] = default;
@@ -333,8 +370,6 @@ namespace MemoryManager.Lanes
             // Batch add to our unmanaged lists
             _freeIds.PushRange(new ReadOnlySpan<int>(ids, count));
             _freeSlots.PushRange(new ReadOnlySpan<int>(indices, count));
-
-            EntryCount += count;
         }
 
         /// <inheritdoc />
@@ -402,7 +437,7 @@ namespace MemoryManager.Lanes
             EntryCount = writeIndex;
             _freeSlots.Clear(); // No more holes in the array!
 
-            // 6. THE MISSING FIX: Reset the Free-List!
+            // 6. Reset the Free-List!
             _freeBlocks[0] = new FreeBlock
             {
                 Offset = offset,
@@ -481,9 +516,8 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Gets the used.
+        ///      Gets the used memory.
         /// </summary>
-        /// <returns>Get used Id.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int GetUsed()
         {
@@ -499,22 +533,47 @@ namespace MemoryManager.Lanes
         public int FreeSpace()
         {
             var mainFreeSpace = MemoryLaneUtils.CalculateFreeSpace(_entries, EntryCount, Capacity);
-
             var blobFreeSpace = _blobManager?.FreeSpace() ?? 0;
 
             return mainFreeSpace + blobFreeSpace;
         }
 
         /// <summary>
-        ///     Ensures the entry capacity.
+        ///      Ensures the entry capacity.
         /// </summary>
-        /// <param name="requiredSlotIndex">Index of the required slot.</param>
         private void EnsureEntryCapacity(int requiredSlotIndex)
         {
             var oldSize = _entries.Length;
             var newSize = MemoryLaneUtils.EnsureEntryCapacity(ref _entries, requiredSlotIndex);
-            // Allocation Entries must be extended
+
+            // Defensive Safeguard: Grow free blocks buffer concurrently
+            if (_freeBlocks.Length < newSize)
+            {
+                Array.Resize(ref _freeBlocks, newSize);
+            }
+
             OnAllocationExtension?.Invoke(nameof(SlowLane), oldSize, newSize);
+        }
+
+        /// <summary>
+        /// Resizes the unmanaged versions buffer.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private unsafe void GrowVersions(int minCapacity)
+        {
+            var newCapacity = _versionsCapacity * 2;
+            if (newCapacity < minCapacity) newCapacity = minCapacity;
+
+            var newVersions = (uint*)NativeMemory.AllocZeroed((nuint)newCapacity, sizeof(uint));
+
+            if (_versions != null)
+            {
+                Unsafe.CopyBlock(newVersions, _versions, (uint)(_versionsCapacity * sizeof(uint)));
+                NativeMemory.Free(_versions);
+            }
+
+            _versions = newVersions;
+            _versionsCapacity = newCapacity;
         }
 
         /// <inheritdoc />
@@ -545,19 +604,17 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public string DebugRedirections()
         {
-            if (_entries == null) throw new InvalidOperationException("FastLane: Invalid memory.");
+            if (_entries == null) throw new InvalidOperationException("SlowLane: Invalid memory.");
 
 #if DEBUG
-            // Pass the debug names dictionary in Debug mode
             return MemoryLaneUtils.DebugRedirections(_entries, EntryCount, _debugNames);
 #else
-    // Pass null in Release mode since the dictionary doesn't exist
-    return MemoryLaneUtils.DebugRedirections(_entries, EntryCount, null);
+            return MemoryLaneUtils.DebugRedirections(_entries, EntryCount, null);
 #endif
         }
 
         /// <summary>
-        ///     Dump all Debug Infos.
+        ///      Dump all Debug Infos.
         /// </summary>
         public void LogDump()
         {
