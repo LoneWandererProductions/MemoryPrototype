@@ -80,3 +80,41 @@ var gameArena = new MemoryArena(gameConfig);
 // managing out-of-order data transfers with larger block thresholds.
 var streamConfig = MemoryManagerConfig.CreateForBulkProcessing(totalBudget: 128 * 1024 * 1024);
 var streamArena = new MemoryArena(streamConfig);
+```
+
+## Basic CRUD Operations & Extension Methods
+
+```csharp
+using MemoryManager;
+using MemoryManager.Core;
+
+var arena = new MemoryArena(new MemoryManagerConfig(8 * 1024 * 1024));
+
+// 1. Core Allocation & Value Storage
+var healthHandle = arena.AllocateAndStore(100);
+
+// 2. Multi-Element Unmanaged Arrays
+int[] sourceData = { 10, 20, 30, 40, 50 };
+var arrayHandle = arena.AllocateArray<int>(sourceData.Length);
+
+// Atomic, thread-safe bulk block transfer
+arena.BulkSet(arrayHandle, sourceData);
+
+// 3. High-Speed Zero-Allocation Spans (Hot Paths)
+var span = arena.GetSpan<int>(arrayHandle, sourceData.Length);
+foreach (ref var value in span)
+{
+    value *= 2; // Direct address modifications at hardware cache line speeds
+}
+
+// 4. Compact UTF-8 String Storage (Bypasses GC & 50% RAM reduction)
+var stringHandle = arena.StoreString("Hello from the native unmanaged Arena!");
+
+// 5. Automated Janitor Lifecycle Advancement (Once Per Tick/Frame)
+arena.TickFrame();
+arena.RunMaintenanceCycle();
+
+// 6. Explicit Deallocation
+arena.Free(healthHandle);
+arena.Free(arrayHandle);
+```
