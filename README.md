@@ -52,8 +52,9 @@ To move this system out of the prototyping phase and into a hardened, production
 
 ### 3. Hardware Memory Alignment Blindness
 * **Current State:** The bump allocators currently increment layouts directly by byte size (`_nextFreeOffset += size`). If a user allocates an odd structural layout (e.g., a 7-byte struct), subsequent items are placed on unaligned memory addresses, causing the CPU to fetch multiple cache-lines for single read instructions, tanking cache line efficiency.
-* **Production Fix:** Force all lane offsets to snap cleanly to hardware alignment boundaries (e.g., 16-byte, 32-byte, or 64-byte boundaries for SIMD alignment) using bitwise masking masks:
-  $$\text{alignedOffset} = (\text{offset} + (\text{alignment} - 1)) \ \& \ \sim(\text{alignment} - 1)$$
+* **Production Fix:** Force all lane offsets to snap cleanly to hardware alignment boundaries (e.g., 16-byte, 32-byte, or 64-byte boundaries for SIMD alignment) using power-of-two bitwise masking layout constraints:
+  ```csharp
+  alignedOffset = (offset + (alignment - 1)) & ~(alignment - 1);
 
 ### 4. Zero Defensive Buffer-Overrun Safety Guardrails
 * **Current State:** Resolving a handle exposes a raw native `nint` address space. If code reads or writes outside the structural bounds of that specific entry allocation, it will silently overwrite adjacent allocations or metadata arrays without an error, resulting in impossible-to-trace heap corruption.
