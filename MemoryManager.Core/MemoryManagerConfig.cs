@@ -2,29 +2,28 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryArenaPrototype.Core
  * FILE:        MemoryManagerConfig.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     Configuration class for the MemoryManager, encapsulating all tunable parameters and thresholds for memory management policies.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 namespace MemoryManager.Core
 {
     /// <summary>
-    ///     The config for the mm
+    ///      The config for the mm
     /// </summary>
     public sealed class MemoryManagerConfig
     {
-        // Add more knobs here as you identify other tuning parameters
 
         /// <summary>
-        ///     Parameter-less constructor with defaults
+        ///      Parameter-less constructor with defaults
         /// </summary>
         public MemoryManagerConfig()
         {
         }
 
         /// <summary>
-        ///     Constructs config based on a given slow lane size.
-        ///     Other parameters are set with "rule of thumb" proportions.
+        ///      Constructs config based on a given slow lane size.
+        ///      Other parameters are set with "rule of thumb" proportions.
         /// </summary>
         /// <param name="slowLaneSize">Total size of the slow lane (bytes)</param>
         public MemoryManagerConfig(int slowLaneSize)
@@ -112,7 +111,6 @@ namespace MemoryManager.Core
         /// </value>
         public double CompactionThreshold { get; init; } = 0.80;
 
-
         /// <summary>
         /// Gets the policy check interval.
         /// How often to check allocation policies like compaction and reclamation
@@ -123,16 +121,33 @@ namespace MemoryManager.Core
         /// </value>
         public TimeSpan PolicyCheckInterval { get; init; } = TimeSpan.FromSeconds(1);
 
-        // Whether automatic compaction is enabled
-        // Useful to turn off during profiling or debugging
+        /// <summary>
+        /// Gets a value indicating whether [enable automatic compaction].
+        /// Useful to turn off during profiling or debugging
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if [enable automatic compaction]; otherwise, <c>false</c>.
+        /// </value>
         public bool EnableAutoCompaction { get; init; } = true;
 
-        // Generic threshold for some operation (adjust as needed)
-        // Example: 256KB, might represent chunk size or fragmentation tolerance
+        /// <summary>
+        /// Gets the threshold.
+        /// Generic threshold for some operation (adjust as needed)
+        /// Example: 256KB, might represent chunk size or fragmentation tolerance
+        /// </summary>
+        /// <value>
+        /// The threshold.
+        /// </value>
         public int Threshold { get; init; } = 1024 * 1024 / 4; //256 KB
 
-        // Usage fraction of fast lane to trigger compaction (e.g., 90%)
-        // Higher means less frequent compactions but higher risk of fragmentation
+        /// <summary>
+        /// Gets the fast lane usage threshold.
+        /// Usage fraction of fast lane to trigger compaction (e.g., 90%)
+        /// Higher means less frequent compactions but higher risk of fragmentation
+        /// </summary>
+        /// <value>
+        /// The fast lane usage threshold.
+        /// </value>
         public double FastLaneUsageThreshold { get; init; } = 0.9;
 
         /// <summary>
@@ -191,6 +206,68 @@ namespace MemoryManager.Core
         {
             // BufferSize is gone! Just the raw unmanaged lane allocations.
             return (FastLaneSize + SlowLaneSize) / (1024.0 * 1024.0);
+        }
+
+        /*
+         * Preset factory methods for common scenarios. These provide convenient starting points for typical use cases,
+         */
+
+        /// <summary>
+        /// Creates a configuration tuned for real-time game loops. 
+        /// Employs an ultra-fast Bump/Linear allocator for short-lived transient frames.
+        /// </summary>
+        public static MemoryManagerConfig CreateForGameLoop(int totalBudget = 16 * 1024 * 1024)
+        {
+            return new MemoryManagerConfig
+            {
+                SlowLaneSize = (int)(totalBudget * 0.75),
+                FastLaneSize = (int)(totalBudget * 0.25),
+                FastLaneStrategy = AllocatorStrategy.LinearBump, // Maximum speed
+                MaxFastLaneAgeFrames = 300,                  // Evict to SlowLane faster
+                FastLaneUsageThreshold = 0.85,
+                CompactionThreshold = 0.75,
+                EnableAutoCompaction = true,
+                PolicyCheckInterval = TimeSpan.FromMilliseconds(16) // Check roughly every frame at 60fps
+            };
+        }
+
+        /// <summary>
+        /// Creates a configuration tuned for heavy I/O, networking, or asset streaming.
+        /// Uses a FreeList allocator to handle random out-of-order allocations.
+        /// </summary>
+        public static MemoryManagerConfig CreateForBulkProcessing(int totalBudget = 64 * 1024 * 1024)
+        {
+            return new MemoryManagerConfig
+            {
+                SlowLaneSize = (int)(totalBudget * 0.85),
+                FastLaneSize = (int)(totalBudget * 0.15),
+                FastLaneStrategy = AllocatorStrategy.FreeList, // Out-of-order safety
+                FastLaneLargeEntryThreshold = 16384,          // Allow up to 16KB in the hot lane
+                MaxFastLaneAgeFrames = 1200,                  // Let data sit longer before moving
+                SlowLaneUsageThreshold = 0.80,
+                SlowLaneBlobThreshold = 512,                  // Route larger fragments to blobs
+                PolicyCheckInterval = TimeSpan.FromSeconds(2)  // Low maintenance overhead
+            };
+        }
+
+        /// <summary>
+        /// Creates a configuration tuned for tightly constrained or embedded footprints.
+        /// Minimizes unmanaged allocation limits and compacts aggressively.
+        /// </summary>
+        public static MemoryManagerConfig CreateForLowMemory()
+        {
+            return new MemoryManagerConfig
+            {
+                FastLaneSize = 256 * 1024,                     // 256 KB
+                SlowLaneSize = 1024 * 1024,                    // 1 MB
+                FastLaneStrategy = AllocatorStrategy.FreeList,
+                EnableAutoCompaction = true,
+                CompactionThreshold = 0.60,                    // Compact very early
+                FastLaneUsageThreshold = 0.70,
+                SlowLaneUsageThreshold = 0.70,
+                SlowLaneBlobCapacityFraction = 0.35,           // Allocate more space for tiny fragments
+                PolicyCheckInterval = TimeSpan.FromMilliseconds(500)
+            };
         }
     }
 }

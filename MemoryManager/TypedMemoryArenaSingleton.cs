@@ -7,7 +7,6 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-#nullable enable
 using System;
 
 namespace MemoryManager
