@@ -6,6 +6,7 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+using System;
 using System.Runtime.CompilerServices;
 
 namespace MemoryManager.Core
@@ -14,9 +15,15 @@ namespace MemoryManager.Core
     /// Canary class provides a simple mechanism for detecting buffer overruns and underruns in debug builds by placing known "canary" values before and after user allocations. 
     /// In release builds, the canary logic is completely stripped out to ensure zero overhead, 
     /// making it an effective tool for catching memory corruption issues during development without impacting performance in production.
+    /// It additionally acts as an alignment boundary engine, snapping unmanaged pointers cleanly to hardware memory channels.
     /// </summary>
     public static class MemoryCanary
     {
+        /// <summary>
+        /// The byte alignment requirement boundary (Must be a power of two, e.g., 16, 32, 64)
+        /// </summary>
+        private const int Alignment = 16;
+
         /// <summary>
         /// The size
         /// </summary>
@@ -28,17 +35,28 @@ namespace MemoryManager.Core
         private const uint Magic = 0xDEADBEEF;
 
         /// <summary>
+        /// Pre-calculated front window padding size required to fit the pre-canary and maintain power-of-two alignment
+        /// </summary>
+#if DEBUG
+        private static readonly int FrontPadding = (Size + (Alignment - 1)) & ~(Alignment - 1);
+#else
+        private static readonly int FrontPadding = 0;
+#endif
+
+        /// <summary>
         /// Calculates the total physical footprint needed in the allocator block pool.
         /// </summary>
         /// <param name="userSize">Size of the user.</param>
-        /// <returns></returns>
+        /// <returns>Total block allocation size required, rounded up to the nearest alignment multiple.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetPhysicalSize(int userSize)
         {
 #if DEBUG
-            return userSize + Size * 2;
+            // Raw physical size needs space for front tracking layout padding, user data payload, and post-canary trail bytes
+            int rawSize = FrontPadding + userSize + Size;
+            return (rawSize + (Alignment - 1)) & ~(Alignment - 1);
 #else
-            return userSize;
+            return (userSize + (Alignment - 1)) & ~(Alignment - 1);
 #endif
         }
 
@@ -46,30 +64,22 @@ namespace MemoryManager.Core
         /// Maps a raw physical block offset to a user-facing offset past the pre-canary.
         /// </summary>
         /// <param name="physicalOffset">The physical offset.</param>
-        /// <returns></returns>
+        /// <returns>Aligned offset position where user data begins.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetUserOffset(int physicalOffset)
         {
-#if DEBUG
-            return physicalOffset + Size;
-#else
-            return physicalOffset;
-#endif
+            return physicalOffset + FrontPadding;
         }
 
         /// <summary>
         /// Maps a user data offset back to the absolute physical block start coordinate.
         /// </summary>
         /// <param name="userOffset">The user offset.</param>
-        /// <returns></returns>
+        /// <returns>Absolute start address index of the complete tracking memory block pool chunk.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int GetPhysicalOffset(int userOffset)
         {
-#if DEBUG
-            return userOffset - Size;
-#else
-            return userOffset;
-#endif
+            return userOffset - FrontPadding;
         }
 
         /// <summary>
@@ -97,7 +107,7 @@ namespace MemoryManager.Core
         /// <param name="userSize">Size of the user.</param>
         /// <param name="handleId">The handle identifier.</param>
         /// <exception cref="AccessViolationException">CRITICAL HEAP CORRUPTION DETECTED: Buffer boundary breach on Handle ID {handleId}. " +
-        ///                     $"Expected Canary: 0x{Magic:X}, Pre-Site: 0x{preCanary:X}, Post-Site: 0x{postCanary:X}</exception>
+        ///                      $"Expected Canary: 0x{Magic:X}, Pre-Site: 0x{preCanary:X}, Post-Site: 0x{postCanary:X}</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static unsafe void Validate(nint buffer, int userOffset, int userSize, int handleId)
         {

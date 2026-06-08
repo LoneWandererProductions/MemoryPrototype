@@ -19,9 +19,6 @@ namespace MemoryManager.Tests
         /// <summary>
         /// BLOBs the manager allocate free and compact works correctly.
         /// </summary>
-        /// <summary>
-        /// BLOBs the manager allocate free and compact works correctly.
-        /// </summary>
         [TestMethod]
         [TestCategory("BlobManager")]
         public void BlobManager_AllocateFreeAndCompact_WorksCorrectly()
@@ -38,10 +35,9 @@ namespace MemoryManager.Tests
                 var h2 = blobManager.Allocate(100);
                 var h3 = blobManager.Allocate(100);
 
-                // Dynamically detect canary size from the first block's user offset shift
-                int canarySize = blobManager.GetEntry(h1).Offset; // 4 bytes in DEBUG, 0 bytes in RELEASE
-                int totalCanaryOverhead = 3 * (canarySize * 2);   // 3 blocks * 2 canaries each
-                int expectedFreeSpace = capacity - (300 + totalCanaryOverhead);
+                // Query the core alignment engine directly to determine the true physical footprint
+                int physicalBlockSize = MemoryCanary.GetPhysicalSize(100);
+                int expectedFreeSpace = capacity - (3 * physicalBlockSize);
 
                 Assert.AreEqual(expectedFreeSpace, blobManager.FreeSpace(), $"Should have exactly {expectedFreeSpace} bytes free.");
 
@@ -83,7 +79,11 @@ namespace MemoryManager.Tests
         {
             const int count = 50000;
             const int size = 32; // 32-byte structs (e.g., matrices, vectors)
-            const int capacity = count * size * 2; // Plenty of room
+
+            // Calculate capacity using the true aligned physical size, 
+            // and add a small 4KB cushion padding to accommodate non-reclaiming warmup bumps
+            int physicalSize = MemoryCanary.GetPhysicalSize(size);
+            int capacity = (count * physicalSize) + 4096;
 
             // Both lanes require a SlowLane reference in their constructors
             using var slowLane = new SlowLane(capacity);
@@ -142,9 +142,6 @@ namespace MemoryManager.Tests
             Trace.WriteLine("===== DEALLOCATION SPEED (50,000 objects) =====");
             Trace.WriteLine($"LinearLane (Bump) : {linearFreeTicks:N0} ticks");
             Trace.WriteLine($"FastLane (List)   : {fastFreeTicks:N0} ticks");
-
-            // The Bump allocator should absolutely destroy the Free-List in allocation speed
-            // because it doesn't have to loop through the _freeBlocks array!
         }
     }
 }

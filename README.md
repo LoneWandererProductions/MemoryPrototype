@@ -50,12 +50,6 @@ To move this system out of the prototyping phase and into a hardened, production
 * **Current State:** When compaction triggers, the compactor engine allocates an entirely new unmanaged heap block via `Marshal.AllocHGlobal` and slides all survivors over via memory block copying. For massive heaps (e.g., 512MB+), this causes noticeable block stutters (latency spikes) and temporarily forces a **double memory footprint**.
 * **Production Fix:** Implement an **Incremental/Phased Compactor** that only relocates a small chunk of fragmented blocks per frame tick, or enforce strict zero-compaction rules where arenas are completely cleared and cycled out at deterministic boundaries (e.g., scene changes).
 
-### 3. Hardware Memory Alignment Blindness
-* **Current State:** The bump allocators currently increment layouts directly by byte size (`_nextFreeOffset += size`). If a user allocates an odd structural layout (e.g., a 7-byte struct), subsequent items are placed on unaligned memory addresses, causing the CPU to fetch multiple cache-lines for single read instructions, tanking cache line efficiency.
-* **Production Fix:** Force all lane offsets to snap cleanly to hardware alignment boundaries (e.g., 16-byte, 32-byte, or 64-byte boundaries for SIMD alignment) using power-of-two bitwise masking layout constraints:
-  ```csharp
-  alignedOffset = (offset + (alignment - 1)) & ~(alignment - 1);
-
 ---
 
 ## 🧩 Config Presets & Advanced Usage
