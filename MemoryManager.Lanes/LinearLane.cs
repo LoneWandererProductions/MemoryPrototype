@@ -9,13 +9,14 @@
 using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace MemoryManager.Lanes
 {
     /// <inheritdoc cref="IFastLane" />
     /// <summary>
-    /// LinearLane  with Bump Allocator
+    /// LinearLane with Bump Allocator
     /// </summary>
     /// <seealso cref="MemoryManager.Lanes.IFastLane" />
     /// <seealso cref="System.IDisposable" />
@@ -59,9 +60,20 @@ namespace MemoryManager.Lanes
         private int _nextFreeOffset;
 
         /// <summary>
-        /// The versions
+        /// Pointer to the flat versions array. Index matches handle ID directly.
         /// </summary>
-        private readonly byte[] _versions;
+        private unsafe uint* _versions;
+
+        /// <summary>
+        /// Current capacity of the versions array.
+        /// </summary>
+        private int _versionsCapacity;
+
+        /// <inheritdoc />
+        public event Action<string>? OnCompaction;
+
+        /// <inheritdoc />
+        public event Action<string, int, int>? OnAllocationExtension;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="LinearLane"/> class.
@@ -69,21 +81,22 @@ namespace MemoryManager.Lanes
         /// <param name="size">The size.</param>
         /// <param name="slowLane">The slow lane.</param>
         /// <param name="maxEntries">The maximum entries.</param>
-        public LinearLane(int size, SlowLane slowLane, int maxEntries = 1024)
+        public unsafe LinearLane(int size, SlowLane slowLane, int maxEntries = 1024)
         {
             _slowLane = slowLane;
             Capacity = size;
             Buffer = Marshal.AllocHGlobal(size);
-            _versions = new byte[maxEntries];
+
+            // INITIALIZATION: Allocate flat tracking for versions matching system high-water metrics
+            _versionsCapacity = maxEntries + 1;
+            _versions = (uint*)NativeMemory.AllocZeroed((nuint)_versionsCapacity, sizeof(uint));
+
             _entries = new AllocationEntry[maxEntries];
         }
 
         /// <summary>
         /// Gets the capacity.
         /// </summary>
-        /// <value>
-        /// The capacity.
-        /// </value>
         public int Capacity { get; }
 
         /// <inheritdoc />
@@ -92,36 +105,32 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// Gets the buffer.
         /// </summary>
-        /// <value>
-        /// The buffer.
-        /// </value>
         public nint Buffer { get; private set; }
 
         /// <inheritdoc />
         public OneWayLane? OneWayLane { get; set; }
 
-        /// <summary>
-        /// Gets the redirects.
-        /// </summary>
-        /// <value>
-        /// The redirects.
-        /// </value>
-        private Dictionary<int, MemoryHandle> Redirects { get; } = new();
-
         /// <inheritdoc />
-        public void Dispose()
+        public unsafe void Dispose()
         {
             Marshal.FreeHGlobal(Buffer);
             _handleIndex.Clear();
-            Redirects.Clear();
+
+            if (_versions != null)
+            {
+                NativeMemory.Free(_versions);
+                _versions = null;
+            }
+
             _entries = null;
+            GC.SuppressFinalize(this);
         }
 
         /// <inheritdoc />
         public bool CanAllocate(int size) => _nextFreeOffset + size <= Capacity;
 
         /// <inheritdoc />
-        public MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
+        public unsafe MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
             AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
         {
             if (_entries == null) throw new InvalidOperationException("LinearLane: Memory not reserved");
@@ -129,7 +138,7 @@ namespace MemoryManager.Lanes
                 throw new OutOfMemoryException("LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
 
             var offset = _nextFreeOffset;
-            _nextFreeOffset += size; // BUMP!
+            _nextFreeOffset += size;
 
             EnsureEntryCapacity(EntryCount);
             var id = MemoryLaneUtils.GetNextId(_freeIds, ref _nextHandleId);
@@ -137,14 +146,20 @@ namespace MemoryManager.Lanes
 #if DEBUG
             if (!string.IsNullOrEmpty(debugName)) _debugNames[id] = debugName;
 #endif
-            _versions[id % _versions.Length]++;
-            var currentVersion = _versions[id % _versions.Length];
+            // Dynamically scale version buffer if recycled handle IDs push past high-water thresholds
+            if (id >= _versionsCapacity)
+            {
+                GrowVersions(id + 1);
+            }
+
+            uint currentVersion = ++_versions[id];
 
             _entries[EntryCount] = new AllocationEntry
             {
                 Offset = offset,
                 Size = size,
                 HandleId = id,
+                Version = currentVersion,
                 Priority = priority,
                 Hints = hints,
                 RedirectToId = 0,
@@ -167,10 +182,17 @@ namespace MemoryManager.Lanes
 
             ref readonly var entry = ref _entries[index];
 
-            if (!entry.IsStub || entry.RedirectToId == 0) return Buffer + entry.Offset;
+            if (entry.Version != handle.Version)
+                throw new AccessViolationException($"Zombie Handle: LinearLane ID {handle.Id} is stale.");
 
-            var slowHandle = new MemoryHandle(entry.RedirectToId, entry.RedirectVersion, _slowLane);
-            return _slowLane.Resolve(slowHandle);
+            // 2. REDIRECTION (Stub Logic)
+            if (entry.IsStub && entry.RedirectToId != 0)
+            {
+                var slowHandle = new MemoryHandle(entry.RedirectToId, entry.RedirectVersion, _slowLane);
+                return _slowLane.Resolve(slowHandle);
+            }
+
+            return Buffer + entry.Offset;
         }
 
         /// <inheritdoc />
@@ -261,21 +283,18 @@ namespace MemoryManager.Lanes
             var entry = _entries[index];
             entry.IsStub = true;
             entry.RedirectToId = slowHandle.Id;
+
+            entry.RedirectVersion = slowHandle.Version;
+
             entry.Offset = 0;
             entry.Size = 0;
 
             _entries[index] = entry;
-            Redirects[fastHandle.Id] = slowHandle;
         }
 
         /// <summary>
         /// Should move to slow lane.
         /// </summary>
-        /// <param name="entry">The entry.</param>
-        /// <param name="currentFrame">The current frame.</param>
-        /// <param name="maxAgeFrames">The maximum age frames.</param>
-        /// <param name="largeThreshold">The large threshold.</param>
-        /// <returns></returns>
         private bool ShouldMoveToSlowLane(in AllocationEntry entry, int currentFrame, int maxAgeFrames,
             int largeThreshold)
         {
@@ -289,7 +308,6 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// Ensures the entry capacity.
         /// </summary>
-        /// <param name="requiredSlotIndex">Index of the required slot.</param>
         private void EnsureEntryCapacity(int requiredSlotIndex)
         {
             var oldSize = _entries!.Length;
@@ -321,23 +339,10 @@ namespace MemoryManager.Lanes
             return (int)((double)(allocatedBytes - usedBytes) / allocatedBytes * 100);
         }
 
-        /// <summary>
-        /// Usages the percentage.
-        /// </summary>
-        /// <returns>
-        /// Used memory Percentage
-        /// </returns>
+        /// <inheritdoc />
         public double UsagePercentage() => (double)(Capacity - FreeSpace()) / Capacity;
 
         /// <inheritdoc />
-        /// <summary>
-        /// Retrieves the full allocation entry metadata for a given handle.
-        /// Passthroughs to MemoryLaneUtils
-        /// </summary>
-        /// <param name="handle">The handle identifying the allocation.</param>
-        /// <returns>
-        /// The allocation entry associated with the handle.
-        /// </returns>
         public AllocationEntry GetEntry(MemoryHandle handle) =>
             MemoryLaneUtils.GetEntry(handle, _handleIndex, _entries!, nameof(LinearLane));
 
@@ -362,29 +367,38 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null) yield break;
 
-            // We must iterate the keys and look up the version in the metadata
             foreach (var id in _handleIndex.Keys)
             {
                 if (_handleIndex.TryGetValue(id, out var index))
                 {
-                    // Grab the generation from the actual entry
                     var version = _entries[index].Version;
-
-                    // Return the "Smart Handle" with its proof-of-life
                     yield return new MemoryHandle(id, version, this);
                 }
             }
         }
 
-        /// <inheritdoc />
-        public event Action<string>? OnCompaction;
-
-        /// <inheritdoc />
-        public event Action<string, int, int>? OnAllocationExtension;
-
         /// <summary>
-        /// Logs the dump.
+        /// Resizes the unmanaged versions buffer.
         /// </summary>
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private unsafe void GrowVersions(int minCapacity)
+        {
+            var newCapacity = _versionsCapacity * 2;
+            if (newCapacity < minCapacity) newCapacity = minCapacity;
+
+            var newVersions = (uint*)NativeMemory.AllocZeroed((nuint)newCapacity, sizeof(uint));
+
+            if (_versions != null)
+            {
+                Unsafe.CopyBlock(newVersions, _versions, (uint)(_versionsCapacity * sizeof(uint)));
+                NativeMemory.Free(_versions);
+            }
+
+            _versions = newVersions;
+            _versionsCapacity = newCapacity;
+        }
+
+        /// <inheritdoc />
         public void LogDump() => Trace.WriteLine(DebugDump());
     }
 }
