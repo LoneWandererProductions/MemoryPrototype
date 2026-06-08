@@ -11,6 +11,9 @@ using MemoryManager.Types;
 
 namespace MemoryManager.Tests
 {
+    /// <summary>
+    /// Tests for the <see cref="ArenaList{T}" /> collection type, ensuring correct behavior of basic operations, growth mechanics, and span access.
+    /// </summary>
     [TestClass]
     public class ArenaListTests
     {

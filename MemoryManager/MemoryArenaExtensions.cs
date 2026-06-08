@@ -6,10 +6,10 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-#nullable enable
 using MemoryManager.Core;
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace MemoryManager
 {
@@ -35,10 +35,10 @@ namespace MemoryManager
         /// <param name="value">The value.</param>
         /// <returns>Handle to stored data.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe MemoryHandle Store<T>(this MemoryArena arena, T value) where T : unmanaged
+        public static MemoryHandle Store<T>(this MemoryArena arena, T value) where T : unmanaged
         {
             var handle = arena.Allocate(Unsafe.SizeOf<T>());
-            Unsafe.Write(arena.Resolve(handle).ToPointer(), value);
+            arena.BulkSet(handle, MemoryMarshal.CreateReadOnlySpan(ref value, 1));
             return handle;
         }
 
@@ -84,7 +84,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Stores the string.
+        /// Encodes and stores a string as a raw UTF8 payload array inside the arena workspace.
         /// </summary>
         /// <param name="arena">The arena.</param>
         /// <param name="text">The text.</param>
@@ -95,27 +95,28 @@ namespace MemoryManager
             // Convert to bytes
             var bytes = System.Text.Encoding.UTF8.GetBytes(text);
 
-            // Allocate space (including a null-terminator if you want to be C-compatible)
+            // Allocate space
             var handle = arena.AllocateArray<byte>(bytes.Length);
 
-            // Bulk copy into the arena
-            arena.BulkSet(handle, bytes);
+            // FIX: Explicitly provide the <byte> type token to satisfy the instance method
+            arena.BulkSet<byte>(handle, bytes);
 
             return handle;
         }
 
         /// <summary>
-        /// Bulks the set.
+        /// Safely passes a mutable Span payload directly to the atomic native arena handler 
+        /// by automatically resolving compiler type inference constraints.
         /// </summary>
         /// <typeparam name="T">The unmanaged type.</typeparam>
         /// <param name="arena">The arena.</param>
         /// <param name="handle">The handle.</param>
         /// <param name="source">The source.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void BulkSet<T>(this MemoryArena arena, MemoryHandle handle, T[] source) where T : unmanaged
+        public static void BulkSet<T>(this MemoryArena arena, MemoryHandle handle, Span<T> source) where T : unmanaged
         {
-            // Just wrap the existing Span version
-            arena.BulkSet<T>(handle, source.AsSpan());
+            // Bypasses instance type inference by passing T explicitly
+            arena.BulkSet<T>(handle, source);
         }
     }
 }

@@ -230,6 +230,41 @@ namespace MemoryManager
         }
 
         /// <summary>
+        /// Copies a source span of data atomically into the unmanaged memory referenced by the handle.
+        /// Guarantees thread-safety against background compaction sweeps during bulk memory transfers.
+        /// </summary>
+        /// <typeparam name="T">The unmanaged type of elements to copy.</typeparam>
+        /// <param name="handle">Handle pointing to the destination unmanaged memory block.</param>
+        /// <param name="source">The read-only data span to copy from.</param>
+        /// <exception cref="InvalidOperationException">Thrown if the handle is invalid.</exception>
+        /// <exception cref="ArgumentException">Thrown if the destination allocation partition is too small.</exception>
+        public unsafe void BulkSet<T>(MemoryHandle handle, ReadOnlySpan<T> source) where T : unmanaged
+        {
+            if (handle.IsInvalid)
+                throw new InvalidOperationException("Invalid handle");
+
+            lock (_lock) // ATOMIC BOUNDARY: No background compaction can sneak in while this block executes
+            {
+                // 1. Fetch metadata safely
+                var entry = handle.Id > 0 ? FastLane.GetEntry(handle) : SlowLane.GetEntry(handle);
+                var requiredSize = Unsafe.SizeOf<T>() * source.Length;
+
+                if (entry.Size < requiredSize)
+                    throw new ArgumentException(
+                        $"Destination allocation ({entry.Size} bytes) is too small for source data ({requiredSize} bytes).");
+
+                // 2. Resolve pointer within the same synchronized frame
+                var dest = (handle.Id > 0 ? FastLane.Resolve(handle) : SlowLane.Resolve(handle)).ToPointer();
+
+                // 3. Execute bitwise copy while holding the system lockout lock
+                fixed (T* srcPtr = source)
+                {
+                    System.Buffer.MemoryCopy(srcPtr, dest, entry.Size, requiredSize);
+                }
+            }
+        }
+
+        /// <summary>
         /// Allocates a contiguous block of memory from the appropriate lane based on size threshold policies.
         /// </summary>
         /// <param name="size">The size.</param>
