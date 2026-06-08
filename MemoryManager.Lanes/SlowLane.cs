@@ -94,6 +94,11 @@ namespace MemoryManager.Lanes
         private int _versionsCapacity;
 
         /// <summary>
+        /// The configured search strategy used to scan the free-list for gaps.
+        /// </summary>
+        private readonly AllocationStrategy _searchStrategy;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SlowLane" /> class.
         /// </summary>
         /// <param name="capacity">The capacity.</param>
@@ -101,10 +106,13 @@ namespace MemoryManager.Lanes
         /// <param name="blobThreshold">The BLOB threshold.</param>
         /// <param name="maxEntries">The maximum entries.</param>
         public unsafe SlowLane(int capacity, double blobCapacityFraction = 0.20, int blobThreshold = 256,
-            int maxEntries = 1024)
+            int maxEntries = 1024, AllocationStrategy slowLaneFreeListStrategy = default)
         {
             Capacity = capacity;
             _blobThreshold = blobThreshold;
+
+            // CAPTURE STRATEGY: Persist the configuration choice for all future allocation passes
+            _searchStrategy = slowLaneFreeListStrategy;
 
             Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
@@ -192,7 +200,7 @@ namespace MemoryManager.Lanes
 
             // Calculate tracking footprint dimension rules including canary bytes
             int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
-            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount);
+            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount, _searchStrategy);
 
             if (offset == -1)
                 throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough.");

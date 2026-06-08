@@ -67,19 +67,27 @@ namespace MemoryManager
             _config = config;
             Threshold = config.Threshold;
 
-            // FIX: Pass configuration parameters to the SlowLane constructor
+            // PASS 1: Pass the anti-fragmentation strategy flag straight into the SlowLane
             SlowLane = new SlowLane(
                 config.SlowLaneSize,
                 config.SlowLaneBlobCapacityFraction,
                 config.SlowLaneBlobThreshold,
-                config.MaxEntries);
+                config.MaxEntries,
+                config.SlowLaneFreeListStrategy); // Added strategy selection
 
             if (config.FastLaneStrategy == AllocatorStrategy.FreeList)
             {
-                FastLane = new FastLane(config.FastLaneSize, SlowLane, config.MaxEntries);
+                // PASS 2: Pass the high-velocity strategy flag into the Free-List FastLane
+                FastLane = new FastLane(
+                    config.FastLaneSize,
+                    SlowLane,
+                    config.MaxEntries,
+                    config.FastLaneFreeListStrategy); // Added strategy selection
             }
             else
             {
+                // NOTE: LinearLane is a pure O(1) bump allocator. It does not scan holes, 
+                // so it does not take an AllocationStrategy configuration parameter.
                 FastLane = new LinearLane(config.FastLaneSize, SlowLane, config.MaxEntries);
             }
 

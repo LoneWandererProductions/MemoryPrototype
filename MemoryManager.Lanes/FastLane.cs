@@ -79,16 +79,25 @@ namespace MemoryManager.Lanes
         private int _freeBlockCount;
 
         /// <summary>
+        /// The configured search strategy used to scan the free-list for gaps.
+        /// </summary>
+        private readonly AllocationStrategy _searchStrategy;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="FastLane" /> class.
         /// </summary>
         /// <param name="size">The size.</param>
         /// <param name="slowLane">The slow lane.</param>
         /// <param name="maxEntries">The maximum entries.</param>
-        public unsafe FastLane(int size, SlowLane slowLane, int maxEntries = 1024)
+        /// <param name="fastLaneFreeListStrategy">The fast lane free list strategy.</param>
+        public unsafe FastLane(int size, SlowLane slowLane, int maxEntries = 1024, AllocationStrategy fastLaneFreeListStrategy = default)
         {
             _slowLane = slowLane;
             Capacity = size;
             Buffer = Marshal.AllocHGlobal(size);
+
+            // CAPTURE STRATEGY: Persist the configuration choice for all future allocation passes
+            _searchStrategy = fastLaneFreeListStrategy;
 
             // PRE-ALLOCATE everything based on maxEntries
             _entries = new AllocationEntry[maxEntries];
@@ -179,7 +188,7 @@ namespace MemoryManager.Lanes
 
             // Calculate total layout footprint including canary guards
             int physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
-            var physicalOffset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount);
+            var physicalOffset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount, _searchStrategy);
 
             if (physicalOffset == -1)
                 throw new OutOfMemoryException("FastLane: Cannot allocate - No contiguous block large enough.");

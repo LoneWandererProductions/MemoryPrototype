@@ -6,6 +6,8 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+using System;
+
 namespace MemoryManager.Core
 {
     /// <summary>
@@ -13,7 +15,6 @@ namespace MemoryManager.Core
     /// </summary>
     public sealed class MemoryManagerConfig
     {
-
         /// <summary>
         ///      Parameter-less constructor with defaults
         /// </summary>
@@ -50,7 +51,21 @@ namespace MemoryManager.Core
             // Default hybrid tuning
             SlowLaneBlobCapacityFraction = 0.20;
             SlowLaneBlobThreshold = 256;
+
+            // Default performance-tuned layout choices
+            FastLaneFreeListStrategy = AllocationStrategy.FirstFit;
+            SlowLaneFreeListStrategy = AllocationStrategy.BestFit;
         }
+
+        /// <summary>
+        /// Gets the free-list block search strategy used by the FastLane when running the FreeList strategy wrapper.
+        /// </summary>
+        public AllocationStrategy FastLaneFreeListStrategy { get; init; } = AllocationStrategy.FirstFit;
+
+        /// <summary>
+        /// Gets the free-list block search strategy used by the SlowLane to manage gap allocations.
+        /// </summary>
+        public AllocationStrategy SlowLaneFreeListStrategy { get; init; } = AllocationStrategy.BestFit;
 
         /// <summary>
         /// Gets the fast lane strategy.
@@ -199,12 +214,11 @@ namespace MemoryManager.Core
         public int SlowLaneBlobThreshold { get; init; } = 256;
 
         /// <summary>
-        ///     Estimates the total reserved unmanaged memory (in bytes) this configuration will request,
-        ///     not including minor overhead for handles and management structures.
+        ///      Estimates the total reserved unmanaged memory (in bytes) this configuration will request,
+        ///      not including minor overhead for handles and management structures.
         /// </summary>
         public double GetEstimatedReservedMegabytes()
         {
-            // BufferSize is gone! Just the raw unmanaged lane allocations.
             return (FastLaneSize + SlowLaneSize) / (1024.0 * 1024.0);
         }
 
@@ -213,9 +227,11 @@ namespace MemoryManager.Core
          */
 
         /// <summary>
-        /// Creates a configuration tuned for real-time game loops. 
+        /// Creates a configuration tuned for real-time game loops.
         /// Employs an ultra-fast Bump/Linear allocator for short-lived transient frames.
         /// </summary>
+        /// <param name="totalBudget">The total budget.</param>
+        /// <returns>MemoryManagerConfig instance configured for real-time game loops.</returns>
         public static MemoryManagerConfig CreateForGameLoop(int totalBudget = 16 * 1024 * 1024)
         {
             return new MemoryManagerConfig
@@ -223,11 +239,14 @@ namespace MemoryManager.Core
                 SlowLaneSize = (int)(totalBudget * 0.75),
                 FastLaneSize = (int)(totalBudget * 0.25),
                 FastLaneStrategy = AllocatorStrategy.LinearBump, // Maximum speed
-                MaxFastLaneAgeFrames = 300,                  // Evict to SlowLane faster
+                MaxFastLaneAgeFrames = 300,                      // Evict to SlowLane faster
                 FastLaneUsageThreshold = 0.85,
                 CompactionThreshold = 0.75,
                 EnableAutoCompaction = true,
-                PolicyCheckInterval = TimeSpan.FromMilliseconds(16) // Check roughly every frame at 60fps
+                PolicyCheckInterval = TimeSpan.FromMilliseconds(16), // Check roughly every frame at 60fps
+
+                // Homogeneous loop presets: SlowLane aggregates long-lived chunks neatly via BestFit
+                SlowLaneFreeListStrategy = AllocationStrategy.BestFit
             };
         }
 
@@ -235,6 +254,8 @@ namespace MemoryManager.Core
         /// Creates a configuration tuned for heavy I/O, networking, or asset streaming.
         /// Uses a FreeList allocator to handle random out-of-order allocations.
         /// </summary>
+        /// <param name="totalBudget">The total budget.</param>
+        /// <returns>MemoryManagerConfig instance configured for bulk processing.</returns>
         public static MemoryManagerConfig CreateForBulkProcessing(int totalBudget = 64 * 1024 * 1024)
         {
             return new MemoryManagerConfig
@@ -246,7 +267,11 @@ namespace MemoryManager.Core
                 MaxFastLaneAgeFrames = 1200,                  // Let data sit longer before moving
                 SlowLaneUsageThreshold = 0.80,
                 SlowLaneBlobThreshold = 512,                  // Route larger fragments to blobs
-                PolicyCheckInterval = TimeSpan.FromSeconds(2)  // Low maintenance overhead
+                PolicyCheckInterval = TimeSpan.FromSeconds(2), // Low maintenance overhead
+
+                // Heterogeneous presets: prioritize high allocation velocity on FastLane, anti-fragmentation on SlowLane
+                FastLaneFreeListStrategy = AllocationStrategy.FirstFit,
+                SlowLaneFreeListStrategy = AllocationStrategy.BestFit
             };
         }
 
@@ -254,19 +279,24 @@ namespace MemoryManager.Core
         /// Creates a configuration tuned for tightly constrained or embedded footprints.
         /// Minimizes unmanaged allocation limits and compacts aggressively.
         /// </summary>
+        /// <returns>MemoryManagerConfig instance configured for low memory scenarios.</returns>
         public static MemoryManagerConfig CreateForLowMemory()
         {
             return new MemoryManagerConfig
             {
-                FastLaneSize = 256 * 1024,                     // 256 KB
-                SlowLaneSize = 1024 * 1024,                    // 1 MB
+                FastLaneSize = 256 * 1024,                      // 256 KB
+                SlowLaneSize = 1024 * 1024,                     // 1 MB
                 FastLaneStrategy = AllocatorStrategy.FreeList,
                 EnableAutoCompaction = true,
                 CompactionThreshold = 0.60,                    // Compact very early
                 FastLaneUsageThreshold = 0.70,
                 SlowLaneUsageThreshold = 0.70,
                 SlowLaneBlobCapacityFraction = 0.35,           // Allocate more space for tiny fragments
-                PolicyCheckInterval = TimeSpan.FromMilliseconds(500)
+                PolicyCheckInterval = TimeSpan.FromMilliseconds(500),
+
+                // Low-Footprint presets: Use BestFit everywhere to squeeze the max data out of limited space limits
+                FastLaneFreeListStrategy = AllocationStrategy.BestFit,
+                SlowLaneFreeListStrategy = AllocationStrategy.BestFit
             };
         }
     }

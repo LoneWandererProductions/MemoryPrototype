@@ -89,37 +89,74 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        /// Finds a free spot using a Free-List approach (Zero Allocation, O(N) over holes, not allocations)
+        /// Finds a free spot using a configurable Free-List search approach (Zero Allocation).
         /// </summary>
-        /// <param name="size">The size.</param>
-        /// <param name="freeBlocks">The free blocks.</param>
-        /// <param name="freeBlockCount">The free block count.</param>
-        /// <returns>The offset of the allocated spot, or -1 if out of memory.</returns>
+        /// <param name="size">The physical size needed (including canaries/alignment padding).</param>
+        /// <param name="freeBlocks">The free blocks tracker array.</param>
+        /// <param name="freeBlockCount">The active free block count.</param>
+        /// <param name="strategy">The allocation strategy layout constraint to use.</param>
+        /// <returns>First free next offset for the allocator, or -1 if Out of Memory.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int FindFreeSpot(int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount)
+        internal static int FindFreeSpot(int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount, AllocationStrategy strategy)
         {
-            for (var i = 0; i < freeBlockCount; i++)
+            var targetIndex = -1;
+
+            switch (strategy)
             {
-                if (freeBlocks[i].Size >= size)
-                {
-                    var assignedOffset = freeBlocks[i].Offset;
-
-                    // Shrink the hole
-                    freeBlocks[i].Offset += size;
-                    freeBlocks[i].Size -= size;
-
-                    // If hole is fully consumed, remove it by swapping with the last item
-                    if (freeBlocks[i].Size == 0)
+                case AllocationStrategy.FirstFit:
+                    // --- FIRST FIT STRATEGY (High-Velocity Homogeneous Path) ---
+                    for (var i = 0; i < freeBlockCount; i++)
                     {
-                        freeBlockCount--;
-                        freeBlocks[i] = freeBlocks[freeBlockCount];
+                        if (freeBlocks[i].Size >= size)
+                        {
+                            targetIndex = i;
+                            break; // Exit instantly on the first validation match
+                        }
                     }
+                    break;
 
-                    return assignedOffset;
-                }
+                case AllocationStrategy.BestFit:
+                    // --- BEST FIT STRATEGY (Anti-Fragmentation Heterogeneous Path) ---
+                    var minRemainder = int.MaxValue;
+
+                    for (var i = 0; i < freeBlockCount; i++)
+                    {
+                        if (freeBlocks[i].Size >= size)
+                        {
+                            int remainder = freeBlocks[i].Size - size;
+
+                            // Track the hole that leaves behind the smallest possible wasted remnant
+                            if (remainder < minRemainder)
+                            {
+                                minRemainder = remainder;
+                                targetIndex = i;
+
+                                // OPTIMIZATION: If we hit a perfect structural match, stop scanning immediately
+                                if (remainder == 0) break;
+                            }
+                        }
+                    }
+                    break;
             }
 
-            return -1; // -1 indicates Out of Memory
+            // If no suitable memory block hole was found across the free-list table
+            if (targetIndex == -1) return -1;
+
+            // --- CONSUME AND UPDATE THE TRACKED HOLE ---
+            var assignedOffset = freeBlocks[targetIndex].Offset;
+
+            // Shrink the hole footprint boundaries
+            freeBlocks[targetIndex].Offset += size;
+            freeBlocks[targetIndex].Size -= size;
+
+            // If the hole is fully consumed down to 0 bytes, remove it by swapping with the last item
+            if (freeBlocks[targetIndex].Size == 0)
+            {
+                freeBlockCount--;
+                freeBlocks[targetIndex] = freeBlocks[freeBlockCount];
+            }
+
+            return assignedOffset;
         }
 
         /// <summary>
