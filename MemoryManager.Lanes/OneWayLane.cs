@@ -14,7 +14,7 @@ using MemoryManager.Core;
 namespace MemoryManager.Lanes
 {
     /// <summary>
-    ///     One way Memory Lane
+    ///      One way Memory Lane
     /// </summary>
     public sealed class OneWayLane
     {
@@ -57,11 +57,13 @@ namespace MemoryManager.Lanes
             if (fastHandle.IsInvalid || fastHandle.Id < 0) return false;
 
             nint fastPtr;
-            int size;
+            AllocationEntry fastEntry;
+
             try
             {
+                // FIX: Grab the original entry metadata snapshot to preserve telemetry properties during migration
+                fastEntry = _fastLane.GetEntry(fastHandle);
                 fastPtr = _fastLane.Resolve(fastHandle);
-                size = _fastLane.GetAllocationSize(fastHandle);
             }
             catch
             {
@@ -73,7 +75,13 @@ namespace MemoryManager.Lanes
             MemoryHandle slowHandle;
             try
             {
-                slowHandle = _slowLane.Allocate(size);
+                // FIX: Passed along Priority, Hints, and original AllocationFrame so the SlowLane inherits accurate tracking telemetry
+                slowHandle = _slowLane.Allocate(
+                    fastEntry.Size,
+                    fastEntry.Priority,
+                    fastEntry.Hints,
+                    debugName: null,
+                    currentFrame: fastEntry.AllocationFrame);
             }
             catch (OutOfMemoryException)
             {
@@ -97,8 +105,8 @@ namespace MemoryManager.Lanes
                 System.Buffer.MemoryCopy(
                     (void*)fastPtr,
                     (void*)slowPtr,
-                    size, // Destination capacity limit
-                    size // Row bytes to copy
+                    fastEntry.Size, // Destination capacity limit
+                    fastEntry.Size  // Raw bytes to copy
                 );
 
                 // SUCCESS: Only swap to stub if the copy operation completely succeeded
