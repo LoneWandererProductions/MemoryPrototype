@@ -6,7 +6,6 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-using System;
 using System.Runtime.CompilerServices;
 
 namespace MemoryManager.Core

@@ -149,6 +149,8 @@ namespace MemoryManager.Tests
             // Check that our FreeList is correctly reset to 1 giant block
             Assert.AreEqual(0, _fastLane.EstimateFragmentation(),
                 "Fragmentation should be exactly 0 after compaction.");
+
+            _fastLane.DebugVisualMap();
         }
     }
 }
