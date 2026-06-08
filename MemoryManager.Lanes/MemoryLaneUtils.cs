@@ -21,58 +21,52 @@ namespace MemoryManager.Lanes
     internal static class MemoryLaneUtils
     {
         /// <summary>
-        ///     Calculates the free space.
+        ///     Calculates the true physical free space by summing available tracking blocks.
         /// </summary>
-        /// <param name="entries">The entries.</param>
-        /// <param name="entryCount">The entry count.</param>
-        /// <param name="capacity">The capacity.</param>
-        /// <returns>Free space of Lane.</returns>
+        /// <param name="freeBlocks">The free blocks tracker array.</param>
+        /// <param name="freeBlockCount">The active free block count.</param>
+        /// <returns>Free space of Lane in bytes.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int CalculateFreeSpace(AllocationEntry[] entries, int entryCount, int capacity)
+        internal static int CalculateFreeSpace(FreeBlock[] freeBlocks, int freeBlockCount)
         {
-            if (entryCount == 0) return capacity;
-
-            var usedSpace = 0;
-            for (var i = 0; i < entryCount; i++)
+            // Direct readout from the physical free blocks array provides 100% accuracy and accommodates canary padding
+            var totalFree = 0;
+            for (var i = 0; i < freeBlockCount; i++)
             {
-                // If your array contains freed/invalid entries that shouldn't be counted,
-                // add a check here (e.g., if (!entries[i].IsStub))
-                usedSpace += entries[i].Size;
+                totalFree += freeBlocks[i].Size;
             }
-
-            return capacity - usedSpace;
+            return totalFree;
         }
 
         /// <summary>
-        ///     Estimates the fragmentation.
+        ///     Estimates fragmentation using memory dispersion metrics against available free blocks.
         /// </summary>
-        /// <param name="entries">The entries.</param>
-        /// <param name="entryCount">The entry count.</param>
-        /// <returns>Estimated fragmentation.</returns>
+        /// <param name="freeBlocks">The free blocks tracker array.</param>
+        /// <param name="freeBlockCount">The active free block count.</param>
+        /// <returns>Estimated fragmentation percentage (0-100).</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int EstimateFragmentation(AllocationEntry[] entries, int entryCount)
+        internal static int EstimateFragmentation(FreeBlock[] freeBlocks, int freeBlockCount)
         {
-            if (entryCount == 0) return 0;
+            if (freeBlockCount <= 1) return 0;
 
-            var lastEnd = 0;
-            var usedSpace = 0;
+            var totalFree = 0;
+            var largestBlock = 0;
 
-            for (var i = 0; i < entryCount; i++)
+            // FIX: Evaluates real fragment scattering instead of guessing boundaries based on structural array position offsets
+            for (var i = 0; i < freeBlockCount; i++)
             {
-                // Access by ref to avoid copying the struct
-                ref var entry = ref entries[i];
-
-                usedSpace += entry.Size;
-
-                var end = entry.Offset + entry.Size;
-                if (end > lastEnd)
+                var size = freeBlocks[i].Size;
+                totalFree += size;
+                if (size > largestBlock)
                 {
-                    lastEnd = end;
+                    largestBlock = size;
                 }
             }
 
-            var gapSum = lastEnd - usedSpace;
-            return lastEnd == 0 ? 0 : (int)((double)gapSum / lastEnd * 100);
+            if (totalFree == 0) return 0;
+
+            // Dispersion formula: measures how fragmented your available free memory chunks are
+            return (int)((1.0 - ((double)largestBlock / totalFree)) * 100);
         }
 
         /// <summary>
@@ -86,7 +80,6 @@ namespace MemoryManager.Lanes
         internal static int StubCount(ReadOnlySpan<AllocationEntry> entries)
         {
             var count = 0;
-            // Using 'ref readonly' prevents the struct from being copied into a local variable
             foreach (ref readonly var entry in entries)
             {
                 if (entry.IsStub) count++;
@@ -98,6 +91,10 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// Finds a free spot using a Free-List approach (Zero Allocation, O(N) over holes, not allocations)
         /// </summary>
+        /// <param name="size">The size.</param>
+        /// <param name="freeBlocks">The free blocks.</param>
+        /// <param name="freeBlockCount">The free block count.</param>
+        /// <returns>The offset of the allocated spot, or -1 if out of memory.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int FindFreeSpot(int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount)
         {
@@ -128,6 +125,10 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// Returns memory to the free list and merges adjacent blocks to prevent fragmentation.
         /// </summary>
+        /// <param name="offset">The offset.</param>
+        /// <param name="size">The size.</param>
+        /// <param name="freeBlocks">The free blocks.</param>
+        /// <param name="freeBlockCount">The free block count.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static void ReturnFreeSpace(int offset, int size, ref FreeBlock[] freeBlocks, ref int freeBlockCount)
         {
@@ -167,11 +168,13 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Debugs the dump.
+        /// Debugs the dump.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
-        /// <returns>Generic debug Dump</returns>
+        /// <returns>
+        /// Generic debug Dump
+        /// </returns>
         internal static string DebugDump(AllocationEntry[] entries, int entryCount)
         {
             var sb = new StringBuilder(entryCount * 48);
@@ -197,20 +200,17 @@ namespace MemoryManager.Lanes
         /// </returns>
         internal static string DebugVisualMap(ReadOnlySpan<AllocationEntry> entries, int capacity)
         {
-            // The span's length represents the current active entry count
             if (entries.Length == 0)
                 return "Memory is empty";
 
             var sb = new StringBuilder();
 
-            // 1. Rent a temporary scratch buffer from the shared pool to avoid heap allocations
             var pool = ArrayPool<AllocationEntry>.Shared;
             var scratch = pool.Rent(entries.Length);
 
             var validCount = 0;
             try
             {
-                // 2. Filter out stubs and invalid IDs manually (Replaces .Take().Where())
                 for (var i = 0; i < entries.Length; i++)
                 {
                     ref readonly var e = ref entries[i];
@@ -220,10 +220,7 @@ namespace MemoryManager.Lanes
                     }
                 }
 
-                // 3. Slice our scratch array to exactly how many valid entries we found and sort it
                 var validSpan = scratch.AsSpan(0, validCount);
-
-                // Passing a custom struct comparison instead of a lambda avoids delegate allocation
                 validSpan.Sort(new OffsetComparer());
 
                 sb.AppendLine("--- Dump Start ---");
@@ -233,12 +230,16 @@ namespace MemoryManager.Lanes
                 var allocationCoverage = new double[barWidth];
                 var scale = barWidth / (double)capacity;
 
-                // 4. Process the sorted entries
                 for (var i = 0; i < validSpan.Length; i++)
                 {
                     ref readonly var e = ref validSpan[i];
-                    double startByte = e.Offset;
-                    double endByte = e.Offset + e.Size;
+
+                    // Visual mapping handles canary alignment offsets cleanly
+                    int physicalOffset = MemoryCanary.GetPhysicalOffset(e.Offset);
+                    int physicalSize = MemoryCanary.GetPhysicalSize(e.Size);
+
+                    double startByte = physicalOffset;
+                    double endByte = physicalOffset + physicalSize;
                     var startIdx = (int)(startByte * scale);
                     var endIdx = (int)(endByte * scale);
                     endIdx = Math.Max(startIdx + 1, endIdx);
@@ -256,7 +257,6 @@ namespace MemoryManager.Lanes
                     }
                 }
 
-                // Define partial blocks (8 levels + dot)
                 char[] blocks = { '░', '▏', '▎', '▍', '▌', '▋', '▊', '▉', '█' };
 
                 for (var i = 0; i < barWidth; i++)
@@ -264,11 +264,11 @@ namespace MemoryManager.Lanes
                     var coverage = allocationCoverage[i];
                     if (coverage <= 0.0)
                     {
-                        visual[i] = '░'; // free
+                        visual[i] = '░';
                     }
                     else if (coverage < 0.125)
                     {
-                        visual[i] = '.'; // very small allocation
+                        visual[i] = '.';
                     }
                     else
                     {
@@ -280,10 +280,10 @@ namespace MemoryManager.Lanes
 
                 sb.AppendLine("Visual Map (░ = gap, . = very small allocation, ▏ to █ = partial/full allocation):");
 #if NETCOREAPP
-                sb.Append(visual); // Directly appends char span without allocation in modern .NET
+                sb.Append(visual);
                 sb.AppendLine();
 #else
-        sb.AppendLine(new string(visual));
+                sb.AppendLine(new string(visual));
 #endif
                 sb.AppendLine($"Capacity: {capacity} bytes");
                 sb.AppendLine();
@@ -291,7 +291,6 @@ namespace MemoryManager.Lanes
             }
             finally
             {
-                // Always return the rented array back to the pool, even if something crashed
                 pool.Return(scratch);
             }
 
@@ -299,13 +298,13 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Gets the next identifier.
-        ///     SlowLane always counts up in a negative from -1
-        ///     FastLane always counts up in a positive from +1
+        /// Gets the next identifier.
+        /// SlowLane always counts up in a negative from -1
+        /// FastLane always counts up in a positive from +1
         /// </summary>
         /// <param name="freeIds">The free ids.</param>
         /// <param name="nextHandleId">The next handle identifier.</param>
-        /// <returns>First free next Id for Handler.</returns>
+        /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int GetNextId(UnmanagedIntList freeIds, ref int nextHandleId)
         {
@@ -316,12 +315,12 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Debugs the redirections.
+        /// Debugs the redirections.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="entryCount">The entry count.</param>
-        /// <param name="debugNames">Optional dictionary mapping HandleId to DebugName.</param>
-        /// <returns>Display all information about stubs and forwarding.</returns>
+        /// <param name="debugNames">The debug names.</param>
+        /// <returns>Debug string representing the redirections.</returns>
         internal static string DebugRedirections(AllocationEntry[] entries, int entryCount,
             IReadOnlyDictionary<int, string>? debugNames = null)
         {
@@ -330,7 +329,6 @@ namespace MemoryManager.Lanes
             {
                 var e = entries[i];
 
-                // Changed [FastLane] to [Lane] since SlowLane uses this utility too!
                 sb.Append("[Lane] ID ").Append(e.HandleId)
                     .Append(" Offset ").Append(e.Offset)
                     .Append(" Size ").Append(e.Size);
@@ -344,7 +342,6 @@ namespace MemoryManager.Lanes
                         .Append("]");
                 }
 
-                // Look up the name in the dictionary instead of the struct
                 if (debugNames != null && debugNames.TryGetValue(e.HandleId, out var name))
                 {
                     if (!string.IsNullOrWhiteSpace(name))
@@ -358,12 +355,12 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Usages the percentage.
+        /// Usages the percentage.
         /// </summary>
         /// <param name="entryCount">The entry count.</param>
         /// <param name="entries">The entries.</param>
         /// <param name="capacity">The capacity.</param>
-        /// <returns>Used space in percentage</returns>
+        /// <returns>Usage percentage of the allocated entries.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static double UsagePercentage(int entryCount, AllocationEntry[]? entries, int capacity)
         {
@@ -372,18 +369,21 @@ namespace MemoryManager.Lanes
             var used = 0;
             for (var i = 0; i < entryCount; i++)
                 if (!entries[i].IsStub)
-                    used += entries[i].Size;
+                {
+                    // FIX: Tracks exact physical memory footprint constraints during density assessments
+                    used += MemoryCanary.GetPhysicalSize(entries[i].Size);
+                }
 
             return (double)used / capacity;
         }
 
         /// <summary>
-        ///     Determines whether the specified handle has handle.
+        /// Determines whether the specified handle has handle.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <param name="handleIndex">Index of the handle.</param>
         /// <returns>
-        ///     <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
+        ///   <c>true</c> if the specified handle has handle; otherwise, <c>false</c>.
         /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool HasHandle(MemoryHandle handle, UnmanagedMap<int> handleIndex)
@@ -392,15 +392,15 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Gets the entry.
+        /// Gets the entry.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <param name="handleIndex">Index of the handle.</param>
         /// <param name="entries">The entries.</param>
         /// <param name="lane">The lane.</param>
-        /// <returns>Get the entry by handle.</returns>
-        /// <exception cref="ArgumentException"></exception>
-        /// <exception cref="InvalidOperationException"></exception>
+        /// <returns>The allocation entry corresponding to the specified handle.</returns>
+        /// <exception cref="ArgumentException">$"{lane}: Invalid handle</exception>
+        /// <exception cref="InvalidOperationException">$"{lane}: Invalid handle</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static AllocationEntry GetEntry(MemoryHandle handle, UnmanagedMap<int> handleIndex,
             AllocationEntry[] entries, string lane)
@@ -415,15 +415,15 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Gets the size of the allocation.
+        /// Gets the size of the allocation.
         /// </summary>
         /// <param name="handle">The handle.</param>
         /// <param name="handleIndex">Index of the handle.</param>
         /// <param name="entries">The entries.</param>
         /// <param name="lane">The lane.</param>
-        /// <returns>Calculate size for the allocation.</returns>
-        /// <exception cref="ArgumentException"></exception>
-        /// <exception cref="InvalidOperationException"></exception>
+        /// <returns>The size of the allocation corresponding to the specified handle.</returns>
+        /// <exception cref="ArgumentException">$"{lane}: Invalid handle</exception>
+        /// <exception cref="InvalidOperationException">$"{lane}: Invalid handle</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int GetAllocationSize(MemoryHandle handle, UnmanagedMap<int> handleIndex,
             AllocationEntry[] entries, string lane)
@@ -438,11 +438,11 @@ namespace MemoryManager.Lanes
         }
 
         /// <summary>
-        ///     Ensures the entry capacity.
+        /// Ensures the entry capacity.
         /// </summary>
         /// <param name="entries">The entries.</param>
         /// <param name="requiredSlotIndex">Index of the required slot.</param>
-        /// <returns>New size of Allocation array.</returns>
+        /// <returns>The new size of the entries array.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int EnsureEntryCapacity(ref AllocationEntry[] entries, int requiredSlotIndex)
         {
