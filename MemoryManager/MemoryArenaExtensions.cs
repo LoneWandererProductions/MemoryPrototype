@@ -131,5 +131,26 @@ namespace MemoryManager
             // Bypasses instance type inference by passing T explicitly
             arena.BulkSet<T>(handle, source);
         }
+
+        /// <summary>
+        /// Resolves a memory handle and creates a direct, high-performance <see cref="Span{T}"/> view over the native memory block.
+        /// </summary>
+        /// <typeparam name="T">The unmanaged value type.</typeparam>
+        /// <param name="allocator">The allocation engine.</param>
+        /// <param name="handle">The tracking handle tracking the allocation site.</param>
+        /// <param name="count">The number of elements of type T to include in the span view.</param>
+        /// <returns>A span tracking the underlying raw native block coordinates.</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static unsafe Span<T> GetSpan<T>(this IMemoryAllocator allocator, MemoryHandle handle, int count) where T : unmanaged
+        {
+            if (handle.IsInvalid || count <= 0) return Span<T>.Empty;
+
+            // Resolve handles thread-isolation tracks or global locks automatically
+            nint pointer = allocator.Resolve(handle);
+            if (pointer == nint.Zero) return Span<T>.Empty;
+
+            // Pivot straight into raw unmanaged address spaces
+            return new Span<T>((void*)pointer, count);
+        }
     }
 }
