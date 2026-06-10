@@ -60,6 +60,9 @@ namespace MemoryManager.Tests
             Assert.AreEqual(3.14f, result.Y, 0.001f);
         }
 
+        /// <summary>
+        /// Memories the arena zombie handle throws exception.
+        /// </summary>
         [TestMethod]
         public void MemoryArena_ZombieHandle_ThrowsException()
         {

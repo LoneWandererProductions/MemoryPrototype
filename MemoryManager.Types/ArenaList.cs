@@ -7,6 +7,8 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+// ReSharper disable UnusedMember.Global
+
 using MemoryManager.Core;
 using System.Runtime.CompilerServices;
 
@@ -57,16 +59,12 @@ namespace MemoryManager.Types
         /// <summary>
         /// Initializes a new instance of the <see cref="ArenaList{T}" /> class.
         /// </summary>
-<<<<<<< HEAD
         /// <param name="arena">The arena.</param>
         /// <param name="initialCapacity">The initial capacity.</param>
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
-        public ArenaList(IMemoryAllocator arena, int initialCapacity = 8, AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
-=======
         public ArenaList(MemoryArena arena, int initialCapacity = 8,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
->>>>>>> f41cf23e1c66b3d2e4e393356f32f92443e0ab03
         {
             if (initialCapacity <= 0) initialCapacity = 8;
 
@@ -109,12 +107,9 @@ namespace MemoryManager.Types
         public ref T Get(int index)
         {
             if (index < 0 || index >= Count)
-<<<<<<< HEAD
-                throw new IndexOutOfRangeException($"Index {index} is outside active boundaries.");
-=======
                 throw new IndexOutOfRangeException(
                     $"Index {index} is outside the active boundaries of the ArenaList (Count: {Count}).");
->>>>>>> f41cf23e1c66b3d2e4e393356f32f92443e0ab03
+
 
             var span = _arena.GetSpan<T>(_handle, _capacity);
             return ref span[index];
@@ -126,14 +121,13 @@ namespace MemoryManager.Types
         public void Clear() => Count = 0;
 
         /// <summary>
-        /// Ases the span.
+        /// Converts the active portion of the internal buffer to a <see cref="Span{T}"/> for zero-allocation access.
         /// </summary>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Span<T> AsSpan()
         {
-            if (Count == 0) return Span<T>.Empty;
-            return _arena.GetSpan<T>(_handle, _capacity).Slice(0, Count);
+            return Count == 0 ? Span<T>.Empty : _arena.GetSpan<T>(_handle, _capacity).Slice(0, Count);
         }
 
         /// <summary>
@@ -162,16 +156,16 @@ namespace MemoryManager.Types
             _capacity = newCapacity;
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
         public void Dispose()
         {
-            if (!_handle.IsInvalid)
-            {
-                _arena.Free(_handle);
-                _handle = default;
-            }
+            if (_handle.IsInvalid) return;
+
+            _arena.Free(_handle);
+            _handle = default;
         }
     }
 }

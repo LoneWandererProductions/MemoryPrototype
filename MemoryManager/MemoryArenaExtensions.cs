@@ -141,7 +141,8 @@ namespace MemoryManager
         /// <param name="count">The number of elements of type T to include in the span view.</param>
         /// <returns>A span tracking the underlying raw native block coordinates.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe Span<T> GetSpan<T>(this IMemoryAllocator allocator, MemoryHandle handle, int count) where T : unmanaged
+        public static unsafe Span<T> GetSpan<T>(this IMemoryAllocator allocator, MemoryHandle handle, int count)
+            where T : unmanaged
         {
             if (handle.IsInvalid || count <= 0) return Span<T>.Empty;
 

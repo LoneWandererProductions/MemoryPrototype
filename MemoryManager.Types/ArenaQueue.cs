@@ -7,11 +7,16 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+// ReSharper disable ConvertToAutoPropertyWithPrivateSetter
+// ReSharper disable UnusedType.Global
+
 using MemoryManager.Core;
 using System.Runtime.CompilerServices;
 
+
 namespace MemoryManager.Types
 {
+    /// <inheritdoc />
     /// <summary>
     /// A high-performance, zero-allocation circular queue (Ring Buffer) for unmanaged types,
     /// backed by an <see cref="IMemoryAllocator"/>.
@@ -76,7 +81,8 @@ namespace MemoryManager.Types
         /// <param name="initialCapacity">The initial capacity.</param>
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
-        public ArenaQueue(IMemoryAllocator arena, int initialCapacity = 8, AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
+        public ArenaQueue(IMemoryAllocator arena, int initialCapacity = 8,
+            AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
             if (initialCapacity <= 0) initialCapacity = 8;
 
@@ -191,16 +197,16 @@ namespace MemoryManager.Types
             _capacity = newCapacity;
         }
 
+        /// <inheritdoc />
         /// <summary>
         /// Cleans up unmanaged boundaries back to native runtime engines safely.
         /// </summary>
         public void Dispose()
         {
-            if (!_handle.IsInvalid)
-            {
-                _arena.Free(_handle);
-                _handle = default;
-            }
+            if (_handle.IsInvalid) return;
+
+            _arena.Free(_handle);
+            _handle = default;
         }
     }
 }

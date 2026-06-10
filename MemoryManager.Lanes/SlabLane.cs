@@ -6,6 +6,8 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+// ReSharper disable MemberCanBePrivate.Global
+
 using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Runtime.CompilerServices;
@@ -127,6 +129,9 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// Gets the native raw heap memory handle.
         /// </summary>
+        /// <value>
+        /// The buffer.
+        /// </value>
         public nint Buffer { get; private set; }
 
         /// <inheritdoc />

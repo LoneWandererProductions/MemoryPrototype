@@ -7,7 +7,7 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-using System.Diagnostics;
+// ReSharper disable UnusedMemberInSuper.Global
 
 namespace MemoryManager.Core
 {
