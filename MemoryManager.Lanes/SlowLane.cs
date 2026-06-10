@@ -7,6 +7,11 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+// TODO Compaction
+// we should configure two options good enough or full compaction
+// via the enum CompactionStyle.
+// Good enough would stop as soon as a big enough gap is opened, while full would always compact everything to the start of the buffer.
+
 // ReSharper disable EventNeverSubscribedTo.Global
 
 using ExtendedSystemObjects;

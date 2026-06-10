@@ -6,6 +6,10 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+//TODO: Compaction optimizations:
+// On Free look left and right for adjacent free blocks and coalesce into a single larger block, updating the next free offset if it was at the end of the free region.
+// Two "Good enough" make enough space by moving a single large block instead of doing a full defrag. This would be ideal for the FastLane to quickly open up space without needing to move everything around.
+
 // ReSharper disable UnusedMember.Global
 
 using ExtendedSystemObjects;
