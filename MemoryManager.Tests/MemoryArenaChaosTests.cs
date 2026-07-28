@@ -222,8 +222,8 @@ namespace MemoryManager.Tests
                 {
                     arena.Free(handle);
                 }
-                activeHandles.Clear();
 
+                activeHandles.Clear();
             } // arena.Dispose() executes here
 
             // Final Leak Check

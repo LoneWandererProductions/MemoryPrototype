@@ -17,7 +17,7 @@ using System.Threading;
 
 namespace MemoryManager
 {
-    /// <inheritdoc />
+    /// <inheritdoc cref="IMemoryAllocator" />
     /// <summary>
     /// The thread-safe wrapper around the different Memory Arena Components.
     /// </summary>

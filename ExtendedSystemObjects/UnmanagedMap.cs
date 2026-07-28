@@ -166,6 +166,7 @@ namespace ExtendedSystemObjects
         public void Dispose()
         {
             if (_disposed) return;
+
             Free();
             GC.SuppressFinalize(this);
             _disposed = true;

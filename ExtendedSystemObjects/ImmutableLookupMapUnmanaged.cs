@@ -125,6 +125,7 @@ namespace ExtendedSystemObjects
         public void Dispose()
         {
             if (_disposed) return;
+
             _entries.Dispose();
             _disposed = true;
         }

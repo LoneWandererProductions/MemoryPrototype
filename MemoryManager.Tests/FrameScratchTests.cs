@@ -65,7 +65,8 @@ namespace MemoryManager.Tests
             using var arena = new MemoryArena(config);
 
             // Rent with explicit NoSpill hint
-            using var rent = new ArenaRent<int>(arena, 1024, hints: AllocationHints.FrameCritical | AllocationHints.NoSpill);
+            using var rent = new ArenaRent<int>(arena, 1024,
+                hints: AllocationHints.FrameCritical | AllocationHints.NoSpill);
             rent[0] = 123;
 
             Assert.AreEqual(123, rent[0]);

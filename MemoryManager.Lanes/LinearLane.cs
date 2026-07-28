@@ -125,6 +125,7 @@ namespace MemoryManager.Lanes
         public unsafe void Dispose()
         {
             if (_disposed) return;
+
             _disposed = true;
 
             // 1. Free main native buffer and reset pointer

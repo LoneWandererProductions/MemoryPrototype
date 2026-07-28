@@ -16,6 +16,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using ExtendedSystemObjects.Helper;
 using ExtendedSystemObjects.Interfaces;
+// ReSharper disable MemberCanBePrivate.Global
 
 namespace ExtendedSystemObjects
 {
@@ -360,8 +361,9 @@ namespace ExtendedSystemObjects
         }
 
         /// <summary>
-        ///     Returns a Span over the used portion of the array.
+        /// Returns a Span over the used portion of the array.
         /// </summary>
+        /// <returns>Dta as span.</returns>
         public Span<int> AsSpan()
         {
             EnsureNotDisposed();

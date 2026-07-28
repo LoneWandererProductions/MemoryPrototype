@@ -142,6 +142,7 @@ namespace MemoryManager.Lanes
         {
             var binIndex = FindBinIndex(size);
             if (binIndex == -1) return false;
+
             return _bins[binIndex].FreeCount > 0;
         }
 
@@ -335,6 +336,7 @@ namespace MemoryManager.Lanes
             }
 
             if (totalPhysicalActiveBytes == 0) return 0;
+
             return (int)((double)(totalPhysicalActiveBytes - totalUserRequestedBytes) / totalPhysicalActiveBytes * 100);
         }
 
@@ -368,6 +370,7 @@ namespace MemoryManager.Lanes
         public IEnumerable<MemoryHandle> GetHandles()
         {
             if (_entries == null) yield break;
+
             foreach (var id in _handleIndex.Keys)
             {
                 if (_handleIndex.TryGetValue(id, out var index))

@@ -21,7 +21,7 @@ namespace MemoryManager.Types
         /// <summary>
         /// The arena
         /// </summary>
-        private readonly IMemoryAllocator _arena;
+        private readonly IMemoryAllocator? _arena;
 
         /// <summary>
         /// The capacity
@@ -52,10 +52,10 @@ namespace MemoryManager.Types
         /// <param name="hints">The hints.</param>
         /// <exception cref="System.ArgumentOutOfRangeException">capacity - Capacity must be greater than zero.</exception>
         public ArenaBuffer(
-                IMemoryAllocator arena,
-                int capacity,
-                AllocationPriority priority = AllocationPriority.Critical,
-                AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
+            IMemoryAllocator? arena,
+            int capacity,
+            AllocationPriority priority = AllocationPriority.Critical,
+            AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
         {
             if (capacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(capacity), "Capacity must be > 0.");

@@ -27,7 +27,7 @@ namespace MemoryManager.Types
         /// <summary>
         /// The arena
         /// </summary>
-        private readonly IMemoryAllocator _arena;
+        private readonly IMemoryAllocator? _arena;
 
         /// <summary>
         /// The priority
@@ -81,7 +81,7 @@ namespace MemoryManager.Types
         /// <param name="initialCapacity">The initial capacity.</param>
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
-        public ArenaQueue(IMemoryAllocator arena, int initialCapacity = 8,
+        public ArenaQueue(IMemoryAllocator? arena, int initialCapacity = 8,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
             if (initialCapacity <= 0) initialCapacity = 8;

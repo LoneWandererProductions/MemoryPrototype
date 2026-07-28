@@ -21,7 +21,7 @@ namespace MemoryManager.Types
         /// <summary>
         /// The arena
         /// </summary>
-        private readonly IMemoryAllocator _arena;
+        private readonly IMemoryAllocator? _arena;
 
         /// <summary>
         /// The handle
@@ -49,10 +49,10 @@ namespace MemoryManager.Types
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
         public ArenaRent(
-                IMemoryAllocator arena,
-                int count,
-                AllocationPriority priority = AllocationPriority.Critical,
-                AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
+            IMemoryAllocator? arena,
+            int count,
+            AllocationPriority priority = AllocationPriority.Critical,
+            AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
         {
             _arena = arena;
             _handle = _arena.Allocate(Unsafe.SizeOf<T>() * count, priority, hints);

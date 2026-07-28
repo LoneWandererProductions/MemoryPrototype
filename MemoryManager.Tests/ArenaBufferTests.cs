@@ -11,11 +11,20 @@ using MemoryManager.Types;
 
 namespace MemoryManager.Tests
 {
+    /// <summary>
+    /// Simple Arena tests.
+    /// </summary>
     [TestClass]
     public sealed class ArenaBufferTests
     {
-        private MemoryArena _arena;
+        /// <summary>
+        /// The arena
+        /// </summary>
+        private MemoryArena? _arena;
 
+        /// <summary>
+        /// Setups this instance.
+        /// </summary>
         [TestInitialize]
         public void Setup()
         {
@@ -23,12 +32,18 @@ namespace MemoryManager.Tests
             _arena = new MemoryArena(config);
         }
 
+        /// <summary>
+        /// Cleanups this instance.
+        /// </summary>
         [TestCleanup]
         public void Cleanup()
         {
             _arena?.Dispose();
         }
 
+        /// <summary>
+        /// Arenas the buffer add and read validates data integrity.
+        /// </summary>
         [TestMethod]
         public void ArenaBuffer_AddAndRead_ValidatesDataIntegrity()
         {
@@ -48,6 +63,9 @@ namespace MemoryManager.Tests
             }
         }
 
+        /// <summary>
+        /// Arenas the buffer exceed capacity throws invalid operation exception.
+        /// </summary>
         [TestMethod]
         public void ArenaBuffer_ExceedCapacity_ThrowsInvalidOperationException()
         {
@@ -60,6 +78,9 @@ namespace MemoryManager.Tests
             Assert.ThrowsException<InvalidOperationException>(() => buffer.Add(4));
         }
 
+        /// <summary>
+        /// Arenas the buffer clear resets count without reallocating.
+        /// </summary>
         [TestMethod]
         public void ArenaBuffer_Clear_ResetsCountWithoutReallocating()
         {
@@ -78,6 +99,9 @@ namespace MemoryManager.Tests
             Assert.AreEqual(300, buffer[0]);
         }
 
+        /// <summary>
+        /// Arenas the buffer index out of bounds throws index out of range exception.
+        /// </summary>
         [TestMethod]
         public void ArenaBuffer_IndexOutOfBounds_ThrowsIndexOutOfRangeException()
         {

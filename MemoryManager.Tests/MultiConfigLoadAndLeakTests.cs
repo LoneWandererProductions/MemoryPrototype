@@ -213,7 +213,8 @@ namespace MemoryManager.Tests
                 }
             }
 
-            AssertZeroMemoryLeak(baselineMemory, nameof(Preset_LowMemory_ConstrainedBudget_AggressiveCompaction_NoLeak));
+            AssertZeroMemoryLeak(baselineMemory,
+                nameof(Preset_LowMemory_ConstrainedBudget_AggressiveCompaction_NoLeak));
         }
     }
 }

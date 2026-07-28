@@ -14,7 +14,7 @@ namespace MemoryManager.Tests
     [TestClass]
     public sealed class ArenaQueueTests
     {
-        private MemoryArena _arena;
+        private MemoryArena? _arena;
 
         [TestInitialize]
         public void Setup()

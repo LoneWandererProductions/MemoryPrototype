@@ -58,12 +58,12 @@ namespace MemoryManager.Core
         /// <summary>
         /// Gets the free-list block search strategy used by the FastLane when running the FreeList strategy wrapper.
         /// </summary>
-        public AllocationStrategy FastLaneFreeListStrategy { get; init; } = AllocationStrategy.FirstFit;
+        public AllocationStrategy FastLaneFreeListStrategy { get; private init; } = AllocationStrategy.FirstFit;
 
         /// <summary>
         /// Gets the free-list block search strategy used by the SlowLane to manage gap allocations.
         /// </summary>
-        public AllocationStrategy SlowLaneFreeListStrategy { get; init; } = AllocationStrategy.BestFit;
+        public AllocationStrategy SlowLaneFreeListStrategy { get; private init; } = AllocationStrategy.BestFit;
 
         /// <summary>
         /// Gets the fast lane strategy.
@@ -203,13 +203,13 @@ namespace MemoryManager.Core
         /// Fraction of the SlowLane capacity dedicated to the BlobManager for small, unpredictable data.
         /// Example: 0.20 reserves 20% of the SlowLane for tiny blobs.
         /// </summary>
-        public double SlowLaneBlobCapacityFraction { get; init; } = 0.20;
+        public double SlowLaneBlobCapacityFraction { get; private init; } = 0.20;
 
         /// <summary>
         /// Allocations in the SlowLane smaller than or equal to this size (in bytes)
         /// will be routed to the BlobManager instead of the main BlockManager.
         /// </summary>
-        public int SlowLaneBlobThreshold { get; init; } = 256;
+        public int SlowLaneBlobThreshold { get; private init; } = 256;
 
         /// <summary>
         ///      Estimates the total reserved unmanaged memory (in bytes) this configuration will request,
@@ -338,7 +338,8 @@ namespace MemoryManager.Core
                 Threshold = totalBudget, // Guarantees ALL allocations up to the full budget hit FastLane!
                 FastLaneStrategy = AllocatorStrategy.LinearBump, // Pure O(1) bump speed
                 MaxFastLaneAgeFrames = 1, // Single-frame turnover
-                EnableAutoCompaction = false, // Disabled: O(1) bump reset on Free handles cleanup, avoiding mid-frame stalls
+                EnableAutoCompaction =
+                    false, // Disabled: O(1) bump reset on Free handles cleanup, avoiding mid-frame stalls
                 FastLaneUsageThreshold = 0.99,
                 SlowLaneUsageThreshold = 0.99
             };

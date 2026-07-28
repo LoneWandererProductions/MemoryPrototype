@@ -72,11 +72,9 @@ namespace MemoryManager.Tests
             // Should complete cleanly without spilling to SlowLane or throwing OutOfMemoryException
             for (var i = 0; i < totalIterations; i++)
             {
-                using (var rent = new ArenaRent<int>(arena, rentElementCount))
-                {
-                    rent[0] = i;
-                    rent[rentElementCount - 1] = i * 2;
-                } // Dispose returns EntryCount to 0, triggering the bump offset reset
+                using var rent = new ArenaRent<int>(arena, rentElementCount);
+                rent[0] = i;
+                rent[rentElementCount - 1] = i * 2;
             }
 
             // Assert FastLane is back to zero active entries and ready for new frames

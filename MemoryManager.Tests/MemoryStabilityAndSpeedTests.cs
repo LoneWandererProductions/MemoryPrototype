@@ -37,10 +37,25 @@ namespace MemoryManager.Tests
                 var warmConfig = MemoryManagerConfig.CreateForGameLoop(TightBudgetBytes);
                 using var warmArena = new MemoryArena(warmConfig);
 
-                using (var rent = new ArenaRent<long>(warmArena, 16)) { rent[0] = 1; }
-                using (var buffer = new ArenaBuffer<long>(warmArena, 16)) { buffer.Add(1); }
-                using (var list = new ArenaList<long>(warmArena, 16)) { list.Add(1); }
-                using (var queue = new ArenaQueue<long>(warmArena, 16)) { queue.Enqueue(1); }
+                using (var rent = new ArenaRent<long>(warmArena, 16))
+                {
+                    rent[0] = 1;
+                }
+
+                using (var buffer = new ArenaBuffer<long>(warmArena, 16))
+                {
+                    buffer.Add(1);
+                }
+
+                using (var list = new ArenaList<long>(warmArena, 16))
+                {
+                    list.Add(1);
+                }
+
+                using (var queue = new ArenaQueue<long>(warmArena, 16))
+                {
+                    queue.Enqueue(1);
+                }
 
                 warmArena.TickFrame();
             }
