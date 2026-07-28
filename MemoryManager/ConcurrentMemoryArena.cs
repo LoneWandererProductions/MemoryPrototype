@@ -116,10 +116,18 @@ namespace MemoryManager
             {
                 var localLane = _threadLocalFastLane.Value!;
 
-                // Pure Lock-Free Hot Path! Bypasses global contention lines entirely.
+                // Pure Lock-Free Hot Path!
                 if (localLane.CanAllocate(size))
                 {
                     return localLane.Allocate(size, priority, hints, debugName, currentFrame);
+                }
+
+                // Strict Guardrail: Prevent dropping out of lock-free thread isolation into global lock
+                if (hints.HasFlag(AllocationHints.NoSpill))
+                {
+                    throw new OutOfMemoryException(
+                        $"Thread-isolated FastLane exhausted for ManagedThreadId {Environment.CurrentManagedThreadId} " +
+                        $"and NoSpill hint was requested. Requested footprint: {size} bytes.");
                 }
             }
 

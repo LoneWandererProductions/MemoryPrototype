@@ -14,7 +14,7 @@ namespace MemoryManager.Lanes
     /// Interface Definition for our FastLane.
     /// </summary>
     /// <seealso cref="Core.IMemoryLane" />
-    public interface IFastLane : IMemoryLane
+    public interface IFastLane : IMemoryLane, IDisposable
     {
         /// <summary>
         /// Gets or sets the one way lane.

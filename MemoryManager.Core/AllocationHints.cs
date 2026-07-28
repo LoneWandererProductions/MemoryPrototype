@@ -26,6 +26,12 @@ namespace MemoryManager.Core
         /// <summary>
         /// The evictable flag indicates that the allocated data can be evicted from the fast lane when memory pressure occurs.
         /// </summary>
-        Evictable = Cold | Old
+        Evictable = Cold | Old,
+
+        /// <summary>
+        /// Strict FastLane requirement: prevents the allocation from ever spilling or falling back
+        /// to SlowLane. Throws OutOfMemoryException immediately if FastLane capacity is exceeded.
+        /// </summary>
+        NoSpill = 1 << 3
     }
 }

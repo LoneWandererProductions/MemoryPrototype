@@ -83,7 +83,7 @@ namespace MemoryManager.Types
         /// The <see cref="T"/>.
         /// </value>
         /// <param name="index">The index.</param>
-        /// <returns></returns>
+        /// <returns>Data at index.</returns>
         public ref T this[int index] => ref Get(index);
 
         /// <summary>

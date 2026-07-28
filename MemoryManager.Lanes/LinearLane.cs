@@ -26,7 +26,7 @@ namespace MemoryManager.Lanes
     /// </summary>
     /// <seealso cref="MemoryManager.Lanes.IFastLane" />
     /// <seealso cref="System.IDisposable" />
-    public sealed class LinearLane : IFastLane, IDisposable
+    public sealed class LinearLane : IFastLane
     {
 #if DEBUG
         /// <summary>
@@ -82,6 +82,11 @@ namespace MemoryManager.Lanes
         public event Action<string, int, int>? OnAllocationExtension;
 
         /// <summary>
+        /// The disposed
+        /// </summary>
+        private bool _disposed;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="LinearLane"/> class.
         /// </summary>
         /// <param name="size">The size.</param>
@@ -119,16 +124,30 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public unsafe void Dispose()
         {
-            Marshal.FreeHGlobal(Buffer);
-            _handleIndex.Clear();
+            if (_disposed) return;
+            _disposed = true;
 
+            // 1. Free main native buffer and reset pointer
+            if (Buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(Buffer);
+                Buffer = IntPtr.Zero;
+            }
+
+            // 2. Free flat unmanaged versions array
             if (_versions != null)
             {
                 NativeMemory.Free(_versions);
                 _versions = null;
             }
 
+            // 3. Clear tracking structures and reset offsets
+            _handleIndex.Clear();
+            _freeIds.Clear();
             _entries = null;
+            EntryCount = 0;
+            _nextFreeOffset = 0;
+
             GC.SuppressFinalize(this);
         }
 
@@ -223,8 +242,6 @@ namespace MemoryManager.Lanes
 
             var entry = _entries[index];
 
-            // FIX: Bypasses canary verification if the entry is an eviction stub, 
-            // preventing false-positive corruption exceptions at offset 0
             if (!entry.IsStub)
             {
                 MemoryCanary.Validate(Buffer, entry.Offset, entry.Size, handle.Id);
@@ -237,7 +254,14 @@ namespace MemoryManager.Lanes
             }
 
             var lastIdx = --EntryCount;
-            if (index != lastIdx)
+
+            // === ELEGANT O(1) BUMP RESET ===
+            // When all active items in the lane have been freed, reset the bump offset back to 0.
+            if (EntryCount == 0)
+            {
+                _nextFreeOffset = 0;
+            }
+            else if (index != lastIdx)
             {
                 var movedEntry = _entries[lastIdx];
                 _entries[index] = movedEntry;

@@ -21,7 +21,7 @@ namespace MemoryManager
     /// <summary>
     /// The thread-safe wrapper around the different Memory Arena Components.
     /// </summary>
-    public sealed class MemoryArena : IMemoryAllocator
+    public sealed class MemoryArena : IMemoryAllocator, IDisposable
     {
         /// <summary>
         /// The configuration
@@ -414,8 +414,19 @@ namespace MemoryManager
         private MemoryHandle AllocateInternal(int size, AllocationPriority priority, AllocationHints hints,
             string? debugName, int frame)
         {
+            // 1. Hot path: Try FastLane
             if (size <= Threshold && FastLane.CanAllocate(size))
                 return FastLane.Allocate(size, priority, hints, debugName, frame);
+
+            // 2. Strict FastLane Guardrail: Disallow fallback if NoSpill is requested
+            if (hints.HasFlag(AllocationHints.NoSpill))
+            {
+                throw new OutOfMemoryException(
+                    $"FastLane capacity exhausted and NoSpill hint was requested. " +
+                    $"Requested: {size} bytes, FastLane Free: {FastLane.FreeSpace()} bytes.");
+            }
+
+            // 3. Fallback path: Try SlowLane
             if (SlowLane.CanAllocate(size))
                 return SlowLane.Allocate(size, priority, hints, debugName, frame);
 
@@ -485,6 +496,22 @@ namespace MemoryManager
                 }
 
                 TryCompactSlowLane();
+            }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            lock (_lock)
+            {
+                // 1. Stop background maintenance timer
+                _policyTimer?.Dispose();
+
+                // 2. Dispose FastLane (LinearLane / FreeList / Slab)
+                FastLane?.Dispose();
+
+                // 3. Dispose SlowLane and its BlobManager
+                SlowLane?.Dispose();
             }
         }
     }

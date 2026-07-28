@@ -19,7 +19,7 @@ namespace MemoryManager.Lanes
     /// <summary>
     /// SlabLane implementing Segregated Size Class Allocation Pools.
     /// </summary>
-    public sealed class SlabLane : IFastLane, IDisposable
+    public sealed class SlabLane : IFastLane
     {
 #if DEBUG
         /// <summary>

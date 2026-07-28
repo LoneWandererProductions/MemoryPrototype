@@ -299,7 +299,7 @@ namespace MemoryManager.Core
         }
 
         /// <summary>
-        /// NEW PRESET: Creates a configuration tuned for ultra-fast, predictable object pooling.
+        /// Creates a configuration tuned for ultra-fast, predictable object pooling.
         /// Employs the zero-compaction, fixed-bin segregated SlabLane strategy.
         /// </summary>
         /// <param name="totalBudget">The total budget.</param>
@@ -318,6 +318,29 @@ namespace MemoryManager.Core
                 PolicyCheckInterval = TimeSpan.FromMilliseconds(500),
                 SlowLaneFreeListStrategy =
                     AllocationStrategy.BestFit // SlowLane catches larger spills via clean best-fit
+            };
+        }
+
+        /// <summary>
+        /// Creates a configuration tuned exclusively for transient, per-frame scratchpads 
+        /// (e.g., inner-loop math, light solvers, soft-rasterizers, or temporary render commands).
+        /// Allocates 100% of the budget directly to the ultra-fast Bump FastLane and sets 
+        /// the routing threshold so allocations never attempt to fall back to SlowLane.
+        /// </summary>
+        /// <param name="totalBudget">The total scratchpad budget in bytes (default 8 MB).</param>
+        /// <returns>MemoryManagerConfig instance configured for pure frame-scratch operations.</returns>
+        public static MemoryManagerConfig CreateForFrameScratch(int totalBudget = 8 * 1024 * 1024)
+        {
+            return new MemoryManagerConfig
+            {
+                FastLaneSize = totalBudget,
+                SlowLaneSize = 1024, // Minimal 1 KB placeholder to avoid division-by-zero in usage metrics
+                Threshold = totalBudget, // Guarantees ALL allocations up to the full budget hit FastLane!
+                FastLaneStrategy = AllocatorStrategy.LinearBump, // Pure O(1) bump speed
+                MaxFastLaneAgeFrames = 1, // Single-frame turnover
+                EnableAutoCompaction = false, // Disabled: O(1) bump reset on Free handles cleanup, avoiding mid-frame stalls
+                FastLaneUsageThreshold = 0.99,
+                SlowLaneUsageThreshold = 0.99
             };
         }
     }
