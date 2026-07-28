@@ -3,7 +3,7 @@
  * PROJECT:      ExtendedSystemObjects
  * FILE:         BiMap.cs
  * PURPOSE:      Bi-directional map implementation that allows for efficient lookups in both directions.
- * PROGRAMER:    Peter Geinitz (Wayfarer)
+ * PROGRAMMER:   Peter Geinitz (Wayfarer)
  */
 
 // ReSharper disable MemberCanBeInternal
@@ -31,12 +31,12 @@ namespace ExtendedSystemObjects
         /// <summary>
         /// The forward
         /// </summary>
-        private readonly Dictionary<T, T> _forward = new();
+        private readonly Dictionary<T, T> _forward;
 
         /// <summary>
         /// The reverse
         /// </summary>
-        private readonly Dictionary<T, T> _reverse = new();
+        private readonly Dictionary<T, T> _reverse;
 
         /// <inheritdoc />
         /// <summary>
@@ -80,9 +80,7 @@ namespace ExtendedSystemObjects
         /// <summary>
         /// Initializes a new instance of the <see cref="T:ExtendedSystemObjects.BiMap`1" /> class.
         /// </summary>
-        public BiMap() : this(0)
-        {
-        }
+        public BiMap() : this(0) { }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="BiMap{T}"/> class.

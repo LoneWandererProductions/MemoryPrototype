@@ -3,7 +3,7 @@
  * PROJECT:     ExtendedSystemObjects
  * FILE:        DictionaryExtensions.cs
  * PURPOSE:     Helper class that extends the already versatile Dictionary, most operations are not thread safe, so beware.
- * PROGRAMER:   Peter Geinitz (Wayfarer)
+ * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
 // ReSharper disable UnusedMethodReturnValue.Global
@@ -276,7 +276,7 @@ namespace ExtendedSystemObjects
         /// </returns>
         /// <exception cref="ValueNotFoundException"><paramref name="dic" /> value not found.</exception>
         public static Dictionary<TKey, TValue> GetDictionaryByValues<TKey, TValue>(this IDictionary<TKey, TValue> dic,
-            IEnumerable<TKey> value)
+            IEnumerable<TKey> value) where TKey : notnull
         {
             var collection = value.Where(dic.ContainsKey).ToDictionary(key => key, key => dic[key]);
 
@@ -337,7 +337,7 @@ namespace ExtendedSystemObjects
         /// <returns>
         ///     [true] if success, else [false], Reduces Dictionary, first Element will be removed until it empty
         /// </returns>
-        public static bool Reduce<TKey, TValue>(this Dictionary<TKey, TValue> dic)
+        public static bool Reduce<TKey, TValue>(this Dictionary<TKey, TValue> dic) where TKey : notnull
         {
             return !dic.IsNullOrEmpty() && dic.Remove(dic.Keys.First());
         }

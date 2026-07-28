@@ -10,7 +10,6 @@
 // ReSharper disable MemberCanBePrivate.Global
 // ReSharper disable EventNeverSubscribedTo.Global
 // ReSharper disable UnusedMethodReturnValue.Global
-// ReSharper disable UnusedMember.Global
 
 using System;
 using System.Collections.Concurrent;
@@ -20,6 +19,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using ExtendedSystemObjects.Helper;
+
 
 namespace ExtendedSystemObjects
 {
