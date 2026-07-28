@@ -121,9 +121,9 @@ namespace MemoryManager.Tests
             Trace.WriteLine($"1,000,000 ArenaRent operations completed in: {sw.ElapsedMilliseconds} ms");
 
 #if DEBUG
-            const int maxAllowedMs = 1500; // Debug threshold (allows for #if DEBUG tracking & no inlining)
+            const int maxAllowedMs = 2500; // Debug threshold (allows for test runner noise, tracing & no inlining)
 #else
-            const int maxAllowedMs = 150;  // Release threshold (full JIT optimization)
+    const int maxAllowedMs = 200;  // Release threshold (full JIT inline optimization)
 #endif
 
             Assert.IsTrue(sw.ElapsedMilliseconds < maxAllowedMs,

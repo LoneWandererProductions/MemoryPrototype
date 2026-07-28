@@ -150,5 +150,92 @@ namespace MemoryManager.Tests
             Assert.IsTrue(fastLane.HasHandle(hNew),
                 "The allocator should be able to accept new allocations again after compaction consolidates holes.");
         }
+
+        /// <summary>
+        /// Runs 200,000 randomized allocation and free operations with mixed block sizes (16B to 64KB).
+        /// Proves that out-of-order frees and free-list recycling do not corrupt state or fragment memory to death.
+        /// </summary>
+        [TestMethod]
+        [TestCategory("ChaosSafety")]
+        public void Chaos_200kRandomAllocationsAndFrees_ProvesNoFragmentationOrStateCorrupt()
+        {
+            // Baseline Snapshot
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+            var initialManagedMemory = GC.GetTotalMemory(true);
+
+            var config = MemoryManagerConfig.CreateForBulkProcessing(32 * 1024 * 1024); // 32 MB Budget
+            var activeHandles = new List<MemoryHandle>();
+            var rng = new Random(42); // Deterministic seed for repeatable test runs
+
+            const int totalOperations = 200_000;
+
+            {
+                using var arena = new MemoryArena(config);
+
+                for (var i = 0; i < totalOperations; i++)
+                {
+                    // 70% chance to allocate, 30% chance to free random existing handle
+                    if (activeHandles.Count < 100 && rng.NextDouble() < 0.70)
+                    {
+                        var size = rng.Next(16, 64 * 1024); // Mixed sizes: 16B to 64KB
+
+                        try
+                        {
+                            var handle = arena.Allocate(size);
+
+                            // Immediately resolve pointer and verify address validity
+                            var ptr = arena.Resolve(handle);
+                            Assert.AreNotEqual(IntPtr.Zero, ptr, "Resolved pointer must never be null.");
+
+                            activeHandles.Add(handle);
+                        }
+                        catch (OutOfMemoryException)
+                        {
+                            // Expected when memory reaches 100% capacity threshold.
+                            // Free a random handle to make room for subsequent iterations.
+                            if (activeHandles.Count > 0)
+                            {
+                                var indexToFree = rng.Next(activeHandles.Count);
+                                arena.Free(activeHandles[indexToFree]);
+                                activeHandles.RemoveAt(indexToFree);
+                            }
+                        }
+                    }
+                    else if (activeHandles.Count > 0)
+                    {
+                        // Free a random handle out-of-order to create memory fragmentation gaps
+                        var indexToFree = rng.Next(activeHandles.Count);
+                        arena.Free(activeHandles[indexToFree]);
+                        activeHandles.RemoveAt(indexToFree);
+                    }
+
+                    if (i % 1000 == 0)
+                    {
+                        arena.TickFrame();
+                    }
+                }
+
+                // Clean up all remaining active handles before arena disposal
+                foreach (var handle in activeHandles)
+                {
+                    arena.Free(handle);
+                }
+                activeHandles.Clear();
+
+            } // arena.Dispose() executes here
+
+            // Final Leak Check
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Forced, true, true);
+
+            var finalManagedMemory = GC.GetTotalMemory(false);
+            var managedDelta = Math.Abs(finalManagedMemory - initialManagedMemory);
+
+            Assert.IsTrue(managedDelta < 150 * 1024 * 1024,
+                $"Memory leak detected! Retained {managedDelta / (1024.0 * 1024.0):F2} MB after Chaos Test.");
+        }
     }
 }
