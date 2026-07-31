@@ -1,7 +1,7 @@
 # ⚡ MemoryManager: High-Performance Unmanaged Arena Allocator for .NET
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](License.txt)
-[![.NET 9.0+](https://img.shields.io/badge/.NET-8.0%2B-purple.svg)](https://dotnet.microsoft.com/)
+[![.NET 9.0+](https://img.shields.io/badge/.NET-9.0%2B-purple.svg)](https://dotnet.microsoft.com/)
 [![Build Status](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)]()
 
 **MemoryManager** is a low-level, production-grade memory arena architecture engineered for high-throughput, low-latency .NET applications such as game engine cores, real-time telemetry systems, database engines, and networking pipelines.
