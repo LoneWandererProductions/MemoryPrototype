@@ -39,21 +39,6 @@ The system enforces a strict hierarchical topology over specialized unmanaged me
 * **🧱 SlabLane (Segregated Bins)**: An alternative drop-in fast-lane strategy optimized for ultra-fast, uniform object pooling (e.g., ECS components, entities). It partitions unmanaged memory into distinct power-of-two size classes (16B, 32B, 64B, 128B, etc.). Both allocations and frees execute as instant $O(1)$ LIFO slot recycling operations, completely immunizing the hot path against external fragmentation and bypassing compaction stutters entirely.
 ---
 
-## 🛑 The Production Finish-Line Roadmap
-
-To move this system out of the prototyping phase and into a hardened, production-grade systems engine, the following structural limitations must be addressed:
-
-### 1. "Stop-the-World" Compaction Latency
-* **Current State:** When compaction triggers, the compactor engine allocates an entirely new unmanaged heap block via `Marshal.AllocHGlobal` and slides all survivors over via memory block copying. For massive heaps (e.g., 512MB+), this causes noticeable block stutters (latency spikes) and temporarily forces a **double memory footprint**.
-* **Production Fix:** Implement an **Incremental/Phased Compactor** that only relocates a small chunk of fragmented blocks per frame tick, or enforce strict zero-compaction rules where arenas are completely cleared and cycled out at deterministic boundaries (e.g., scene changes).
-
-### 2. Add bool IsFragmented() to trigger Compact() on threshold
-* ** Current State:** The compactor is only triggered when the arena is completely full. This allows fragmentation to grow unchecked until the last possible moment, causing more severe stutters and higher memory usage.
-* **Production Fix:** Introduce an `IsFragmented()` method that evaluates the current fragmentation level against a predefined threshold. If the fragmentation exceeds the threshold, trigger the `Compact()` method proactively to maintain optimal memory usage and reduce latency spikes.
-
-- 
----
-
 ## 🧩 Config Presets & Advanced Usage
 
 Configurations can be customized manually or generated via optimized static factories targeted at distinct architecture types:

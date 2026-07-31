@@ -3,14 +3,9 @@
  * PROJECT:     MemoryArenaPrototype.Lane
  * FILE:        SlowLane.cs
  * PURPOSE:     Memory store for long lived data and stuff we could not hold into the fast lane.
- * Ids for Allocations is always negative here.
+ *              Ids for Allocations is always negative here.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
-
-// TODO Compaction
-// we should configure two options good enough or full compaction
-// via the enum CompactionStyle.
-// Good enough would stop as soon as a big enough gap is opened, while full would always compact everything to the start of the buffer.
 
 // ReSharper disable EventNeverSubscribedTo.Global
 
@@ -84,6 +79,11 @@ namespace MemoryManager.Lanes
         private readonly int _blobThreshold = 256;
 
         /// <summary>
+        /// The physical byte capacity assigned to the BlobManager sub-allocator.
+        /// </summary>
+        private readonly int _blobCapacity;
+
+        /// <summary>
         ///      The specialized manager for tiny/unpredictable allocations.
         /// </summary>
         private readonly BlobManager? _blobManager;
@@ -104,6 +104,11 @@ namespace MemoryManager.Lanes
         private readonly AllocationStrategy _searchStrategy;
 
         /// <summary>
+        /// Gets or sets the compaction strategy used when defragmenting the lane buffer.
+        /// </summary>
+        public CompactionStyle CompactionStyle { get; set; }
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="SlowLane" /> class.
         /// </summary>
         /// <param name="capacity">The capacity.</param>
@@ -111,14 +116,21 @@ namespace MemoryManager.Lanes
         /// <param name="blobThreshold">The BLOB threshold.</param>
         /// <param name="maxEntries">The maximum entries.</param>
         /// <param name="slowLaneFreeListStrategy">The slow lane free list strategy.</param>
-        public unsafe SlowLane(int capacity, double blobCapacityFraction = 0.20, int blobThreshold = 256,
-            int maxEntries = 1024, AllocationStrategy slowLaneFreeListStrategy = default)
+        /// <param name="compactionStyle">The compaction style policy (Full or GoodEnough).</param>
+        public unsafe SlowLane(
+            int capacity,
+            double blobCapacityFraction = 0.20,
+            int blobThreshold = 256,
+            int maxEntries = 1024,
+            AllocationStrategy slowLaneFreeListStrategy = default,
+            CompactionStyle compactionStyle = CompactionStyle.Full)
         {
             Capacity = capacity;
             _blobThreshold = blobThreshold;
 
-            // CAPTURE STRATEGY: Persist the configuration choice for all future allocation passes
+            // CAPTURE STRATEGIES: Persist configured choices
             _searchStrategy = slowLaneFreeListStrategy;
+            CompactionStyle = compactionStyle;
 
             Buffer = Marshal.AllocHGlobal(capacity);
             _entries = new AllocationEntry[maxEntries];
@@ -128,12 +140,12 @@ namespace MemoryManager.Lanes
             _versions = (uint*)NativeMemory.AllocZeroed((nuint)_versionsCapacity, sizeof(uint));
 
             // Use the fraction provided by the config/constructor
-            var blobCapacity = (int)(capacity * blobCapacityFraction);
+            _blobCapacity = (int)(capacity * blobCapacityFraction);
 
-            _freeBlocks[0] = new FreeBlock { Offset = blobCapacity, Size = Capacity - blobCapacity };
+            _freeBlocks[0] = new FreeBlock { Offset = _blobCapacity, Size = Capacity - _blobCapacity };
             _freeBlockCount = 1;
 
-            _blobManager = new BlobManager(Buffer, blobCapacity);
+            _blobManager = new BlobManager(Buffer, _blobCapacity);
         }
 
         /// <summary>
@@ -206,11 +218,17 @@ namespace MemoryManager.Lanes
 
             // Calculate tracking footprint dimension rules including canary bytes
             var physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
-            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount,
-                _searchStrategy);
+            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount, _searchStrategy);
 
+            // AUTO-HEALING: If fragmented, trigger policy-based compaction to open up a contiguous gap
             if (offset == -1)
-                throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough.");
+            {
+                Compact(CompactionStyle, size);
+                offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount, _searchStrategy);
+
+                if (offset == -1)
+                    throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough after compaction.");
+            }
 
             // Shift user coordinates forward safely past the pre-canary buffer space
             var userOffset = MemoryCanary.GetUserOffset(offset);
@@ -405,14 +423,21 @@ namespace MemoryManager.Lanes
         }
 
         /// <inheritdoc />
-        public unsafe void Compact()
+        public void Compact()
+        {
+            Compact(CompactionStyle, 0);
+        }
+
+        /// <summary>
+        /// Compacts the unmanaged lane buffer using the specified policy and target size requirement.
+        /// </summary>
+        /// <param name="style">The compaction style (Full or GoodEnough).</param>
+        /// <param name="requiredSize">Target size required if GoodEnough style is active.</param>
+        public unsafe void Compact(CompactionStyle style, int requiredSize = 0)
         {
             if (_entries == null || _handleIndex.Count == 0) return;
 
-            var newBuffer = Marshal.AllocHGlobal(Capacity);
-            var offset = 0;
-
-            // 1. Extract only the living, valid entries using our dictionary
+            // 1. Extract non-stub living entries
             var validEntries = new List<AllocationEntry>(_handleIndex.Count);
             foreach (var index in _handleIndex.Values)
             {
@@ -423,67 +448,124 @@ namespace MemoryManager.Lanes
                 }
             }
 
-            // 2. Sort them by their physical Offset in the buffer
-            validEntries.Sort((a, b) => a.Offset.CompareTo(b.Offset));
-
-            var writeIndex = 0;
-            var newHandleIndex = new Dictionary<int, int>(validEntries.Count);
-
-            // 3. Copy them sequentially to the new buffer
-            foreach (var entry in validEntries)
+            if (validEntries.Count == 0)
             {
-                var currentEntry = entry; // Make a local copy to modify
-
-                // Extract base track coordinates for the total block footprint
-                var srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(currentEntry.Offset);
-                var physicalSize = MemoryCanary.GetPhysicalSize(currentEntry.Size);
-
-                // Slide the complete unmanaged layout block (Canary + User Data + Canary)
-                System.Buffer.MemoryCopy(
-                    (void*)(Buffer + srcPhysicalOffset),
-                    (void*)(newBuffer + offset),
-                    physicalSize,
-                    physicalSize);
-
-                // Realign tracked metadata pointers to target the new user offset location
-                currentEntry.Offset = MemoryCanary.GetUserOffset(offset);
-                offset += physicalSize;
-
-                EnsureEntryCapacity(writeIndex);
-                _entries[writeIndex] = currentEntry;
-                newHandleIndex[currentEntry.HandleId] = writeIndex;
-
-                writeIndex++;
+                _freeBlocks[0] = new FreeBlock
+                {
+                    Offset = _blobCapacity,
+                    Size = Capacity - _blobCapacity
+                };
+                _freeBlockCount = 1;
+                _freeSlots.Clear();
+                EntryCount = 0;
+                return;
             }
 
-            // 4. Clear all remaining slots
-            for (var i = writeIndex; i < _entries.Length; i++)
+            // 2. Sort by current physical offset ascending
+            validEntries.Sort((a, b) => MemoryCanary.GetPhysicalOffset(a.Offset).CompareTo(MemoryCanary.GetPhysicalOffset(b.Offset)));
+
+            var currentOffset = _blobCapacity;
+            var physicalTargetNeeded = requiredSize > 0 ? MemoryCanary.GetPhysicalSize(requiredSize) : 0;
+            var isGoodEnough = style == CompactionStyle.GoodEnough;
+
+            // 3. Perform surgical in-place sliding
+            for (var i = 0; i < validEntries.Count; i++)
             {
-                _entries[i] = default;
+                var entry = validEntries[i];
+                var srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                var physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
+
+                if (srcPhysicalOffset != currentOffset)
+                {
+                    // Slide block in-place (System.Buffer.MemoryCopy handles overlapping regions safely when copying downward)
+                    System.Buffer.MemoryCopy(
+                        (void*)(Buffer + srcPhysicalOffset),
+                        (void*)(Buffer + currentOffset),
+                        physicalSize,
+                        physicalSize);
+
+                    entry.Offset = MemoryCanary.GetUserOffset(currentOffset);
+
+                    if (_handleIndex.TryGetValue(entry.HandleId, out var slotIndex))
+                    {
+                        _entries[slotIndex] = entry;
+                    }
+
+                    validEntries[i] = entry;
+                }
+
+                currentOffset += physicalSize;
+
+                // 4. Evaluate "GoodEnough" stopping condition
+                if (isGoodEnough && physicalTargetNeeded > 0)
+                {
+                    var nextEntryOffset = i + 1 < validEntries.Count
+                        ? MemoryCanary.GetPhysicalOffset(validEntries[i + 1].Offset)
+                        : Capacity;
+
+                    var gap = nextEntryOffset - currentOffset;
+                    if (gap >= physicalTargetNeeded)
+                    {
+                        // Target gap created! Stop shifting remaining blocks to save CPU cycles.
+                        break;
+                    }
+                }
             }
 
-            // 5. Update the internal state
-            Marshal.FreeHGlobal(Buffer);
-            Buffer = newBuffer;
-
-            _handleIndex.Clear();
-            foreach (var kv in newHandleIndex)
-            {
-                _handleIndex[kv.Key] = kv.Value;
-            }
-
-            EntryCount = writeIndex;
-            _freeSlots.Clear(); // No more holes in the array!
-
-            // 6. Reset the Free-List!
-            _freeBlocks[0] = new FreeBlock
-            {
-                Offset = offset,
-                Size = Capacity - offset
-            };
-            _freeBlockCount = 1;
+            // 5. Rebuild free-list blocks accurately
+            RebuildFreeBlocks(validEntries);
 
             OnCompaction?.Invoke(nameof(SlowLane));
+        }
+
+        /// <summary>
+        /// Rebuilds the free block list based on active allocation positions.
+        /// </summary>
+        private void RebuildFreeBlocks(List<AllocationEntry> validEntries)
+        {
+            validEntries.Sort((a, b) => MemoryCanary.GetPhysicalOffset(a.Offset).CompareTo(MemoryCanary.GetPhysicalOffset(b.Offset)));
+
+            _freeBlockCount = 0;
+            var cursor = _blobCapacity;
+
+            foreach (var entry in validEntries)
+            {
+                var physOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                var physSize = MemoryCanary.GetPhysicalSize(entry.Size);
+
+                if (physOffset > cursor)
+                {
+                    EnsureFreeBlockArrayCapacity(_freeBlockCount + 1);
+                    _freeBlocks[_freeBlockCount++] = new FreeBlock
+                    {
+                        Offset = cursor,
+                        Size = physOffset - cursor
+                    };
+                }
+
+                cursor = physOffset + physSize;
+            }
+
+            if (cursor < Capacity)
+            {
+                EnsureFreeBlockArrayCapacity(_freeBlockCount + 1);
+                _freeBlocks[_freeBlockCount++] = new FreeBlock
+                {
+                    Offset = cursor,
+                    Size = Capacity - cursor
+                };
+            }
+        }
+
+        /// <summary>
+        /// Ensures free blocks array has capacity for required count.
+        /// </summary>
+        private void EnsureFreeBlockArrayCapacity(int requiredCount)
+        {
+            if (_freeBlocks.Length < requiredCount)
+            {
+                Array.Resize(ref _freeBlocks, Math.Max(_freeBlocks.Length * 2, requiredCount));
+            }
         }
 
         /// <inheritdoc />
@@ -573,7 +655,7 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public int FreeSpace()
         {
-            // FIX: Passes the physical tracking source lists to clear type signature compilation errors
+            // Passes the physical tracking source lists to clear type signature compilation errors
             var mainFreeSpace = MemoryLaneUtils.CalculateFreeSpace(_freeBlocks, _freeBlockCount);
             var blobFreeSpace = _blobManager?.FreeSpace() ?? 0;
 
@@ -628,7 +710,7 @@ namespace MemoryManager.Lanes
         /// <inheritdoc />
         public int EstimateFragmentation()
         {
-            // FIX: Targets the true unmanaged free blocks tracking array for precise fragmentation readout
+            // Targets the true unmanaged free blocks tracking array for precise fragmentation readout
             return MemoryLaneUtils.EstimateFragmentation(_freeBlocks, _freeBlockCount);
         }
 

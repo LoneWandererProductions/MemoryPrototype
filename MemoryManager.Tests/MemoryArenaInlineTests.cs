@@ -18,6 +18,7 @@ namespace MemoryManager.Tests
         ///     Memories the arena can allocate and resolve primitive and structs.
         /// </summary>
         [TestMethod]
+        [TestCategory("Correctness")]
         public void MemoryArena_GenerationalRedirection_WorksCorrectly()
         {
             var config = new MemoryManagerConfig
@@ -64,6 +65,7 @@ namespace MemoryManager.Tests
         /// Memories the arena zombie handle throws exception.
         /// </summary>
         [TestMethod]
+        [TestCategory("Correctness")]
         public void MemoryArena_ZombieHandle_ThrowsException()
         {
             var arena = new MemoryArena(new MemoryManagerConfig { FastLaneSize = 1024 });
@@ -91,6 +93,7 @@ namespace MemoryManager.Tests
         /// Memories the arena can allocate and resolve primitive and structs with extensions.
         /// </summary>
         [TestMethod]
+        [TestCategory("Correctness")]
         public void MemoryArenaCanAllocateAndResolvePrimitiveAndStructsWithExtensions()
         {
             var config = new MemoryManagerConfig

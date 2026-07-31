@@ -51,6 +51,7 @@ namespace MemoryManager.Tests
         ///     Moves the fast to slow moves entry and replaces stub.
         /// </summary>
         [TestMethod]
+        [TestCategory("Correctness")]
         public void MoveSlowToFastMovesEntry() // Removed "AndReplacesStub" because it doesn't do that!
         {
             var arena = new MemoryArena(_config);
@@ -94,6 +95,7 @@ namespace MemoryManager.Tests
         ///     SlowLane compact removes gaps after freed entries.
         /// </summary>
         [TestMethod]
+        [TestCategory("Correctness")]
         public void SlowLaneCompactRemovesGapsAfterFreedEntries()
         {
             // Arrange

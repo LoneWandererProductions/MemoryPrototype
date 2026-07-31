@@ -42,6 +42,7 @@ namespace MemoryManager.Tests
         ///     Allocates the within fast lane threshold allocates in fast lane.
         /// </summary>
         [TestMethod]
+        [TestCategory("Correctness")]
         public void AllocateWithinFastLaneThresholdAllocatesInFastLane()
         {
             var arena = new MemoryArena(_config);
