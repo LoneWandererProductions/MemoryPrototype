@@ -2,7 +2,7 @@
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryManager.Tests
  * FILE:        PerformanceTests.cs
- * PURPOSE:     Your file purpose here
+ * PURPOSE:     Some basic performance tests for the MemoryManager library.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
