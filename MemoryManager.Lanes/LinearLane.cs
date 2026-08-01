@@ -8,12 +8,11 @@
 
 // ReSharper disable UnusedMember.Global
 
-using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using static MemoryManager.Lanes.MemoryLaneUtils;
+using Extended.Unmanaged;
 
 namespace MemoryManager.Lanes
 {

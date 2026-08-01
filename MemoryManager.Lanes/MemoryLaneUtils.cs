@@ -6,7 +6,7 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-using ExtendedSystemObjects;
+using Extended.Unmanaged;
 using MemoryManager.Core;
 using System.Buffers;
 using System.Runtime.CompilerServices;

@@ -9,12 +9,11 @@
 
 // ReSharper disable MemberCanBePrivate.Global
 
-#nullable enable
-using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Extended.Unmanaged;
 
 namespace MemoryManager.Lanes
 {

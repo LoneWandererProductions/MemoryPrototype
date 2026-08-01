@@ -8,10 +8,10 @@
 
 // ReSharper disable MemberCanBePrivate.Global
 
-using ExtendedSystemObjects;
 using MemoryManager.Core;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Extended.Unmanaged;
 
 namespace MemoryManager.Lanes
 {
