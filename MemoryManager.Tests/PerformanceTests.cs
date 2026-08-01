@@ -231,10 +231,9 @@ namespace MemoryManager.Tests
 
             Trace.WriteLine($"100 FastLane reuse cycles done in: {stopwatch.ElapsedMilliseconds} ms");
 
-            //TODO issue here is the Allocation Array must grow and that kills performance
+            // issue here is the Allocation Array must grow and that kills performance
 
             count = 1000;
-
 
             var handlesThree = new MemoryHandle[count];
 
