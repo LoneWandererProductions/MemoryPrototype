@@ -295,8 +295,12 @@ namespace MemoryManager
                         if (_remoteFreeQueue.TryDequeue(out var matchingHandle))
                             matchingHandle.Lane.Free(matchingHandle);
                     }
-                    else { /* re-enqueue to the tail */ }
+                    else
+                    {
+                        /* re-enqueue to the tail */
+                    }
                 }
+
                 {
                     // Rotation fallback: Item belongs to a different worker thread. 
                     // Cycle it back to the tail of the line so its respective owner can catch it.
@@ -331,6 +335,7 @@ namespace MemoryManager
             {
                 _globalSlowLane.Reset();
             }
+
             foreach (var lane in _threadLocalFastLane.Values)
             {
                 lane?.Reset();

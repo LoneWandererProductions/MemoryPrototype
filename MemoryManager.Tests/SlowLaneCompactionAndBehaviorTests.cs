@@ -99,7 +99,8 @@ namespace MemoryManager.Tests
 
             // Verify we can now immediately allocate a 2KB block without throwing OutOfMemoryException
             var newHandle = lane.Allocate(2048);
-            Assert.IsTrue(lane.HasHandle(newHandle), "Allocation for 2KB block should succeed after GoodEnough compaction.");
+            Assert.IsTrue(lane.HasHandle(newHandle),
+                "Allocation for 2KB block should succeed after GoodEnough compaction.");
         }
 
         /// <summary>

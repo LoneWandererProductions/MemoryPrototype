@@ -495,17 +495,5 @@ namespace MemoryManager.Lanes
 
             return newSize;
         }
-
-        /// <summary>
-        /// A zero-allocation comparison struct for sorting allocations by offset.
-        /// </summary>
-        /// <seealso cref="System.Collections.Generic.IComparer&lt;MemoryManager.Core.AllocationEntry&gt;" />
-        private struct OffsetComparer : IComparer<AllocationEntry>
-        {
-            public int Compare(AllocationEntry x, AllocationEntry y)
-            {
-                return x.Offset.CompareTo(y.Offset);
-            }
-        }
     }
 }

@@ -211,16 +211,19 @@ namespace MemoryManager.Lanes
 
             // Calculate tracking footprint dimension rules including canary bytes
             var physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
-            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount, _searchStrategy);
+            var offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount,
+                _searchStrategy);
 
             // AUTO-HEALING: If fragmented, trigger policy-based compaction to open up a contiguous gap
             if (offset == -1)
             {
                 Compact(CompactionStyle, size);
-                offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount, _searchStrategy);
+                offset = MemoryLaneUtils.FindFreeSpot(physicalSizeNeeded, ref _freeBlocks, ref _freeBlockCount,
+                    _searchStrategy);
 
                 if (offset == -1)
-                    throw new OutOfMemoryException("SlowLane: Cannot allocate - No contiguous block large enough after compaction.");
+                    throw new OutOfMemoryException(
+                        "SlowLane: Cannot allocate - No contiguous block large enough after compaction.");
             }
 
             // Shift user coordinates forward safely past the pre-canary buffer space
@@ -455,7 +458,8 @@ namespace MemoryManager.Lanes
             }
 
             // 2. Sort by current physical offset ascending
-            validEntries.Sort((a, b) => MemoryCanary.GetPhysicalOffset(a.Offset).CompareTo(MemoryCanary.GetPhysicalOffset(b.Offset)));
+            validEntries.Sort((a, b) =>
+                MemoryCanary.GetPhysicalOffset(a.Offset).CompareTo(MemoryCanary.GetPhysicalOffset(b.Offset)));
 
             var currentOffset = _blobCapacity;
             var physicalTargetNeeded = requiredSize > 0 ? MemoryCanary.GetPhysicalSize(requiredSize) : 0;
@@ -516,7 +520,8 @@ namespace MemoryManager.Lanes
         /// </summary>
         private void RebuildFreeBlocks(List<AllocationEntry> validEntries)
         {
-            validEntries.Sort((a, b) => MemoryCanary.GetPhysicalOffset(a.Offset).CompareTo(MemoryCanary.GetPhysicalOffset(b.Offset)));
+            validEntries.Sort((a, b) =>
+                MemoryCanary.GetPhysicalOffset(a.Offset).CompareTo(MemoryCanary.GetPhysicalOffset(b.Offset)));
 
             _freeBlockCount = 0;
             var cursor = _blobCapacity;

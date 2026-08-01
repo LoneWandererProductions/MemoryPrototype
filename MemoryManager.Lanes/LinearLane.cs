@@ -13,6 +13,7 @@ using MemoryManager.Core;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using static MemoryManager.Lanes.MemoryLaneUtils;
 
 namespace MemoryManager.Lanes
 {
@@ -127,7 +128,7 @@ namespace MemoryManager.Lanes
 
         /// <inheritdoc />
         public unsafe MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
-                    AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
+            AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
         {
             if (_entries == null) throw new InvalidOperationException("LinearLane: Memory not reserved");
 
@@ -138,7 +139,8 @@ namespace MemoryManager.Lanes
             {
                 if (!QuickCompact(physicalSizeNeeded) && _nextFreeOffset + physicalSizeNeeded > Capacity)
                 {
-                    throw new OutOfMemoryException("LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
+                    throw new OutOfMemoryException(
+                        "LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
                 }
             }
 
@@ -252,7 +254,8 @@ namespace MemoryManager.Lanes
             for (var i = EntryCount - 1; i >= 0; i--)
             {
                 var entry = _entries[i];
-                if (!entry.IsStub && ShouldMoveToSlowLane(entry, currentFrame, config!.MaxFastLaneAgeFrames, config.FastLaneLargeEntryThreshold))
+                if (!entry.IsStub && ShouldMoveToSlowLane(entry, currentFrame, config!.MaxFastLaneAgeFrames,
+                        config.FastLaneLargeEntryThreshold))
                 {
                     var h = new MemoryHandle(entry.HandleId, entry.Version, this);
                     OneWayLane?.MoveFromFastToSlow(h);
@@ -262,7 +265,8 @@ namespace MemoryManager.Lanes
             // OPTIMIZATION 2: In-place physical slide. No more allocating 'newBuffer'
             var sortedEntries = new AllocationEntry[EntryCount];
             Array.Copy(_entries, sortedEntries, EntryCount);
-            Array.Sort(sortedEntries, (a, b) => a.Offset.CompareTo(b.Offset));
+            // Zero-allocation struct sort!
+            Array.Sort(sortedEntries, 0, EntryCount, new OffsetComparer());
 
             var offset = 0;
             for (var i = 0; i < EntryCount; i++)
@@ -282,6 +286,7 @@ namespace MemoryManager.Lanes
 
                         entry.Offset = MemoryCanary.GetUserOffset(offset);
                     }
+
                     offset += physicalSize;
                 }
 
@@ -306,7 +311,8 @@ namespace MemoryManager.Lanes
 
             var sortedEntries = new AllocationEntry[EntryCount];
             Array.Copy(_entries, sortedEntries, EntryCount);
-            Array.Sort(sortedEntries, (a, b) => a.Offset.CompareTo(b.Offset));
+            // Zero-allocation struct sort!
+            Array.Sort(sortedEntries, 0, EntryCount, new OffsetComparer());
 
             // Find the physical block at the very end of the lane
             int lastIndex = -1;
@@ -355,6 +361,7 @@ namespace MemoryManager.Lanes
                         int end = MemoryCanary.GetPhysicalOffset(e.Offset) + MemoryCanary.GetPhysicalSize(e.Size);
                         if (end > newLastEnd) newLastEnd = end;
                     }
+
                     _nextFreeOffset = newLastEnd;
 
                     // Check if we freed up enough space to satisfy a pending allocation, if not, try to do it again (or let it fall through to a hard defrag)

@@ -143,10 +143,7 @@ namespace ExtendedSystemObjects
         /// </value>
         public IEnumerable<TValue> Values
         {
-            get
-            {
-                return GetValuesSnapshot();
-            }
+            get { return GetValuesSnapshot(); }
         }
 
         /// <summary>

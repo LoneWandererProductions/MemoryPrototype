@@ -51,10 +51,10 @@ namespace MemoryManager.Types
         /// <exception cref="System.ArgumentNullException">arena</exception>
         /// <exception cref="System.ArgumentOutOfRangeException">count - Allocation count cannot be negative.</exception>
         public ArenaRent(
-                    IMemoryAllocator arena,
-                    int count,
-                    AllocationPriority priority = AllocationPriority.Critical,
-                    AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
+            IMemoryAllocator arena,
+            int count,
+            AllocationPriority priority = AllocationPriority.Critical,
+            AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
         {
             _arena = arena ?? throw new ArgumentNullException(nameof(arena));
 
