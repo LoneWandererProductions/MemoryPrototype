@@ -35,6 +35,11 @@ namespace MemoryManager.Core
         void Free(MemoryHandle handle);
 
         /// <summary>
+        /// Resets this instance.
+        /// </summary>
+        void Reset();
+
+        /// <summary>
         /// Resolves the specified handle.
         /// </summary>
         /// <param name="handle">The handle.</param>

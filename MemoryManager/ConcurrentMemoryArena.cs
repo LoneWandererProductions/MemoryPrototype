@@ -325,6 +325,18 @@ namespace MemoryManager
         /// <inheritdoc />
         public void LogDump() => Trace.WriteLine(DebugDump());
 
+        public void Reset()
+        {
+            lock (_globalLock)
+            {
+                _globalSlowLane.Reset();
+            }
+            foreach (var lane in _threadLocalFastLane.Values)
+            {
+                lane?.Reset();
+            }
+        }
+
         /// <summary>
         /// Flushes memory structures cleanly across all thread execution tracks.
         /// </summary>

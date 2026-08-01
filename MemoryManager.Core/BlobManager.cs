@@ -386,6 +386,32 @@ namespace MemoryManager.Core
         /// <inheritdoc />
         public string DebugRedirections() => "[BlobRedirects not applicable]";
 
+        /// <inheritdoc />
+        public void Reset()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(BlobManager));
+
+            _nextId = StartingId;
+            _nextFreeOffset = 0;
+            EntryCount = 0;
+
+            if (_entries != null)
+            {
+                Array.Clear(_entries, 0, _entries.Length);
+            }
+
+#if DEBUG
+            _debugNames.Clear();
+#endif
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
         /// <summary>
         /// Resizes the tracking entry metadata array geometric pool size.
         /// </summary>
@@ -413,13 +439,10 @@ namespace MemoryManager.Core
             }
         }
 
-        /// <inheritdoc />
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
+        /// <summary>
+        /// Releases unmanaged and - optionally - managed resources.
+        /// </summary>
+        /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
         private void Dispose(bool disposing)
         {
             if (_disposed) return;
@@ -436,6 +459,9 @@ namespace MemoryManager.Core
             }
         }
 
+        /// <summary>
+        /// Finalizes an instance of the <see cref="BlobManager"/> class.
+        /// </summary>
         ~BlobManager()
         {
             Dispose(false);

@@ -499,6 +499,17 @@ namespace MemoryManager
             }
         }
 
+
+        /// <inheritdoc />
+        public void Reset()
+        {
+            lock (_lock)
+            {
+                FastLane.Reset();
+                SlowLane.Reset();
+            }
+        }
+
         /// <inheritdoc />
         public void Dispose()
         {

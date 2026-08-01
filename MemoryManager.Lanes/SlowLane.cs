@@ -86,7 +86,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         ///      The specialized manager for tiny/unpredictable allocations.
         /// </summary>
-        private readonly BlobManager? _blobManager;
+        private BlobManager? _blobManager;
 
         /// <summary>
         /// Pointer to the flat versions array. Index matches absolute handle ID (-id).
@@ -741,6 +741,37 @@ namespace MemoryManager.Lanes
             Trace.WriteLine(DebugVisualMap());
             Trace.WriteLine(DebugRedirections());
             Trace.WriteLine($"--- {GetType().Name} Dump End ---");
+        }
+
+        /// <inheritdoc />
+        public unsafe void Reset()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(SlowLane));
+
+            EntryCount = 0;
+            _nextHandleId = -1;
+            _handleIndex.Clear();
+            _freeIds.Clear();
+            _freeSlots.Clear();
+
+            _freeBlockCount = 1;
+            _freeBlocks[0] = new FreeBlock { Offset = _blobCapacity, Size = Capacity - _blobCapacity };
+
+            _blobManager = new BlobManager(Buffer, _blobCapacity);
+
+            if (_entries != null)
+            {
+                Array.Clear(_entries, 0, _entries.Length);
+            }
+
+#if DEBUG
+            _debugNames.Clear();
+#endif
+
+            if (_versions != null && _versionsCapacity > 0)
+            {
+                Unsafe.InitBlock(_versions, 0, (uint)(_versionsCapacity * sizeof(uint)));
+            }
         }
 
         /// <summary>

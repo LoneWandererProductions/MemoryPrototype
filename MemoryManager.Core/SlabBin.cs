@@ -26,6 +26,11 @@ namespace MemoryManager.Core
         public readonly int PhysicalSlotSize;
 
         /// <summary>
+        /// The base offset
+        /// </summary>
+        public readonly int BaseOffset;
+
+        /// <summary>
         /// The free offsets
         /// </summary>
         private readonly int[] _freeOffsets;
@@ -48,6 +53,7 @@ namespace MemoryManager.Core
             PhysicalSlotSize = physicalSlotSize;
             _freeOffsets = new int[totalSlots];
             _top = totalSlots;
+            BaseOffset = baseOffset;
 
             // Populate lookup index coordinates backwards to create high-speed LIFO cache hits
             for (var i = 0; i < totalSlots; i++)
@@ -77,5 +83,18 @@ namespace MemoryManager.Core
         /// <param name="offset">The offset.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void PushSlotOffset(int offset) => _freeOffsets[_top++] = offset;
+
+        /// <summary>
+        /// Resets the bin to its initial state.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Reset()
+        {
+            _top = _freeOffsets.Length;
+            for (var i = 0; i < _freeOffsets.Length; i++)
+            {
+                _freeOffsets[i] = BaseOffset + i * PhysicalSlotSize;
+            }
+        }
     }
 }

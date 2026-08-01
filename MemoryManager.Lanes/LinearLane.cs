@@ -122,13 +122,6 @@ namespace MemoryManager.Lanes
         public OneWayLane? OneWayLane { get; set; }
 
         /// <inheritdoc />
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        /// <inheritdoc />
         public bool CanAllocate(int size)
         {
             // Ensure our validation assesses the complete physical block footprint requirements
@@ -511,6 +504,34 @@ namespace MemoryManager.Lanes
         /// Logs the dump.
         /// </summary>
         public void LogDump() => Trace.WriteLine(DebugDump());
+
+        /// <inheritdoc />
+        public unsafe void Reset()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(LinearLane));
+
+            EntryCount = 0;
+            _nextHandleId = 1;
+            _nextFreeOffset = 0;
+            _handleIndex.Clear();
+            _freeIds.Clear();
+
+#if DEBUG
+            _debugNames.Clear();
+#endif
+
+            if (_versions != null && _versionsCapacity > 0)
+            {
+                Unsafe.InitBlock(_versions, 0, (uint)(_versionsCapacity * sizeof(uint)));
+            }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
 
         /// <summary>
         /// Releases unmanaged and optionally managed resources.

@@ -140,29 +140,6 @@ namespace MemoryManager.Lanes
         public nint Buffer { get; private set; }
 
         /// <inheritdoc />
-        /// <summary>
-        ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-        /// </summary>
-        public unsafe void Dispose()
-        {
-            if (_disposed) return;
-
-            _disposed = true;
-
-            Marshal.FreeHGlobal(Buffer);
-            _handleIndex.Clear();
-
-            if (_versions != null)
-            {
-                NativeMemory.Free(_versions);
-                _versions = null;
-            }
-
-            _entries = null;
-            GC.SuppressFinalize(this);
-        }
-
-        /// <inheritdoc />
         public bool CanAllocate(int size)
         {
             // Fast, read-only check to see if a contiguous block exists
@@ -623,6 +600,53 @@ namespace MemoryManager.Lanes
             Trace.WriteLine(DebugVisualMap());
             Trace.WriteLine(DebugRedirections());
             Trace.WriteLine($"--- {GetType().Name} Dump End ---");
+        }
+
+
+        /// <inheritdoc />
+        /// <summary>
+        ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// </summary>
+        public unsafe void Dispose()
+        {
+            if (_disposed) return;
+
+            _disposed = true;
+
+            Marshal.FreeHGlobal(Buffer);
+            _handleIndex.Clear();
+
+            if (_versions != null)
+            {
+                NativeMemory.Free(_versions);
+                _versions = null;
+            }
+
+            _entries = null;
+            GC.SuppressFinalize(this);
+        }
+
+        /// <inheritdoc />
+        public unsafe void Reset()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(FastLane));
+
+            EntryCount = 0;
+            _nextHandleId = 1;
+            _handleIndex.Clear();
+            _freeIds.Clear();
+
+            _freeBlocks[0] = new FreeBlock { Offset = 0, Size = Capacity };
+            _freeBlockCount = 1;
+
+#if DEBUG
+            _debugNames.Clear();
+#endif
+
+            if (_versions != null && _versionsCapacity > 0)
+            {
+                Unsafe.InitBlock(_versions, 0, (uint)(_versionsCapacity * sizeof(uint)));
+            }
         }
 
         /// <summary>

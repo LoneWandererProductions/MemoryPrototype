@@ -142,5 +142,10 @@ namespace MemoryManager.Core
         /// </summary>
         /// <returns>Used memory Percentage</returns>
         double UsagePercentage();
+
+        /// <summary>
+        /// Resets this instance.
+        /// </summary>
+        void Reset();
     }
 }

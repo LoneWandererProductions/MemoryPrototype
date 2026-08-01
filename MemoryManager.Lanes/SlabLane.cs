@@ -383,6 +383,39 @@ namespace MemoryManager.Lanes
             }
         }
 
+        /// <inheritdoc />
+        public unsafe void Reset()
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(SlabLane));
+
+            EntryCount = 0;
+            _nextHandleId = 1;
+            _handleIndex.Clear();
+            _freeIds.Clear();
+
+            for (var i = 0; i < _bins.Length; i++)
+            {
+                _bins[i].Reset();
+            }
+
+#if DEBUG
+            _debugNames.Clear();
+#endif
+
+            if (_versions != null && _versionsCapacity > 0)
+            {
+                Unsafe.InitBlock(_versions, 0, (uint)(_versionsCapacity * sizeof(uint)));
+            }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+
         /// <summary>
         /// Ensures the entry capacity.
         /// </summary>
@@ -412,20 +445,6 @@ namespace MemoryManager.Lanes
 
             _versions = newVersions;
             _versionsCapacity = newCapacity;
-        }
-        /// <summary>
-        /// Finalizes an instance of the <see cref="SlabLane"/> class.
-        /// </summary>
-        ~SlabLane()
-        {
-            Dispose(false);
-        }
-
-        /// <inheritdoc />
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
         }
 
         /// <summary>
@@ -460,6 +479,15 @@ namespace MemoryManager.Lanes
             }
 
             EntryCount = 0;
+        }
+
+
+        /// <summary>
+        /// Finalizes an instance of the <see cref="SlabLane"/> class.
+        /// </summary>
+        ~SlabLane()
+        {
+            Dispose(false);
         }
     }
 }
