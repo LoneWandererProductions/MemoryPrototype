@@ -15,7 +15,7 @@ namespace MemoryManager.Core
     /// Memory is physically reclaimed and consolidated during explicit compaction.
     /// </summary>
     /// <seealso cref="IMemoryLane" />
-    public sealed class BlobManager : IMemoryLane
+    public sealed class BlobManager : IMemoryLane, IDisposable
     {
         /// <summary>
         /// The starting identifier
@@ -71,6 +71,11 @@ namespace MemoryManager.Core
             _buffer = buffer;
             _capacity = capacity;
         }
+
+        /// <summary>
+        /// Tracks whether the manager has been disposed.
+        /// </summary>
+        private bool _disposed;
 
         /// <inheritdoc />
         public bool CanAllocate(int size)
@@ -406,6 +411,34 @@ namespace MemoryManager.Core
             {
                 return x.Offset.CompareTo(y.Offset);
             }
+        }
+
+        /// <inheritdoc />
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (disposing)
+            {
+                _entries = null!;
+#if DEBUG
+                _debugNames.Clear();
+#endif
+                OnCompaction = null;
+                OnAllocationExtension = null;
+            }
+        }
+
+        ~BlobManager()
+        {
+            Dispose(false);
         }
     }
 }

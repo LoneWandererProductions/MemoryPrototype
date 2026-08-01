@@ -23,7 +23,7 @@ namespace MemoryManager.Tests
         /// <summary>
         /// Helper to perform a warm-up JIT run and capture baseline managed memory.
         /// </summary>
-        private static long CaptureBaselineMemory()
+        private long CaptureBaselineMemory()
         {
             GC.Collect(2, GCCollectionMode.Forced, true, true);
             GC.WaitForPendingFinalizers();
@@ -35,7 +35,7 @@ namespace MemoryManager.Tests
         /// Asserts that retained managed memory after arena disposal remains within 
         /// normal .NET runtime GC segment retention bounds (< 250 MB for multi-million object churn).
         /// </summary>
-        private static void AssertZeroMemoryLeak(long initialMemory, string testName)
+        private void AssertZeroMemoryLeak(long initialMemory, string testName)
         {
             GC.Collect(2, GCCollectionMode.Forced, true, true);
             GC.WaitForPendingFinalizers();

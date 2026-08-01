@@ -69,6 +69,11 @@ namespace MemoryManager.Lanes
         /// </summary>
         private readonly SlabBin[] _bins;
 
+        /// <summary>
+        /// The disposed
+        /// </summary>
+        private bool _disposed;
+
         /// <inheritdoc />
         public event Action<string>? OnCompaction;
 
@@ -408,25 +413,53 @@ namespace MemoryManager.Lanes
             _versions = newVersions;
             _versionsCapacity = newCapacity;
         }
+        /// <summary>
+        /// Finalizes an instance of the <see cref="SlabLane"/> class.
+        /// </summary>
+        ~SlabLane()
+        {
+            Dispose(false);
+        }
 
         /// <inheritdoc />
-        public unsafe void Dispose()
+        public void Dispose()
         {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>
+        /// Releases unmanaged and optionally managed resources.
+        /// </summary>
+        /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
+        private unsafe void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (disposing)
+            {
+                // Clear/dispose managed tracking structures
+                _handleIndex.Clear();
+                _freeIds.Dispose();
+                _entries = null;
+            }
+
+            // Free main native buffer
             if (Buffer != IntPtr.Zero)
             {
                 Marshal.FreeHGlobal(Buffer);
                 Buffer = IntPtr.Zero;
             }
 
+            // Free flat unmanaged versions array
             if (_versions != null)
             {
                 NativeMemory.Free(_versions);
                 _versions = null;
             }
 
-            _handleIndex.Clear();
-            _entries = null;
-            GC.SuppressFinalize(this);
+            EntryCount = 0;
         }
     }
 }

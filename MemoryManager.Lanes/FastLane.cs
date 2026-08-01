@@ -79,6 +79,11 @@ namespace MemoryManager.Lanes
         private int _freeBlockCount;
 
         /// <summary>
+        /// The disposed
+        /// </summary>
+        private bool _disposed;
+
+        /// <summary>
         /// The configured search strategy used to scan the free-list for gaps.
         /// </summary>
         private readonly AllocationStrategy _searchStrategy;
@@ -140,6 +145,10 @@ namespace MemoryManager.Lanes
         /// </summary>
         public unsafe void Dispose()
         {
+            if (_disposed) return;
+
+            _disposed = true;
+
             Marshal.FreeHGlobal(Buffer);
             _handleIndex.Clear();
 
@@ -673,6 +682,14 @@ namespace MemoryManager.Lanes
                 return false;
 
             return false;
+        }
+
+        /// <summary>
+        /// Finalizes an instance of the <see cref="FastLane"/> class.
+        /// </summary>
+        ~FastLane()
+        {
+            Dispose();
         }
     }
 }

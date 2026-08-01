@@ -76,7 +76,7 @@ namespace MemoryManager.Core
         /// <returns>
         ///   <see langword="true" /> if the current object is equal to the <paramref name="other" /> parameter; otherwise, <see langword="false" />.
         /// </returns>
-        public bool Equals(MemoryHandle other) => Id == other.Id && Version == other.Version;
+        public bool Equals(MemoryHandle other) => Id == other.Id && Version == other.Version && _lane == other._lane;
 
         /// <summary>
         /// Indicates whether this instance and a specified object are equal.

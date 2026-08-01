@@ -48,13 +48,28 @@ namespace MemoryManager.Types
         /// <param name="count">The count.</param>
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
+        /// <exception cref="System.ArgumentNullException">arena</exception>
+        /// <exception cref="System.ArgumentOutOfRangeException">count - Allocation count cannot be negative.</exception>
         public ArenaRent(
-            IMemoryAllocator? arena,
-            int count,
-            AllocationPriority priority = AllocationPriority.Critical,
-            AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
+                    IMemoryAllocator arena,
+                    int count,
+                    AllocationPriority priority = AllocationPriority.Critical,
+                    AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
         {
-            _arena = arena;
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena));
+
+            if (count < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(count), "Allocation count cannot be negative.");
+            }
+
+            if (count == 0)
+            {
+                _handle = default;
+                Span = Span<T>.Empty;
+                return;
+            }
+
             _handle = _arena.Allocate(Unsafe.SizeOf<T>() * count, priority, hints);
             Span = _arena.GetSpan<T>(_handle, count);
         }

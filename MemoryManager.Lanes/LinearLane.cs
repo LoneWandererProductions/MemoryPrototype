@@ -122,33 +122,9 @@ namespace MemoryManager.Lanes
         public OneWayLane? OneWayLane { get; set; }
 
         /// <inheritdoc />
-        public unsafe void Dispose()
+        public void Dispose()
         {
-            if (_disposed) return;
-
-            _disposed = true;
-
-            // 1. Free main native buffer and reset pointer
-            if (Buffer != IntPtr.Zero)
-            {
-                Marshal.FreeHGlobal(Buffer);
-                Buffer = IntPtr.Zero;
-            }
-
-            // 2. Free flat unmanaged versions array
-            if (_versions != null)
-            {
-                NativeMemory.Free(_versions);
-                _versions = null;
-            }
-
-            // 3. Clear tracking structures and reset offsets
-            _handleIndex.Clear();
-            _freeIds.Clear();
-            _entries = null;
-            EntryCount = 0;
-            _nextFreeOffset = 0;
-
+            Dispose(true);
             GC.SuppressFinalize(this);
         }
 
@@ -162,18 +138,24 @@ namespace MemoryManager.Lanes
 
         /// <inheritdoc />
         public unsafe MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
-            AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
+                    AllocationHints hints = AllocationHints.None, string? debugName = null, int currentFrame = 0)
         {
             if (_entries == null) throw new InvalidOperationException("LinearLane: Memory not reserved");
 
             var physicalSizeNeeded = MemoryCanary.GetPhysicalSize(size);
+
+            // If full, try a quick single-block compaction before throwing
             if (_nextFreeOffset + physicalSizeNeeded > Capacity)
-                throw new OutOfMemoryException("LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
+            {
+                if (!QuickCompact(physicalSizeNeeded) && _nextFreeOffset + physicalSizeNeeded > Capacity)
+                {
+                    throw new OutOfMemoryException("LinearLane: Cannot allocate - Buffer is full. Requires Compaction.");
+                }
+            }
 
             var physicalOffset = _nextFreeOffset;
             _nextFreeOffset += physicalSizeNeeded; // BUMP!
 
-            // Shift user coordinates past the pre-canary space and stamp the bounds
             var userOffset = MemoryCanary.GetUserOffset(physicalOffset);
             MemoryCanary.WriteGuardBands(Buffer, userOffset, size);
 
@@ -183,16 +165,13 @@ namespace MemoryManager.Lanes
 #if DEBUG
             if (!string.IsNullOrEmpty(debugName)) _debugNames[id] = debugName;
 #endif
-            if (id >= _versionsCapacity)
-            {
-                GrowVersions(id + 1);
-            }
+            if (id >= _versionsCapacity) GrowVersions(id + 1);
 
             var currentVersion = ++_versions[id];
 
             _entries[EntryCount] = new AllocationEntry
             {
-                Offset = userOffset, // Target data directly for fast O(1) resolution paths
+                Offset = userOffset,
                 Size = size,
                 HandleId = id,
                 Version = currentVersion,
@@ -284,37 +263,36 @@ namespace MemoryManager.Lanes
             for (var i = EntryCount - 1; i >= 0; i--)
             {
                 var entry = _entries[i];
-                if (!entry.IsStub && ShouldMoveToSlowLane(entry, currentFrame, config.MaxFastLaneAgeFrames,
-                        config.FastLaneLargeEntryThreshold))
+                if (!entry.IsStub && ShouldMoveToSlowLane(entry, currentFrame, config!.MaxFastLaneAgeFrames, config.FastLaneLargeEntryThreshold))
                 {
                     var h = new MemoryHandle(entry.HandleId, entry.Version, this);
                     OneWayLane?.MoveFromFastToSlow(h);
                 }
             }
 
-            // PASS 2: Physical Slide
-            var newBuffer = Marshal.AllocHGlobal(Capacity);
-            var offset = 0;
-
+            // OPTIMIZATION 2: In-place physical slide. No more allocating 'newBuffer'
             var sortedEntries = new AllocationEntry[EntryCount];
             Array.Copy(_entries, sortedEntries, EntryCount);
             Array.Sort(sortedEntries, (a, b) => a.Offset.CompareTo(b.Offset));
 
+            var offset = 0;
             for (var i = 0; i < EntryCount; i++)
             {
                 var entry = sortedEntries[i];
                 if (!entry.IsStub)
                 {
-                    // Calculate the raw physical base position and block sizes
                     var srcPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
                     var physicalSize = MemoryCanary.GetPhysicalSize(entry.Size);
 
-                    void* source = (byte*)Buffer + srcPhysicalOffset;
-                    void* target = (byte*)newBuffer + offset;
-                    System.Buffer.MemoryCopy(source, target, Capacity - offset, physicalSize);
+                    if (srcPhysicalOffset > offset)
+                    {
+                        void* source = (byte*)Buffer + srcPhysicalOffset;
+                        void* target = (byte*)Buffer + offset;
+                        // Buffer.MemoryCopy safely handles overlapping memory
+                        System.Buffer.MemoryCopy(source, target, Capacity - offset, physicalSize);
 
-                    // Update tracking to point directly to user data space inside the new buffer
-                    entry.Offset = MemoryCanary.GetUserOffset(offset);
+                        entry.Offset = MemoryCanary.GetUserOffset(offset);
+                    }
                     offset += physicalSize;
                 }
 
@@ -323,10 +301,84 @@ namespace MemoryManager.Lanes
                 _entries[originalIndex] = entry;
             }
 
-            Marshal.FreeHGlobal(Buffer);
-            Buffer = newBuffer;
-            _nextFreeOffset = offset; // Reset the bump pointer to the exact end of surviving physical blocks
+            _nextFreeOffset = offset;
+            OnCompaction?.Invoke(nameof(LinearLane));
         }
+
+        /// <summary>
+        /// Attempts to make space by moving just the last physical block into an earlier gap.
+        /// Ideal for quickly avoiding an OutOfMemory defrag without sliding every item.
+        /// </summary>
+        /// <param name="requiredSpace">The required space.</param>
+        /// <returns>Success status of the quick compaction.</returns>
+        public unsafe bool QuickCompact(int requiredSpace = 0)
+        {
+            if (_entries == null || EntryCount < 2) return false;
+
+            var sortedEntries = new AllocationEntry[EntryCount];
+            Array.Copy(_entries, sortedEntries, EntryCount);
+            Array.Sort(sortedEntries, (a, b) => a.Offset.CompareTo(b.Offset));
+
+            // Find the physical block at the very end of the lane
+            int lastIndex = -1;
+            for (int i = EntryCount - 1; i >= 0; i--)
+            {
+                if (!sortedEntries[i].IsStub)
+                {
+                    lastIndex = i;
+                    break;
+                }
+            }
+
+            if (lastIndex <= 0) return false;
+
+            var lastEntry = sortedEntries[lastIndex];
+            var lastPhysicalSize = MemoryCanary.GetPhysicalSize(lastEntry.Size);
+
+            // Scan left-to-right for the first gap that can fit this last block
+            int currentOffset = 0;
+            for (int i = 0; i < lastIndex; i++)
+            {
+                var entry = sortedEntries[i];
+                if (entry.IsStub) continue;
+
+                var entryPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
+                int gapSize = entryPhysicalOffset - currentOffset;
+
+                if (gapSize >= lastPhysicalSize)
+                {
+                    // Move the last block into this gap
+                    void* source = (byte*)Buffer + MemoryCanary.GetPhysicalOffset(lastEntry.Offset);
+                    void* target = (byte*)Buffer + currentOffset;
+                    System.Buffer.MemoryCopy(source, target, Capacity - currentOffset, lastPhysicalSize);
+
+                    lastEntry.Offset = MemoryCanary.GetUserOffset(currentOffset);
+
+                    var originalIndex = _handleIndex[lastEntry.HandleId];
+                    _entries[originalIndex] = lastEntry;
+
+                    // Recalculate _nextFreeOffset from scratch to ensure absolute safety
+                    int newLastEnd = 0;
+                    for (int j = 0; j < EntryCount; j++)
+                    {
+                        var e = _entries[j];
+                        if (e.IsStub) continue;
+                        int end = MemoryCanary.GetPhysicalOffset(e.Offset) + MemoryCanary.GetPhysicalSize(e.Size);
+                        if (end > newLastEnd) newLastEnd = end;
+                    }
+                    _nextFreeOffset = newLastEnd;
+
+                    // Check if we freed up enough space to satisfy a pending allocation, if not, try to do it again (or let it fall through to a hard defrag)
+                    if (requiredSpace == 0 || (Capacity - _nextFreeOffset) >= requiredSpace)
+                        return true;
+                }
+
+                currentOffset = entryPhysicalOffset + MemoryCanary.GetPhysicalSize(entry.Size);
+            }
+
+            return false;
+        }
+
 
         /// <inheritdoc />
         public void ReplaceWithStub(MemoryHandle fastHandle, MemoryHandle slowHandle)
@@ -459,5 +511,46 @@ namespace MemoryManager.Lanes
         /// Logs the dump.
         /// </summary>
         public void LogDump() => Trace.WriteLine(DebugDump());
+
+        /// <summary>
+        /// Releases unmanaged and optionally managed resources.
+        /// </summary>
+        /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
+        private unsafe void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (disposing)
+            {
+                // 3. Clear/dispose tracking structures (Managed)
+                _handleIndex.Clear();
+                _freeIds.Dispose();
+                _entries = null;
+            }
+
+            // 1. Free main native buffer and reset pointer
+            if (Buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(Buffer);
+                Buffer = IntPtr.Zero;
+            }
+
+            // 2. Free flat unmanaged versions array
+            if (_versions != null)
+            {
+                NativeMemory.Free(_versions);
+                _versions = null;
+            }
+
+            EntryCount = 0;
+            _nextFreeOffset = 0;
+        }
+
+        /// <inheritdoc />
+        ~LinearLane()
+        {
+            Dispose(false);
+        }
     }
 }

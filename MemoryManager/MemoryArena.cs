@@ -179,7 +179,7 @@ namespace MemoryManager
         /// Moves an Entry from slow to fast based on policy heuristics.
         /// </summary>
         /// <param name="slowHandle">The slow handle.</param>
-        /// <returns></returns>
+        /// <returns>The new fast handle.</returns>
         /// <exception cref="System.ArgumentException">Handle must be a valid SlowLane handle (negative ID).</exception>
         /// <exception cref="System.OutOfMemoryException">Not enough space in FastLane to move from SlowLane.</exception>
         public unsafe MemoryHandle MoveSlowToFast(MemoryHandle slowHandle)
@@ -211,7 +211,7 @@ namespace MemoryManager
         /// <summary>
         /// Retrieves a reference directly to a value of type T inside the unmanaged arena.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="T">The unmanaged type of the value.</typeparam>
         /// <param name="handle">The handle.</param>
         /// <returns>A reference to the value of type T.</returns>
         public unsafe ref T Get<T>(MemoryHandle handle) where T : unmanaged

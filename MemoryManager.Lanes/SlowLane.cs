@@ -99,6 +99,11 @@ namespace MemoryManager.Lanes
         private int _versionsCapacity;
 
         /// <summary>
+        /// The disposed
+        /// </summary>
+        private bool _disposed;
+
+        /// <summary>
         /// The configured search strategy used to scan the free-list for gaps.
         /// </summary>
         private readonly AllocationStrategy _searchStrategy;
@@ -171,22 +176,10 @@ namespace MemoryManager.Lanes
         /// <summary>
         ///      Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
-        public unsafe void Dispose()
+        public void Dispose()
         {
-            Marshal.FreeHGlobal(Buffer);
-            EntryCount = 0;
-            _handleIndex.Clear();
-            _freeSlots.Clear();
-            _freeIds.Clear();
-
-            // clean up unmanaged versions array to prevent memory leaks
-            if (_versions != null)
-            {
-                NativeMemory.Free(_versions);
-                _versions = null;
-            }
-
-            _blobManager?.Compact();
+            Dispose(true); // Call the internal dispose method
+            GC.SuppressFinalize(this);
         }
 
         /// <inheritdoc />
@@ -748,6 +741,61 @@ namespace MemoryManager.Lanes
             Trace.WriteLine(DebugVisualMap());
             Trace.WriteLine(DebugRedirections());
             Trace.WriteLine($"--- {GetType().Name} Dump End ---");
+        }
+
+        /// <summary>
+        /// Releases unmanaged and - optionally - managed resources.
+        /// </summary>
+        /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
+        private unsafe void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (disposing)
+            {
+                // Release managed tracking structures safely
+                _handleIndex.Clear();
+                _entries = null;
+            }
+
+            // 1. Clean up unmanaged list allocations first
+            _freeIds.Dispose();
+            _freeSlots.Dispose();
+
+            // 2. Clean up BlobManager BEFORE freeing the shared Buffer it references
+            if (_blobManager is IDisposable blobDisposable)
+            {
+                blobDisposable.Dispose();
+            }
+            else
+            {
+                _blobManager?.Compact();
+            }
+
+            // 3. Free main unmanaged Lane buffer
+            if (Buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(Buffer);
+                Buffer = IntPtr.Zero;
+            }
+
+            // 4. Free flat unmanaged versions array
+            if (_versions != null)
+            {
+                NativeMemory.Free(_versions);
+                _versions = null;
+            }
+
+            EntryCount = 0;
+        }
+
+        /// <summary>
+        /// Finalizes an instance of the <see cref="SlowLane"/> class.
+        /// </summary>
+        ~SlowLane()
+        {
+            Dispose(false);
         }
     }
 }

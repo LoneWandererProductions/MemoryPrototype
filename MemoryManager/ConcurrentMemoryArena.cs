@@ -292,20 +292,17 @@ namespace MemoryManager
                 {
                     if (handle.Lane == localLane)
                     {
-                        // The item belongs to us! Dequeue it and recycle it safely on the home thread.
                         if (_remoteFreeQueue.TryDequeue(out var matchingHandle))
-                        {
                             matchingHandle.Lane.Free(matchingHandle);
-                        }
                     }
-                    else
+                    else { /* re-enqueue to the tail */ }
+                }
+                {
+                    // Rotation fallback: Item belongs to a different worker thread. 
+                    // Cycle it back to the tail of the line so its respective owner can catch it.
+                    if (_remoteFreeQueue.TryDequeue(out var foreignHandle))
                     {
-                        // Rotation fallback: Item belongs to a different worker thread. 
-                        // Cycle it back to the tail of the line so its respective owner can catch it.
-                        if (_remoteFreeQueue.TryDequeue(out var foreignHandle))
-                        {
-                            _remoteFreeQueue.Enqueue(foreignHandle);
-                        }
+                        _remoteFreeQueue.Enqueue(foreignHandle);
                     }
                 }
             }
