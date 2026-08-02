@@ -21,7 +21,7 @@ namespace MemoryManager
     /// <summary>
     /// The thread-safe wrapper around the different Memory Arena Components.
     /// </summary>
-    public sealed class MemoryArena : IMemoryAllocator, IDisposable
+    public sealed class MemoryArena : IMemoryAllocator
     {
         /// <summary>
         /// The configuration
@@ -338,7 +338,7 @@ namespace MemoryManager
             if (handle.IsInvalid)
                 throw new InvalidOperationException("Invalid handle");
 
-            lock (_lock) // FIX: Lock synchronization prevents array manipulation races during background compaction
+            lock (_lock) // Lock synchronization prevents array manipulation races during background compaction
             {
                 if (handle.Id > 0)
                     FastLane.Free(handle);

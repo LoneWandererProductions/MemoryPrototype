@@ -7,8 +7,6 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-#nullable enable
-
 namespace MemoryManager.Core
 {
     /// <summary>

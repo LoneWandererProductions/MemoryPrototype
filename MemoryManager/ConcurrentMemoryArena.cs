@@ -23,7 +23,7 @@ namespace MemoryManager
     /// A thread-safe, highly concurrent memory arena. 
     /// Provisions lock-free, independent fast lanes for every individual worker thread.
     /// </summary>
-    public sealed class ConcurrentMemoryArena : IMemoryAllocator, IDisposable
+    public sealed class ConcurrentMemoryArena : IMemoryAllocator
     {
         /// <summary>
         /// The configuration
@@ -288,26 +288,10 @@ namespace MemoryManager
             // Process outstanding cross-thread requests bounded by current snapshot depths
             for (var i = 0; i < initialCount; i++)
             {
-                if (_remoteFreeQueue.TryPeek(out var handle))
+                if (_remoteFreeQueue.TryDequeue(out var handle))
                 {
-                    if (handle.Lane == localLane)
-                    {
-                        if (_remoteFreeQueue.TryDequeue(out var matchingHandle))
-                            matchingHandle.Lane.Free(matchingHandle);
-                    }
-                    else
-                    {
-                        /* re-enqueue to the tail */
-                    }
-                }
-
-                {
-                    // Rotation fallback: Item belongs to a different worker thread. 
-                    // Cycle it back to the tail of the line so its respective owner can catch it.
-                    if (_remoteFreeQueue.TryDequeue(out var foreignHandle))
-                    {
-                        _remoteFreeQueue.Enqueue(foreignHandle);
-                    }
+                    if (handle.Lane == localLane) handle.Lane.Free(handle);
+                    else _remoteFreeQueue.Enqueue(handle);
                 }
             }
         }
@@ -329,6 +313,11 @@ namespace MemoryManager
         /// <inheritdoc />
         public void LogDump() => Trace.WriteLine(DebugDump());
 
+        /// <inheritdoc />
+        /// <summary>
+        /// Be really careful with this. It will reset all lanes, including the global slow lane, and can lead to memory leaks if there are still active handles in use.
+        /// Use only when you are certain that all allocated memory has been freed and no handles are in use.
+        /// </summary>
         public void Reset()
         {
             lock (_globalLock)
@@ -342,9 +331,7 @@ namespace MemoryManager
             }
         }
 
-        /// <summary>
-        /// Flushes memory structures cleanly across all thread execution tracks.
-        /// </summary>
+        /// <inheritdoc />
         public void Dispose()
         {
             lock (_globalLock)

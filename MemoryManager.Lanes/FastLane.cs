@@ -601,27 +601,13 @@ namespace MemoryManager.Lanes
             Trace.WriteLine($"--- {GetType().Name} Dump End ---");
         }
 
-
         /// <inheritdoc />
         /// <summary>
         ///     Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
-        public unsafe void Dispose()
+        public void Dispose()
         {
-            if (_disposed) return;
-
-            _disposed = true;
-
-            Marshal.FreeHGlobal(Buffer);
-            _handleIndex.Clear();
-
-            if (_versions != null)
-            {
-                NativeMemory.Free(_versions);
-                _versions = null;
-            }
-
-            _entries = null;
+            Dispose(true);
             GC.SuppressFinalize(this);
         }
 
@@ -705,6 +691,25 @@ namespace MemoryManager.Lanes
                 return false;
 
             return false;
+        }
+
+        /// <summary>
+        /// Releases unmanaged and - optionally - managed resources.
+        /// </summary>
+        /// <param name="disposing"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
+        private unsafe void Dispose(bool disposing)
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            if (disposing)
+            {
+                _handleIndex.Clear();
+                _entries = null;
+            }
+
+            if (Buffer != IntPtr.Zero) { Marshal.FreeHGlobal(Buffer); Buffer = IntPtr.Zero; }
+            if (_versions != null) { NativeMemory.Free(_versions); _versions = null; }
         }
 
         /// <summary>
