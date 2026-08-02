@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Extended.Unmanaged\Extended.Unmanaged.csproj" />
-    <ProjectReference Include="..\ExtendedSystemObjects\ExtendedSystemObjects.csproj" />
     <ProjectReference Include="..\MemoryManager.Core\MemoryManager.Core.csproj" />
   </ItemGroup>
 
