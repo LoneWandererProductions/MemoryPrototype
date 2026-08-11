@@ -127,7 +127,7 @@ namespace MemoryManager.Tests
             Assert.AreEqual(expectedFreeSpaceBefore, _fastLane.FreeSpace(),
                 "Free space should remain identical before and after compaction.");
 
-            // --- FIX: Dynamic, Canary-Aware Offset Assertions ---
+            // --- Dynamic, Canary-Aware Offset Assertions ---
             // Read the actual padding from the first element (4 in DEBUG, 0 in RELEASE)
             var canaryPadding = _fastLane.GetEntry(handles[0]).Offset;
 

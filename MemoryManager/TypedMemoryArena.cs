@@ -7,7 +7,6 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-#nullable enable
 using MemoryManager.Core;
 using System;
 using System.Runtime.CompilerServices;

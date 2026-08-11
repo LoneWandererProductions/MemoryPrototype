@@ -133,7 +133,7 @@ namespace MemoryManager.Tests
             Assert.AreNotEqual(0, entry.RedirectToId, "Stub must point to a valid ID.");
 
             // 2. Verify SlowLane has the redirected entry
-            // FIX: We must use the RedirectVersion from the metadata!
+            // We must use the RedirectVersion from the metadata!
             // If we pass 0 or guess, the SlowLane will throw a Zombie Exception.
             var redirectHandle = new MemoryHandle(entry.RedirectToId, entry.RedirectVersion, arena.SlowLane);
             Assert.IsTrue(arena.SlowLane.HasHandle(redirectHandle));

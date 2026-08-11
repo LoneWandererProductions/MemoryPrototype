@@ -53,7 +53,7 @@ namespace MemoryManager.Lanes
             var totalFree = 0;
             var largestBlock = 0;
 
-            // FIX: Evaluates real fragment scattering instead of guessing boundaries based on structural array position offsets
+            // Evaluates real fragment scattering instead of guessing boundaries based on structural array position offsets
             for (var i = 0; i < freeBlockCount; i++)
             {
                 var size = freeBlocks[i].Size;
@@ -411,7 +411,7 @@ namespace MemoryManager.Lanes
             for (var i = 0; i < entryCount; i++)
                 if (!entries[i].IsStub)
                 {
-                    // FIX: Tracks exact physical memory footprint constraints during density assessments
+                    // Tracks exact physical memory footprint constraints during density assessments
                     used += MemoryCanary.GetPhysicalSize(entries[i].Size);
                 }
 

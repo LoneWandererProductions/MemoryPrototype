@@ -14,7 +14,7 @@ namespace MemoryManager.Core
     /// <summary>
     /// Interface representing a memory allocator, responsible for managing memory allocations, deallocations, and access within a memory arena.
     /// </summary>
-    public interface IMemoryAllocator
+    public interface IMemoryAllocator: IDisposable
     {
         /// <summary>
         /// Allocates the specified size.

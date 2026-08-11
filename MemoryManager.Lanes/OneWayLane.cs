@@ -61,7 +61,7 @@ namespace MemoryManager.Lanes
 
             try
             {
-                // FIX: Grab the original entry metadata snapshot to preserve telemetry properties during migration
+                // Grab the original entry metadata snapshot to preserve telemetry properties during migration
                 fastEntry = _fastLane.GetEntry(fastHandle);
                 fastPtr = _fastLane.Resolve(fastHandle);
             }
@@ -75,7 +75,7 @@ namespace MemoryManager.Lanes
             MemoryHandle slowHandle;
             try
             {
-                // FIX: Passed along Priority, Hints, and original AllocationFrame so the SlowLane inherits accurate tracking telemetry
+                // Passed along Priority, Hints, and original AllocationFrame so the SlowLane inherits accurate tracking telemetry
                 slowHandle = _slowLane.Allocate(
                     fastEntry.Size,
                     fastEntry.Priority,
@@ -85,6 +85,7 @@ namespace MemoryManager.Lanes
             }
             catch (OutOfMemoryException)
             {
+                Trace.WriteLine("MoveFromFastToSlow: Slow lane allocation failed due to insufficient memory.");
                 return false; // Slow lane is full, abort migration but keep fast data intact
             }
 
