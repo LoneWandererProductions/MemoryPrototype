@@ -50,13 +50,16 @@ namespace MemoryManager.Types
         /// <param name="capacity">The capacity.</param>
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
-        /// <exception cref="System.ArgumentOutOfRangeException">capacity - Capacity must be greater than zero.</exception>
+        /// <exception cref="System.ArgumentNullException">arena - Cannot instantiate ArenaBuffer without a valid allocator.</exception>
+        /// <exception cref="System.ArgumentOutOfRangeException">capacity - Capacity must be > 0.</exception>
         public ArenaBuffer(
             IMemoryAllocator? arena,
             int capacity,
             AllocationPriority priority = AllocationPriority.Critical,
             AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
         {
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
+
             if (capacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(capacity), "Capacity must be > 0.");
 
@@ -126,7 +129,7 @@ namespace MemoryManager.Types
         {
             if (_handle.IsInvalid) return;
 
-            _arena.Free(_handle);
+            _arena?.Free(_handle);
             _handle = default;
         }
     }

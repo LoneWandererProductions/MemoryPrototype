@@ -48,15 +48,17 @@ namespace MemoryManager.Types
         /// <param name="count">The count.</param>
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
-        /// <exception cref="System.ArgumentNullException">arena</exception>
+        /// <exception cref="System.ArgumentNullException">arena - Cannot instantiate ArenaRent<T> without a valid allocator.</exception>
         /// <exception cref="System.ArgumentOutOfRangeException">count - Allocation count cannot be negative.</exception>
         public ArenaRent(
-            IMemoryAllocator arena,
+            IMemoryAllocator? arena,
             int count,
             AllocationPriority priority = AllocationPriority.Critical,
             AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
         {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena));
+            _arena = arena ?? throw new ArgumentNullException(
+                nameof(arena),
+                $"Cannot instantiate {nameof(ArenaRent<T>)} without a valid allocator.");
 
             if (count < 0)
             {

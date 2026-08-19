@@ -1,18 +1,22 @@
 ﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryManager.Tests
- * FILE:        ArenaQueueTests.cs
- * PURPOSE:     MS Unit tests verifying ArenaQueue FIFO correctness and capacity expansion.
+ * FILE:        ArenaStackTests.cs
+ * PURPOSE:     MS Unit tests verifying ArenaStack LIFO correctness, growth, and boundary checks.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
+using System;
 using MemoryManager.Core;
 using MemoryManager.Types;
 
 namespace MemoryManager.Tests
 {
+    /// <summary>
+    /// Tests for the <see cref="ArenaStack{T}"/> LIFO collection type.
+    /// </summary>
     [TestClass]
-    public sealed class ArenaQueueTests
+    public sealed class ArenaStackTests
     {
         private MemoryArena? _arena;
 
@@ -29,47 +33,86 @@ namespace MemoryManager.Tests
             _arena?.Dispose();
         }
 
+        /// <summary>
+        /// Validates that null allocator throws ArgumentNullException during initialization.
+        /// </summary>
         [TestMethod]
-        public void ArenaQueue_EnqueueDequeue_PreservesFifoOrder()
+        [TestCategory("Collections")]
+        public void ArenaStack_NullAllocator_ThrowsArgumentNullException()
         {
-            using var queue = new ArenaQueue<int>(_arena, initialCapacity: 4);
-
-            queue.Enqueue(10);
-            queue.Enqueue(20);
-            queue.Enqueue(30);
-
-            Assert.AreEqual(3, queue.Count);
-            Assert.AreEqual(10, queue.Peek());
-
-            Assert.AreEqual(10, queue.Dequeue());
-            Assert.AreEqual(20, queue.Dequeue());
-            Assert.AreEqual(30, queue.Dequeue());
-            Assert.AreEqual(0, queue.Count);
+            Assert.ThrowsException<ArgumentNullException>(() => new ArenaStack<int>(null!));
         }
 
+        /// <summary>
+        /// Validates that Push, Peek, and Pop operations preserve LIFO order.
+        /// </summary>
         [TestMethod]
-        public void ArenaQueue_EnqueueBeyondInitialCapacity_GrowsAutomatically()
+        [TestCategory("Collections")]
+        public void ArenaStack_PushAndPop_PreservesLifoOrder()
         {
-            using var queue = new ArenaQueue<int>(_arena, initialCapacity: 2);
+            using var stack = new ArenaStack<int>(_arena, initialCapacity: 4);
 
-            for (var i = 0; i < 100; i++)
+            stack.Push(100);
+            stack.Push(200);
+            stack.Push(300);
+
+            Assert.AreEqual(3, stack.Count);
+            Assert.AreEqual(300, stack.Peek());
+
+            Assert.AreEqual(300, stack.Pop());
+            Assert.AreEqual(200, stack.Pop());
+            Assert.AreEqual(100, stack.Pop());
+            Assert.AreEqual(0, stack.Count);
+        }
+
+        /// <summary>
+        /// Validates that TryPop correctly returns items or false when empty.
+        /// </summary>
+        [TestMethod]
+        [TestCategory("Collections")]
+        public void ArenaStack_TryPop_HandlesPopSafely()
+        {
+            using var stack = new ArenaStack<int>(_arena, initialCapacity: 4);
+
+            stack.Push(42);
+
+            Assert.IsTrue(stack.TryPop(out var val));
+            Assert.AreEqual(42, val);
+            Assert.IsFalse(stack.TryPop(out _));
+        }
+
+        /// <summary>
+        /// Validates that pushing beyond initial capacity triggers automatic buffer growth.
+        /// </summary>
+        [TestMethod]
+        [TestCategory("Collections")]
+        public void ArenaStack_PushBeyondCapacity_GrowsAutomatically()
+        {
+            using var stack = new ArenaStack<int>(_arena, initialCapacity: 2);
+
+            for (var i = 0; i < 50; i++)
             {
-                queue.Enqueue(i);
+                stack.Push(i);
             }
 
-            Assert.AreEqual(100, queue.Count);
+            Assert.AreEqual(50, stack.Count);
+            Assert.IsTrue(stack.Capacity >= 50);
 
-            for (var i = 0; i < 100; i++)
+            for (var i = 49; i >= 0; i--)
             {
-                Assert.AreEqual(i, queue.Dequeue());
+                Assert.AreEqual(i, stack.Pop());
             }
         }
 
+        /// <summary>
+        /// Validates that popping an empty stack throws InvalidOperationException.
+        /// </summary>
         [TestMethod]
-        public void ArenaQueue_DequeueEmpty_ThrowsInvalidOperationException()
+        [TestCategory("Collections")]
+        public void ArenaStack_PopEmpty_ThrowsInvalidOperationException()
         {
-            using var queue = new ArenaQueue<int>(_arena, initialCapacity: 4);
-            Assert.ThrowsException<InvalidOperationException>(() => queue.Dequeue());
+            using var stack = new ArenaStack<int>(_arena, initialCapacity: 4);
+            Assert.ThrowsException<InvalidOperationException>(() => stack.Pop());
         }
     }
 }

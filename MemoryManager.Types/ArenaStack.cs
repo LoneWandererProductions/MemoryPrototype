@@ -1,25 +1,21 @@
 ﻿/*
  * COPYRIGHT:   See COPYING in the top level directory
  * PROJECT:     MemoryManager.Types
- * FILE:        ArenaList.cs
- * PURPOSE:     A resizable, unmanaged list backed by an IMemoryAllocator interface contract. 
- *              Automatically handles growth and memory reclamation via handles.
+ * FILE:        ArenaStack.cs
+ * PURPOSE:     A high-performance, resizable LIFO stack for unmanaged types backed by an IMemoryAllocator.
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-// ReSharper disable UnusedMember.Global
-
-using MemoryManager.Core;
 using System.Runtime.CompilerServices;
+using MemoryManager.Core;
 
 namespace MemoryManager.Types
 {
     /// <summary>
-    /// A high-performance, resizable list for unmanaged types that allocates
-    /// its internal buffer from an <see cref="IMemoryAllocator"/>.
+    /// A high-performance, resizable LIFO stack for unmanaged types backed by an <see cref="IMemoryAllocator"/>.
     /// </summary>
     /// <typeparam name="T">The unmanaged type to store.</typeparam>
-    public sealed class ArenaList<T> : IDisposable where T : unmanaged
+    public sealed class ArenaStack<T> : IDisposable where T : unmanaged
     {
         /// <summary>
         /// The arena
@@ -47,24 +43,30 @@ namespace MemoryManager.Types
         private int _capacity;
 
         /// <summary>
-        /// Gets the number of elements currently contained in the list.
+        /// Gets the count.
         /// </summary>
+        /// <value>
+        /// The count.
+        /// </value>
         public int Count { get; private set; }
 
         /// <summary>
-        /// Gets the total number of elements the internal memory buffer can hold before resizing.
+        /// Gets the capacity.
         /// </summary>
+        /// <value>
+        /// The capacity.
+        /// </value>
         public int Capacity => _capacity;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ArenaList{T}" /> class.
+        /// Initializes a new instance of the <see cref="ArenaStack{T}" /> class.
         /// </summary>
         /// <param name="arena">The arena.</param>
         /// <param name="initialCapacity">The initial capacity.</param>
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
-        /// <exception cref="System.ArgumentNullException">arena - Cannot instantiate ArenaList without a valid allocator.</exception>
-        public ArenaList(MemoryArena? arena, int initialCapacity = 8,
+        /// <exception cref="System.ArgumentNullException">arena - Cannot instantiate ArenaStack without a valid allocator.</exception>
+        public ArenaStack(IMemoryAllocator? arena, int initialCapacity = 8,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
             _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
@@ -75,47 +77,64 @@ namespace MemoryManager.Types
             _capacity = initialCapacity;
             _priority = priority;
             _hints = hints;
-
             _handle = _arena.Allocate(Unsafe.SizeOf<T>() * _capacity, _priority, _hints);
         }
 
         /// <summary>
-        /// Gets the <see cref="T"/> at the specified index.
-        /// </summary>
-        /// <value>
-        /// The <see cref="T"/>.
-        /// </value>
-        /// <param name="index">The index.</param>
-        /// <returns>Data at index.</returns>
-        public ref T this[int index] => ref Get(index);
-
-        /// <summary>
-        /// Adds the specified item.
+        /// Pushes the specified item.
         /// </summary>
         /// <param name="item">The item.</param>
-        public void Add(T item)
+        public void Push(T item)
         {
             if (Count == _capacity) Grow();
-
             var span = _arena.GetSpan<T>(_handle, _capacity);
             span[Count++] = item;
         }
 
         /// <summary>
-        /// Gets the specified index.
+        /// Pops this instance.
         /// </summary>
-        /// <param name="index">The index.</param>
-        /// <returns></returns>
-        /// <exception cref="System.IndexOutOfRangeException">Index {index} is outside active boundaries.</exception>
-        public ref T Get(int index)
+        /// <returns>The item at the top of the stack.</returns>
+        /// <exception cref="System.InvalidOperationException">The ArenaStack is empty.</exception>
+        public T Pop()
         {
-            if (index < 0 || index >= Count)
-                throw new IndexOutOfRangeException(
-                    $"Index {index} is outside the active boundaries of the ArenaList (Count: {Count}).");
-
+            if (Count == 0)
+                throw new InvalidOperationException("The ArenaStack is empty.");
 
             var span = _arena.GetSpan<T>(_handle, _capacity);
-            return ref span[index];
+            return span[--Count];
+        }
+
+        /// <summary>
+        /// Peeks this instance.
+        /// </summary>
+        /// <returns>The item at the top of the stack.</returns>
+        /// <exception cref="System.InvalidOperationException">The ArenaStack is empty.</exception>
+        public ref T Peek()
+        {
+            if (Count == 0)
+                throw new InvalidOperationException("The ArenaStack is empty.");
+
+            var span = _arena.GetSpan<T>(_handle, _capacity);
+            return ref span[Count - 1];
+        }
+
+        /// <summary>
+        /// Tries the pop.
+        /// </summary>
+        /// <param name="result">The result.</param>
+        /// <returns>True if an item was successfully popped; otherwise, false.</returns>
+        public bool TryPop(out T result)
+        {
+            if (Count == 0)
+            {
+                result = default;
+                return false;
+            }
+
+            var span = _arena.GetSpan<T>(_handle, _capacity);
+            result = span[--Count];
+            return true;
         }
 
         /// <summary>
@@ -124,26 +143,16 @@ namespace MemoryManager.Types
         public void Clear() => Count = 0;
 
         /// <summary>
-        /// Converts the active portion of the internal buffer to a <see cref="Span{T}"/> for zero-allocation access.
+        /// Ases the span.
         /// </summary>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Span<T> AsSpan()
-        {
-            return Count == 0 ? Span<T>.Empty : _arena.GetSpan<T>(_handle, _capacity).Slice(0, Count);
-        }
-
-        /// <summary>
-        /// Exposes a zero-allocation, struct-based enumerator.
-        /// Allows clean 'foreach' loop compilation bypassing the managed Garbage Collector entirely.
-        /// </summary>
-        /// <returns>An enumerator for the list.</returns>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public Span<T>.Enumerator GetEnumerator() => AsSpan().GetEnumerator();
+        public Span<T> AsSpan() => Count == 0 ? Span<T>.Empty : _arena.GetSpan<T>(_handle, _capacity).Slice(0, Count);
 
         /// <summary>
         /// Grows this instance.
         /// </summary>
+        /// <exception cref="System.InvalidOperationException">Cannot grow ArenaStack without a valid IMemoryAllocator.</exception>
         private void Grow()
         {
             var newCapacity = _capacity * 2;
@@ -152,7 +161,7 @@ namespace MemoryManager.Types
             var oldSpan = _arena.GetSpan<T>(_handle, _capacity);
             var newSpan = _arena.GetSpan<T>(newHandle, newCapacity);
 
-            oldSpan.CopyTo(newSpan);
+            oldSpan.Slice(0, Count).CopyTo(newSpan);
             _arena.Free(_handle);
 
             _handle = newHandle;
@@ -160,14 +169,10 @@ namespace MemoryManager.Types
         }
 
         /// <inheritdoc />
-        /// <summary>
-        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-        /// </summary>
         public void Dispose()
         {
             if (_handle.IsInvalid) return;
-
-            _arena.Free(_handle);
+            _arena?.Free(_handle);
             _handle = default;
         }
     }

@@ -10,7 +10,6 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{E87A4A53-C65F-4455-A5D7-EBF57BDA96A5}"
 	ProjectSection(SolutionItems) = preProject
 		License.txt = License.txt
-		Todos.txt = Todos.txt
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Projektmappenelemente", "Projektmappenelemente", "{84D27F74-D2BA-6C25-2661-968F101900D9}"

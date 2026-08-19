@@ -81,9 +81,12 @@ namespace MemoryManager.Types
         /// <param name="initialCapacity">The initial capacity.</param>
         /// <param name="priority">The priority.</param>
         /// <param name="hints">The hints.</param>
+        /// <exception cref="System.ArgumentNullException">arena - Cannot instantiate ArenaQueue without a valid allocator.</exception>
         public ArenaQueue(IMemoryAllocator? arena, int initialCapacity = 8,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
+
             if (initialCapacity <= 0) initialCapacity = 8;
 
             _arena = arena;
@@ -117,7 +120,7 @@ namespace MemoryManager.Types
         /// <summary>
         /// Pops and returns the oldest item from the front of the circular queue.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The item removed from the front of the queue.</returns>
         /// <exception cref="System.InvalidOperationException">The ArenaQueue is empty.</exception>
         public T Dequeue()
         {
