@@ -114,6 +114,78 @@ queue.Enqueue(new Point { X = 3, Y = 4 });
 var point = queue.Dequeue();
 ```
 
+### 4. Transient Scope Renting `ArenaRent<T>`
+
+```csharp
+using MemoryManager.Types;
+
+// Rent a temporary unmanaged Span using RAII scope semantics
+using (var rent = new ArenaRent<byte>(arena, count: 256))
+{
+    Span<byte> span = rent.Span;
+    span.Fill(0xFF);
+    // Memory is automatically released back to the allocator when scope exits
+}
+```
+
+### 5. LIFO Stack `ArenaStack<T>`
+
+```csharp
+using MemoryManager.Types;
+
+using var stack = new ArenaStack<int>(arena, initialCapacity: 16);
+
+stack.Push(10);
+stack.Push(20);
+
+ref var top = ref stack.Peek(); // 20
+int popped = stack.Pop();      // 20
+```
+
+### 6. TBit Vector `ArenaBitSet<T>`
+
+```csharp
+using MemoryManager.Types;
+
+// Chunked 64-bit word array for flag tracking and spatial partitioning
+using var bitSet = new ArenaBitSet(arena, initialBitCapacity: 128);
+
+bitSet.Set(42);
+bool isSet = bitSet.Get(42); // true
+bitSet.Unset(42);
+```
+### 7. Instance Recycling Pool `ArenaPool<T>`
+
+```csharp
+using MemoryManager.Types;
+
+using var pool = new ArenaPool<Particle>(arena, initialCapacity: 64);
+
+// Rent a slot by reference to avoid copying
+ref var particle = ref pool.Rent(out int index);
+particle.X = 10.0f;
+
+// Access directly by index later
+ref var storedParticle = ref pool.Get(index);
+
+// Recycle the slot index for future rents
+pool.Return(index);
+```
+
+### 8. Transient Scope Renting `ArenaBuffer<T>`
+
+```csharp
+using MemoryManager.Types;
+
+// Fixed-capacity unmanaged buffer preventing accidental re-allocations
+using var buffer = new ArenaBuffer<int>(arena, capacity: 64);
+
+buffer.Add(10);
+buffer.Add(20);
+
+// Zero-allocation reset between inner loop passes
+buffer.Clear();
+```
 ---
 
 ## 📐 Allocation Strategies Comparison
