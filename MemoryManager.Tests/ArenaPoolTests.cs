@@ -6,7 +6,6 @@
  * PROGRAMMER:  Peter Geinitz (Wayfarer)
  */
 
-using System;
 using MemoryManager.Core;
 using MemoryManager.Types;
 

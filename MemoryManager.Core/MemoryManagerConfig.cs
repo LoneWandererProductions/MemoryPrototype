@@ -58,12 +58,18 @@ namespace MemoryManager.Core
         /// <summary>
         /// Gets the free-list block search strategy used by the FastLane when running the FreeList strategy wrapper.
         /// </summary>
-        public AllocationStrategy FastLaneFreeListStrategy { get; private init; } = AllocationStrategy.FirstFit;
+        /// <value>
+        /// The fast lane free list strategy.
+        /// </value>
+        public AllocationStrategy FastLaneFreeListStrategy { get; init; } = AllocationStrategy.FirstFit;
 
         /// <summary>
         /// Gets the free-list block search strategy used by the SlowLane to manage gap allocations.
         /// </summary>
-        public AllocationStrategy SlowLaneFreeListStrategy { get; private init; } = AllocationStrategy.BestFit;
+        /// <value>
+        /// The slow lane free list strategy.
+        /// </value>
+        public AllocationStrategy SlowLaneFreeListStrategy { get; init; } = AllocationStrategy.BestFit;
 
         /// <summary>
         /// Gets the fast lane strategy.
@@ -105,14 +111,14 @@ namespace MemoryManager.Core
         public int SlowLaneSize { get; init; } = 8 * 1024 * 1024; // 8MB
 
         /// <summary>
-        /// Gets or sets the fast lane safety margin.
+        /// Gets the fast lane safety margin.
         /// Safety margin before triggering compaction or other maintenance
         /// E.g., 10% means compact before 90% usage to avoid sudden out-of-memory
         /// </summary>
         /// <value>
         /// The fast lane safety margin.
         /// </value>
-        public double FastLaneSafetyMargin { get; set; } = 0.10;
+        public double FastLaneSafetyMargin { get; init; } = 0.10;
 
         /// <summary>
         /// Gets the compaction threshold.
@@ -151,7 +157,7 @@ namespace MemoryManager.Core
         /// <value>
         /// The threshold.
         /// </value>
-        public int Threshold { get; init; } = 1024 * 1024 / 4; //256 KB
+        public int Threshold { get; init; } = 1024 * 1024 / 4; // 256 KB
 
         /// <summary>
         /// Gets the fast lane usage threshold.
@@ -164,7 +170,7 @@ namespace MemoryManager.Core
         public double FastLaneUsageThreshold { get; init; } = 0.9;
 
         /// <summary>
-        /// Gets or sets the fast lane large entry threshold.
+        /// Gets the fast lane large entry threshold.
         /// Size threshold in bytes for entries considered "large"
         /// Entries larger than this are candidates for moving to slow lane
         /// Rule of thumb: 4KB aligns roughly with typical OS page size and cache line multiples
@@ -177,7 +183,7 @@ namespace MemoryManager.Core
         /// <summary>
         /// Gets the slow lane usage threshold.
         /// Usage fraction of slow lane to trigger compaction (e.g., 85%)
-        ///  Should be less aggressive than fast lane compaction to avoid overhead
+        /// Should be less aggressive than fast lane compaction to avoid overhead
         /// </summary>
         /// <value>
         /// The slow lane usage threshold.
@@ -195,34 +201,43 @@ namespace MemoryManager.Core
         public double SlowLaneSafetyMargin { get; init; } = 0.10;
 
         /// <summary>
-        /// The maximum number of distinct allocations the FastLane can track at once.
+        /// Gets the maximum number of distinct allocations the FastLane can track at once.
         /// </summary>
+        /// <value>
+        /// The maximum entries count.
+        /// </value>
         public int MaxEntries { get; init; } = 1024;
 
         /// <summary>
-        /// Fraction of the SlowLane capacity dedicated to the BlobManager for small, unpredictable data.
+        /// Gets the fraction of the SlowLane capacity dedicated to the BlobManager for small, unpredictable data.
         /// Example: 0.20 reserves 20% of the SlowLane for tiny blobs.
         /// </summary>
-        public double SlowLaneBlobCapacityFraction { get; private init; } = 0.20;
+        /// <value>
+        /// The slow lane blob capacity fraction.
+        /// </value>
+        public double SlowLaneBlobCapacityFraction { get; init; } = 0.20;
 
         /// <summary>
+        /// Gets the threshold size in bytes for the BlobManager.
         /// Allocations in the SlowLane smaller than or equal to this size (in bytes)
         /// will be routed to the BlobManager instead of the main BlockManager.
         /// </summary>
-        public int SlowLaneBlobThreshold { get; private init; } = 256;
+        /// <value>
+        /// The slow lane blob threshold.
+        /// </value>
+        public int SlowLaneBlobThreshold { get; init; } = 256;
 
         /// <summary>
         ///      Estimates the total reserved unmanaged memory (in bytes) this configuration will request,
         ///      not including minor overhead for handles and management structures.
         /// </summary>
+        /// <returns>Estimated reserved memory in megabytes.</returns>
         public double GetEstimatedReservedMegabytes()
         {
             return (FastLaneSize + SlowLaneSize) / (1024.0 * 1024.0);
         }
 
-        /*
-         * Preset factory methods for common scenarios. These provide convenient starting points for typical use cases,
-         */
+        //--- Preset factory methods for common scenarios. These provide convenient starting points for typical use cases ---
 
         /// <summary>
         /// Creates a configuration tuned for real-time game loops.
@@ -232,10 +247,15 @@ namespace MemoryManager.Core
         /// <returns>MemoryManagerConfig instance configured for real-time game loops.</returns>
         public static MemoryManagerConfig CreateForGameLoop(int totalBudget = 16 * 1024 * 1024)
         {
+            int fastLaneSize = (int)(totalBudget * 0.25);
+            int slowLaneSize = (int)(totalBudget * 0.75);
+
             return new MemoryManagerConfig
             {
-                SlowLaneSize = (int)(totalBudget * 0.75),
-                FastLaneSize = (int)(totalBudget * 0.25),
+                SlowLaneSize = slowLaneSize,
+                FastLaneSize = fastLaneSize,
+                Threshold = fastLaneSize / 4,
+                FastLaneLargeEntryThreshold = Math.Min(4096, fastLaneSize / 256),
                 FastLaneStrategy = AllocatorStrategy.LinearBump, // Maximum speed
                 MaxFastLaneAgeFrames = 300, // Evict to SlowLane faster
                 FastLaneUsageThreshold = 0.85,
@@ -256,16 +276,21 @@ namespace MemoryManager.Core
         /// <returns>MemoryManagerConfig instance configured for bulk processing.</returns>
         public static MemoryManagerConfig CreateForBulkProcessing(int totalBudget = 64 * 1024 * 1024)
         {
+            int fastLaneSize = (int)(totalBudget * 0.15);
+            int slowLaneSize = (int)(totalBudget * 0.85);
+
             return new MemoryManagerConfig
             {
-                SlowLaneSize = (int)(totalBudget * 0.85),
-                FastLaneSize = (int)(totalBudget * 0.15),
+                SlowLaneSize = slowLaneSize,
+                FastLaneSize = fastLaneSize,
+                Threshold = fastLaneSize / 4,
                 FastLaneStrategy = AllocatorStrategy.FreeList, // Out-of-order safety
                 FastLaneLargeEntryThreshold = 16384, // Allow up to 16KB in the hot lane
                 MaxFastLaneAgeFrames = 1200, // Let data sit longer before moving
                 SlowLaneUsageThreshold = 0.80,
                 SlowLaneBlobThreshold = 512, // Route larger fragments to blobs
                 PolicyCheckInterval = TimeSpan.FromSeconds(2), // Low maintenance overhead
+                MaxEntries = 4096,
 
                 // Heterogeneous presets: prioritize high allocation velocity on FastLane, anti-fragmentation on SlowLane
                 FastLaneFreeListStrategy = AllocationStrategy.FirstFit,
@@ -280,10 +305,15 @@ namespace MemoryManager.Core
         /// <returns>MemoryManagerConfig instance configured for low memory scenarios.</returns>
         public static MemoryManagerConfig CreateForLowMemory()
         {
+            int fastLaneSize = 256 * 1024; // 256 KB
+            int slowLaneSize = 1024 * 1024; // 1 MB
+
             return new MemoryManagerConfig
             {
-                FastLaneSize = 256 * 1024, // 256 KB
-                SlowLaneSize = 1024 * 1024, // 1 MB
+                FastLaneSize = fastLaneSize,
+                SlowLaneSize = slowLaneSize,
+                Threshold = 32 * 1024, // 32 KB threshold so fast lane isn't exhausted by single large allocations
+                FastLaneLargeEntryThreshold = 1024,
                 FastLaneStrategy = AllocatorStrategy.FreeList,
                 EnableAutoCompaction = true,
                 CompactionThreshold = 0.60, // Compact very early
@@ -306,18 +336,20 @@ namespace MemoryManager.Core
         /// <returns>MemoryManagerConfig instance configured for object pooling.</returns>
         public static MemoryManagerConfig CreateForObjectPooling(int totalBudget = 32 * 1024 * 1024)
         {
+            int fastLaneSize = (int)(totalBudget * 0.30);
+            int slowLaneSize = (int)(totalBudget * 0.70);
+
             return new MemoryManagerConfig
             {
-                SlowLaneSize = (int)(totalBudget * 0.70),
-                FastLaneSize = (int)(totalBudget * 0.30),
+                SlowLaneSize = slowLaneSize,
+                FastLaneSize = fastLaneSize,
                 FastLaneStrategy = AllocatorStrategy.Slab, // Deploy the new Slab architecture!
                 Threshold = 512, // Bins up to 512 bytes (perfect for game components/entities)
                 MaxFastLaneAgeFrames = 2400, // Let objects sit longer in hot bins
                 FastLaneLargeEntryThreshold = 512, // Keep the slots compact and matching our max bin size
                 EnableAutoCompaction = true,
                 PolicyCheckInterval = TimeSpan.FromMilliseconds(500),
-                SlowLaneFreeListStrategy =
-                    AllocationStrategy.BestFit // SlowLane catches larger spills via clean best-fit
+                SlowLaneFreeListStrategy = AllocationStrategy.BestFit // SlowLane catches larger spills via clean best-fit
             };
         }
 
@@ -336,10 +368,10 @@ namespace MemoryManager.Core
                 FastLaneSize = totalBudget,
                 SlowLaneSize = 1024, // Minimal 1 KB placeholder to avoid division-by-zero in usage metrics
                 Threshold = totalBudget, // Guarantees ALL allocations up to the full budget hit FastLane!
+                FastLaneLargeEntryThreshold = totalBudget,
                 FastLaneStrategy = AllocatorStrategy.LinearBump, // Pure O(1) bump speed
                 MaxFastLaneAgeFrames = 1, // Single-frame turnover
-                EnableAutoCompaction =
-                    false, // Disabled: O(1) bump reset on Free handles cleanup, avoiding mid-frame stalls
+                EnableAutoCompaction = false, // Disabled: O(1) bump reset on Free handles cleanup, avoiding mid-frame stalls
                 FastLaneUsageThreshold = 0.99,
                 SlowLaneUsageThreshold = 0.99
             };

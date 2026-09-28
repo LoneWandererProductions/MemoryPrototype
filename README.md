@@ -186,6 +186,28 @@ buffer.Add(20);
 // Zero-allocation reset between inner loop passes
 buffer.Clear();
 ```
+
+### 9. Deduplicating Structural Intern Pool `ArenaInternPool<T>`
+
+```csharp
+using MemoryManager.Types;
+
+// Zero-GC pool that inters duplicate struct data via Flyweight pattern and reference counting
+using var internPool = new ArenaInternPool<MaterialConfig>(arena, initialCapacity: 64);
+
+var matA = new MaterialConfig { Roughness = 0.5f, Metallic = 0.8f };
+var matB = new MaterialConfig { Roughness = 0.5f, Metallic = 0.8f };
+
+// Identical data entries return the exact same memory slot index
+int indexA = internPool.Add(matA);
+int indexB = internPool.Add(matB); // indexA == indexB, RefCount = 2!
+
+// Read-only reference access guarantees state safety across duplicate reference holders
+ref readonly var material = ref internPool.Get(indexA);
+
+// Decrements reference count; recycles the slot when count reaches 0
+internPool.Release(indexA);
+
 ---
 
 ## 📐 Allocation Strategies Comparison
