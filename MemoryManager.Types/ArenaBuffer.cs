@@ -11,6 +11,7 @@ using MemoryManager.Core;
 
 namespace MemoryManager.Types
 {
+    /// <inheritdoc />
     /// <summary>
     /// A fixed-capacity unmanaged buffer that allocates once from <see cref="IMemoryAllocator"/>
     /// and disallows dynamic growth, eliminating re-allocation overhead in inner loops.

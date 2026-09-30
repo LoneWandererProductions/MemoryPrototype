@@ -11,6 +11,7 @@ using MemoryManager.Core;
 
 namespace MemoryManager.Types
 {
+    /// <inheritdoc />
     /// <summary>
     /// A high-performance, zero-allocation bitset using 64-bit word chunks backed by an <see cref="IMemoryAllocator"/>.
     /// </summary>

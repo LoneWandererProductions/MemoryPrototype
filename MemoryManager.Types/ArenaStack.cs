@@ -11,6 +11,7 @@ using MemoryManager.Core;
 
 namespace MemoryManager.Types
 {
+    /// <inheritdoc />
     /// <summary>
     /// A high-performance, resizable LIFO stack for unmanaged types backed by an <see cref="IMemoryAllocator"/>.
     /// </summary>
@@ -145,7 +146,7 @@ namespace MemoryManager.Types
         /// <summary>
         /// Ases the span.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>Data as Span.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Span<T> AsSpan() => Count == 0 ? Span<T>.Empty : _arena.GetSpan<T>(_handle, _capacity).Slice(0, Count);
 

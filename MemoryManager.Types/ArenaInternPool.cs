@@ -12,6 +12,7 @@ using MemoryManager.Core;
 
 namespace MemoryManager.Types
 {
+    /// <inheritdoc />
     /// <summary>
     /// A zero-GC deduplicating object pool that inters identical unmanaged struct instances with reference counting backed by an <see cref="IMemoryAllocator"/>.
     /// </summary>
@@ -79,8 +80,13 @@ namespace MemoryManager.Types
         public int FreeCount => _freeCount;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ArenaInternPool{T}"/> class.
+        /// Initializes a new instance of the <see cref="ArenaInternPool{T}" /> class.
         /// </summary>
+        /// <param name="arena">The arena.</param>
+        /// <param name="initialCapacity">The initial capacity.</param>
+        /// <param name="priority">The priority.</param>
+        /// <param name="hints">The hints.</param>
+        /// <exception cref="System.ArgumentNullException">arena - Cannot instantiate {GetType().Name} without a valid allocator.</exception>
         public ArenaInternPool(IMemoryAllocator arena, int initialCapacity = 16,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
@@ -163,6 +169,9 @@ namespace MemoryManager.Types
         /// <summary>
         /// Gets a read-only reference to the value at the specified slot index.
         /// </summary>
+        /// <param name="index">The index.</param>
+        /// <returns>Get Data at index.</returns>
+        /// <exception cref="System.ArgumentOutOfRangeException">index</exception>
         public ref readonly T Get(int index)
         {
             if (index < 0 || index >= _capacity)
@@ -184,6 +193,11 @@ namespace MemoryManager.Types
             return refCounts[index];
         }
 
+        /// <summary>
+        /// Initializes the free indices.
+        /// </summary>
+        /// <param name="start">The start.</param>
+        /// <param name="end">The end.</param>
         private void InitializeFreeIndices(int start, int end)
         {
             var freeIndices = _arena.GetSpan<int>(_freeIndicesHandle, _capacity);
@@ -193,6 +207,9 @@ namespace MemoryManager.Types
             }
         }
 
+        /// <summary>
+        /// Grows this instance.
+        /// </summary>
         private void Grow()
         {
             var newCapacity = _capacity * 2;

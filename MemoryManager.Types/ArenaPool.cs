@@ -11,6 +11,7 @@ using MemoryManager.Core;
 
 namespace MemoryManager.Types
 {
+    /// <inheritdoc />
     /// <summary>
     /// A zero-GC object pool for recycling unmanaged struct instances using index tracking backed by an <see cref="IMemoryAllocator"/>.
     /// </summary>

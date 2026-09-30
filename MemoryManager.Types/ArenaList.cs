@@ -14,6 +14,7 @@ using System.Runtime.CompilerServices;
 
 namespace MemoryManager.Types
 {
+    /// <inheritdoc />
     /// <summary>
     /// A high-performance, resizable list for unmanaged types that allocates
     /// its internal buffer from an <see cref="IMemoryAllocator"/>.
