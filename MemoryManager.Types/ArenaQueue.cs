@@ -140,7 +140,7 @@ namespace MemoryManager.Types
         /// <summary>
         /// Evaluates the front-most item without popping it from the data lane buffer.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The item at the front of the queue.</returns>
         /// <exception cref="System.InvalidOperationException">The ArenaQueue is empty.</exception>
         public ref T Peek()
         {

@@ -106,7 +106,7 @@ namespace MemoryManager.Types
         /// Gets the specified index.
         /// </summary>
         /// <param name="index">The index.</param>
-        /// <returns></returns>
+        /// <returns>The item at the specified index.</returns>
         /// <exception cref="System.IndexOutOfRangeException">Index {index} is outside active boundaries.</exception>
         public ref T Get(int index)
         {
@@ -127,7 +127,7 @@ namespace MemoryManager.Types
         /// <summary>
         /// Converts the active portion of the internal buffer to a <see cref="Span{T}"/> for zero-allocation access.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>A span representing the active portion of the list.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Span<T> AsSpan()
         {

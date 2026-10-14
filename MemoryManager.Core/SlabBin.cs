@@ -73,7 +73,7 @@ namespace MemoryManager.Core
         /// <summary>
         /// Pops the slot offset.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>The offset of the popped slot.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PopSlotOffset() => _freeOffsets[--_top];
 

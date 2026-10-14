@@ -345,7 +345,7 @@ namespace MemoryManager.Lanes
         /// </summary>
         /// <param name="freeIds">The free ids.</param>
         /// <param name="nextHandleId">The next handle identifier.</param>
-        /// <returns></returns>
+        /// <returns>The next identifier.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int GetNextId(UnmanagedIntList freeIds, ref int nextHandleId)
         {

@@ -119,7 +119,7 @@ namespace MemoryManager
         /// </summary>
         /// <typeparam name="T">The unmanaged type to allocate and write.</typeparam>
         /// <param name="value">The value to store in allocated memory.</param>
-        /// <returns></returns>
+        /// <returns>A reference to the allocated and initialized value.</returns>
         public ref T AllocateAndGet<T>(in T value) where T : unmanaged
         {
             var handle = Allocate<T>();

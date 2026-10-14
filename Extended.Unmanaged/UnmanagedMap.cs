@@ -504,7 +504,7 @@ namespace Extended.Unmanaged
         /// <summary>
         /// Gets the enumerator.
         /// </summary>
-        /// <returns></returns>
+        /// <returns>An enumerator for the entries in the map.</returns>
         public EntryGenericEnumerator<TValue> GetEnumerator() => new(_entries, Capacity);
 
         /// <inheritdoc />
