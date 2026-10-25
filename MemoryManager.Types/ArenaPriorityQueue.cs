@@ -79,7 +79,8 @@ namespace MemoryManager.Types
         public ArenaPriorityQueue(IMemoryAllocator arena, int initialCapacity = 16,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena),
+                $"Cannot instantiate {GetType().Name} without a valid allocator.");
 
             if (initialCapacity <= 0) initialCapacity = 16;
 
@@ -87,7 +88,8 @@ namespace MemoryManager.Types
             _priority = priority;
             _hints = hints;
 
-            _nodesHandle = _arena.Allocate(Unsafe.SizeOf<ArenaPriorityQueueNode<TElement, TPriority>>() * _capacity, _priority, _hints);
+            _nodesHandle = _arena.Allocate(Unsafe.SizeOf<ArenaPriorityQueueNode<TElement, TPriority>>() * _capacity,
+                _priority, _hints);
         }
 
         /// <summary>
@@ -102,7 +104,8 @@ namespace MemoryManager.Types
             var nodes = _arena.GetSpan<ArenaPriorityQueueNode<TElement, TPriority>>(_nodesHandle, _capacity);
             int nodeIndex = _count++;
 
-            nodes[nodeIndex] = new ArenaPriorityQueueNode<TElement, TPriority> { Element = element, Priority = priority };
+            nodes[nodeIndex] = new ArenaPriorityQueueNode<TElement, TPriority>
+                { Element = element, Priority = priority };
             SiftUp(nodes, nodeIndex);
         }
 
@@ -123,7 +126,7 @@ namespace MemoryManager.Types
             if (lastIndex > 0)
             {
                 nodes[0] = nodes[lastIndex]; // Move last leaf to root position
-                SiftDown(nodes, 0);          // Restore min-heap ordering
+                SiftDown(nodes, 0); // Restore min-heap ordering
             }
 
             return rootElement;
@@ -206,7 +209,8 @@ namespace MemoryManager.Types
         private void Grow()
         {
             var newCapacity = _capacity * 2;
-            var newHandle = _arena.Allocate(Unsafe.SizeOf<ArenaPriorityQueueNode<TElement, TPriority>>() * newCapacity, _priority, _hints);
+            var newHandle = _arena.Allocate(Unsafe.SizeOf<ArenaPriorityQueueNode<TElement, TPriority>>() * newCapacity,
+                _priority, _hints);
 
             var oldNodes = _arena.GetSpan<ArenaPriorityQueueNode<TElement, TPriority>>(_nodesHandle, _capacity);
             var newNodes = _arena.GetSpan<ArenaPriorityQueueNode<TElement, TPriority>>(newHandle, newCapacity);

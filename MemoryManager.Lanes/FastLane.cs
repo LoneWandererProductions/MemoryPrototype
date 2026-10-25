@@ -708,8 +708,17 @@ namespace MemoryManager.Lanes
                 _entries = null;
             }
 
-            if (Buffer != IntPtr.Zero) { Marshal.FreeHGlobal(Buffer); Buffer = IntPtr.Zero; }
-            if (_versions != null) { NativeMemory.Free(_versions); _versions = null; }
+            if (Buffer != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(Buffer);
+                Buffer = IntPtr.Zero;
+            }
+
+            if (_versions != null)
+            {
+                NativeMemory.Free(_versions);
+                _versions = null;
+            }
         }
 
         /// <summary>

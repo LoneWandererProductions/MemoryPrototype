@@ -83,7 +83,8 @@ namespace MemoryManager.Types
         public ArenaSparseSet(IMemoryAllocator arena, int initialMaxEntityId = 512, int initialDenseCapacity = 64,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena),
+                $"Cannot instantiate {GetType().Name} without a valid allocator.");
 
             _sparseCapacity = initialMaxEntityId <= 0 ? 512 : initialMaxEntityId;
             _denseCapacity = initialDenseCapacity <= 0 ? 64 : initialDenseCapacity;

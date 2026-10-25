@@ -90,7 +90,8 @@ namespace MemoryManager.Types
         public ArenaInternPool(IMemoryAllocator arena, int initialCapacity = 16,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena),
+                $"Cannot instantiate {GetType().Name} without a valid allocator.");
 
             if (initialCapacity <= 0) initialCapacity = 16;
 

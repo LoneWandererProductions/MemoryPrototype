@@ -80,14 +80,16 @@ namespace MemoryManager.Types
         public ArenaMap(IMemoryAllocator arena, int initialCapacity = 16,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena),
+                $"Cannot instantiate {GetType().Name} without a valid allocator.");
 
             // Capacity must be a power of two for fast bitwise modulo operations (hash & (_capacity - 1))
             _capacity = GetNextPowerOfTwo(initialCapacity < 8 ? 8 : initialCapacity);
             _priority = priority;
             _hints = hints;
 
-            _entriesHandle = _arena.Allocate(Unsafe.SizeOf<ArenaMapEntry<TKey, TValue>>() * _capacity, _priority, _hints);
+            _entriesHandle =
+                _arena.Allocate(Unsafe.SizeOf<ArenaMapEntry<TKey, TValue>>() * _capacity, _priority, _hints);
             Clear();
         }
 
@@ -212,7 +214,8 @@ namespace MemoryManager.Types
             var oldEntries = _arena.GetSpan<ArenaMapEntry<TKey, TValue>>(_entriesHandle, oldCapacity);
 
             _capacity *= 2;
-            var newHandle = _arena.Allocate(Unsafe.SizeOf<ArenaMapEntry<TKey, TValue>>() * _capacity, _priority, _hints);
+            var newHandle =
+                _arena.Allocate(Unsafe.SizeOf<ArenaMapEntry<TKey, TValue>>() * _capacity, _priority, _hints);
             var newEntries = _arena.GetSpan<ArenaMapEntry<TKey, TValue>>(newHandle, _capacity);
             newEntries.Clear();
 

@@ -66,7 +66,8 @@ namespace MemoryManager.Types
         public ArenaBitSet(IMemoryAllocator? arena, int initialBitCapacity = 64,
             AllocationPriority priority = AllocationPriority.Normal, AllocationHints hints = AllocationHints.None)
         {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena),
+                $"Cannot instantiate {GetType().Name} without a valid allocator.");
 
             if (initialBitCapacity <= 0) initialBitCapacity = 64;
 

@@ -59,7 +59,8 @@ namespace MemoryManager.Types
             AllocationPriority priority = AllocationPriority.Critical,
             AllocationHints hints = AllocationHints.FrameCritical | AllocationHints.NoSpill)
         {
-            _arena = arena ?? throw new ArgumentNullException(nameof(arena), $"Cannot instantiate {GetType().Name} without a valid allocator.");
+            _arena = arena ?? throw new ArgumentNullException(nameof(arena),
+                $"Cannot instantiate {GetType().Name} without a valid allocator.");
 
             if (capacity <= 0)
                 throw new ArgumentOutOfRangeException(nameof(capacity), "Capacity must be > 0.");

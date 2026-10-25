@@ -349,7 +349,8 @@ namespace MemoryManager.Core
                 FastLaneLargeEntryThreshold = 512, // Keep the slots compact and matching our max bin size
                 EnableAutoCompaction = true,
                 PolicyCheckInterval = TimeSpan.FromMilliseconds(500),
-                SlowLaneFreeListStrategy = AllocationStrategy.BestFit // SlowLane catches larger spills via clean best-fit
+                SlowLaneFreeListStrategy =
+                    AllocationStrategy.BestFit // SlowLane catches larger spills via clean best-fit
             };
         }
 
@@ -371,7 +372,8 @@ namespace MemoryManager.Core
                 FastLaneLargeEntryThreshold = totalBudget,
                 FastLaneStrategy = AllocatorStrategy.LinearBump, // Pure O(1) bump speed
                 MaxFastLaneAgeFrames = 1, // Single-frame turnover
-                EnableAutoCompaction = false, // Disabled: O(1) bump reset on Free handles cleanup, avoiding mid-frame stalls
+                EnableAutoCompaction =
+                    false, // Disabled: O(1) bump reset on Free handles cleanup, avoiding mid-frame stalls
                 FastLaneUsageThreshold = 0.99,
                 SlowLaneUsageThreshold = 0.99
             };

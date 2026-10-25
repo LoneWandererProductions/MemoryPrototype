@@ -53,7 +53,7 @@ namespace MemoryManager.Tests
 
             // Payload IDs: 101 (Low), 102 (Critical), 103 (Medium)
             queue.Enqueue(101, 50); // Priority 50 (Low)
-            queue.Enqueue(102, 1);  // Priority 1  (Critical)
+            queue.Enqueue(102, 1); // Priority 1  (Critical)
             queue.Enqueue(103, 10); // Priority 10 (Medium)
 
             Assert.AreEqual(3, queue.Count);

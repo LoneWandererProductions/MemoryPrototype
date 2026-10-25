@@ -149,7 +149,7 @@ namespace MemoryManager.Tests
 
             // Payload Entity IDs with Priority (lower number = higher priority)
             queue.Enqueue(1001, 50); // Low priority
-            queue.Enqueue(2002, 1);  // Critical priority
+            queue.Enqueue(2002, 1); // Critical priority
             queue.Enqueue(3003, 10); // Medium priority
 
             Assert.AreEqual(2002, queue.Dequeue()); // Priority 1
@@ -222,7 +222,7 @@ namespace MemoryManager.Tests
             buffer.Add(10);
 
             Assert.AreEqual(2, buffer.Count);
-            
+
             // Fast reset between frames without deallocating unmanaged memory[cite: 3]
             buffer.Clear();
             Assert.AreEqual(0, buffer.Count);
