@@ -81,7 +81,7 @@ namespace MemoryManager.Tests
             Assert.IsFalse(set.Contains(20));
 
             // Verify the packed span now contains exactly the remaining 2 components without gaps
-            Span<int> span = set.AsSpan();
+            var span = set.AsSpan();
             Assert.AreEqual(2, span.Length);
             Assert.IsTrue(span.Contains(100));
             Assert.IsTrue(span.Contains(300));

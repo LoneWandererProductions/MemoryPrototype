@@ -44,7 +44,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// The slow lane
         /// </summary>
-        private readonly SlowLane _slowLane;
+        private readonly SlowLane? _slowLane;
 
         /// <summary>
         /// The entries
@@ -88,7 +88,7 @@ namespace MemoryManager.Lanes
         /// <param name="size">The size.</param>
         /// <param name="slowLane">The slow lane.</param>
         /// <param name="maxEntries">The maximum entries.</param>
-        public unsafe LinearLane(int size, SlowLane slowLane, int maxEntries = 1024)
+        public unsafe LinearLane(int size, SlowLane? slowLane, int maxEntries = 1024)
         {
             _slowLane = slowLane;
             Capacity = size;
@@ -314,8 +314,8 @@ namespace MemoryManager.Lanes
             Array.Sort(sortedEntries, 0, EntryCount, new OffsetComparer());
 
             // Find the physical block at the very end of the lane
-            int lastIndex = -1;
-            for (int i = EntryCount - 1; i >= 0; i--)
+            var lastIndex = -1;
+            for (var i = EntryCount - 1; i >= 0; i--)
             {
                 if (!sortedEntries[i].IsStub)
                 {
@@ -330,14 +330,14 @@ namespace MemoryManager.Lanes
             var lastPhysicalSize = MemoryCanary.GetPhysicalSize(lastEntry.Size);
 
             // Scan left-to-right for the first gap that can fit this last block
-            int currentOffset = 0;
-            for (int i = 0; i < lastIndex; i++)
+            var currentOffset = 0;
+            for (var i = 0; i < lastIndex; i++)
             {
                 var entry = sortedEntries[i];
                 if (entry.IsStub) continue;
 
                 var entryPhysicalOffset = MemoryCanary.GetPhysicalOffset(entry.Offset);
-                int gapSize = entryPhysicalOffset - currentOffset;
+                var gapSize = entryPhysicalOffset - currentOffset;
 
                 if (gapSize >= lastPhysicalSize)
                 {
@@ -352,12 +352,13 @@ namespace MemoryManager.Lanes
                     _entries[originalIndex] = lastEntry;
 
                     // Recalculate _nextFreeOffset from scratch to ensure absolute safety
-                    int newLastEnd = 0;
-                    for (int j = 0; j < EntryCount; j++)
+                    var newLastEnd = 0;
+                    for (var j = 0; j < EntryCount; j++)
                     {
                         var e = _entries[j];
                         if (e.IsStub) continue;
-                        int end = MemoryCanary.GetPhysicalOffset(e.Offset) + MemoryCanary.GetPhysicalSize(e.Size);
+
+                        var end = MemoryCanary.GetPhysicalOffset(e.Offset) + MemoryCanary.GetPhysicalSize(e.Size);
                         if (end > newLastEnd) newLastEnd = end;
                     }
 
@@ -542,6 +543,7 @@ namespace MemoryManager.Lanes
         private unsafe void Dispose(bool disposing)
         {
             if (_disposed) return;
+
             _disposed = true;
 
             if (disposing)

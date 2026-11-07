@@ -41,7 +41,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// The slow lane
         /// </summary>
-        private readonly SlowLane _slowLane;
+        private readonly SlowLane? _slowLane;
 
         /// <summary>
         /// The entries
@@ -83,7 +83,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         /// Initializes a new instance of the <see cref="SlabLane"/> class.
         /// </summary>
-        public unsafe SlabLane(int size, SlowLane slowLane, int maxEntries = 1024, MemoryManagerConfig? config = null)
+        public unsafe SlabLane(int size, SlowLane? slowLane, int maxEntries = 1024, MemoryManagerConfig? config = null)
         {
             _slowLane = slowLane;
             Capacity = size;
@@ -264,7 +264,7 @@ namespace MemoryManager.Lanes
         {
             if (_entries == null || EntryCount == 0) return;
 
-            // Slabs never suffer from physical external gaps. 
+            // Slabs never suffer from physical external gaps.
             // Maintenance sweeps only evaluate aging evictions to free up tight buckets.
             for (var i = EntryCount - 1; i >= 0; i--)
             {
@@ -454,6 +454,7 @@ namespace MemoryManager.Lanes
         private unsafe void Dispose(bool disposing)
         {
             if (_disposed) return;
+
             _disposed = true;
 
             if (disposing)

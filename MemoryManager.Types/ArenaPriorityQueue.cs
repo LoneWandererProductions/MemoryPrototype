@@ -102,7 +102,7 @@ namespace MemoryManager.Types
             if (_count == _capacity) Grow();
 
             var nodes = _arena.GetSpan<ArenaPriorityQueueNode<TElement, TPriority>>(_nodesHandle, _capacity);
-            int nodeIndex = _count++;
+            var nodeIndex = _count++;
 
             nodes[nodeIndex] = new ArenaPriorityQueueNode<TElement, TPriority>
                 { Element = element, Priority = priority };
@@ -120,9 +120,9 @@ namespace MemoryManager.Types
                 throw new InvalidOperationException("The Priority Queue is empty.");
 
             var nodes = _arena.GetSpan<ArenaPriorityQueueNode<TElement, TPriority>>(_nodesHandle, _capacity);
-            TElement rootElement = nodes[0].Element;
+            var rootElement = nodes[0].Element;
 
-            int lastIndex = --_count;
+            var lastIndex = --_count;
             if (lastIndex > 0)
             {
                 nodes[0] = nodes[lastIndex]; // Move last leaf to root position
@@ -162,7 +162,7 @@ namespace MemoryManager.Types
         {
             while (index > 0)
             {
-                int parentIndex = (index - 1) >> 1;
+                var parentIndex = (index - 1) >> 1;
 
                 // If current priority >= parent priority, min-heap property holds
                 if (nodes[index].Priority.CompareTo(nodes[parentIndex].Priority) >= 0)
@@ -181,13 +181,13 @@ namespace MemoryManager.Types
         /// <param name="index">The index.</param>
         private void SiftDown(Span<ArenaPriorityQueueNode<TElement, TPriority>> nodes, int index)
         {
-            int half = _count >> 1;
+            var half = _count >> 1;
 
             while (index < half)
             {
-                int leftChild = (index << 1) + 1;
-                int rightChild = leftChild + 1;
-                int smallestChild = leftChild;
+                var leftChild = (index << 1) + 1;
+                var rightChild = leftChild + 1;
+                var smallestChild = leftChild;
 
                 if (rightChild < _count && nodes[rightChild].Priority.CompareTo(nodes[leftChild].Priority) < 0)
                 {

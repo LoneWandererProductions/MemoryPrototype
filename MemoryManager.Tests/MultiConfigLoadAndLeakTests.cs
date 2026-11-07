@@ -32,7 +32,7 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
-        /// Asserts that retained managed memory after arena disposal remains within 
+        /// Asserts that retained managed memory after arena disposal remains within
         /// normal .NET runtime GC segment retention bounds (< 250 MB for multi-million object churn).
         /// </summary>
         private void AssertZeroMemoryLeak(long initialMemory, string testName)

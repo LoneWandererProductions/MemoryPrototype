@@ -8,7 +8,7 @@
 
 namespace MemoryManager.Core
 {
-    /// <inheritdoc />
+    /// <inheritdoc cref="IMemoryLane" />
     /// <summary>
     /// A Linear/Bump allocator designed for large or unpredictable blobs of memory.
     /// Allocations are extremely fast, leveraging a dense flat array for metadata tracking.
@@ -446,6 +446,7 @@ namespace MemoryManager.Core
         private void Dispose(bool disposing)
         {
             if (_disposed) return;
+
             _disposed = true;
 
             if (disposing)

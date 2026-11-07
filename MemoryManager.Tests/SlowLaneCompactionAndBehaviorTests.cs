@@ -18,7 +18,7 @@ namespace MemoryManager.Tests
         private const int OneMb = 1024 * 1024;
 
         /// <summary>
-        /// Verifies that Full Compaction slides surviving memory blocks in-place, 
+        /// Verifies that Full Compaction slides surviving memory blocks in-place,
         /// eliminates fragmentation completely, and preserves exact byte data markers.
         /// </summary>
         [TestMethod]
@@ -62,7 +62,7 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
-        /// Verifies that GoodEnough Compaction stops shifting blocks the moment 
+        /// Verifies that GoodEnough Compaction stops shifting blocks the moment
         /// a contiguous gap large enough for the requested size is created.
         /// </summary>
         [TestMethod]
@@ -104,7 +104,7 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
-        /// Tests the auto-healing mechanism inside Allocate: when an allocation fails due to 
+        /// Tests the auto-healing mechanism inside Allocate: when an allocation fails due to
         /// heavy fragmentation, SlowLane should automatically trigger compaction and succeed.
         /// </summary>
         [TestMethod]
@@ -136,7 +136,7 @@ namespace MemoryManager.Tests
             lane.Free(handles[0]);
             lane.Free(handles[2]);
 
-            // Now attempt to allocate a large 28 KB block. 
+            // Now attempt to allocate a large 28 KB block.
             // Neither freed 16KB hole alone can fit 28KB, but combined (32KB total free) they can!
             var largeRequestedSize = 28 * 1024;
 
@@ -150,7 +150,7 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
-        /// Ensures that compacting an empty lane or a lane with a single allocation 
+        /// Ensures that compacting an empty lane or a lane with a single allocation
         /// executes safely without throwing exceptions or corrupting pointers.
         /// </summary>
         [TestMethod]
@@ -176,7 +176,7 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
-        /// Verifies that batch-releasing via FreeMany followed by compaction 
+        /// Verifies that batch-releasing via FreeMany followed by compaction
         /// correctly cleans up memory and updates array trackers cleanly.
         /// </summary>
         [TestMethod]
@@ -217,7 +217,7 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
-        /// Verifies that small allocations ($\le 256$ bytes) managed by BlobManager 
+        /// Verifies that small allocations ($\le 256$ bytes) managed by BlobManager
         /// remain completely unaffected during SlowLane main-buffer compactions.
         /// </summary>
         [TestMethod]

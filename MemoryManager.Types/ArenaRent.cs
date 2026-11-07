@@ -11,9 +11,8 @@ using MemoryManager.Core;
 
 namespace MemoryManager.Types
 {
-    /// <inheritdoc />
     /// <summary>
-    /// A stack-scoped RAII wrapper for renting a temporary <see cref="Span{T}"/> 
+    /// A stack-scoped RAII wrapper for renting a temporary <see cref="Span{T}"/>
     /// from an <see cref="IMemoryAllocator"/> and returning it automatically upon disposal.
     /// </summary>
     /// <typeparam name="T">The unmanaged element type.</typeparam>

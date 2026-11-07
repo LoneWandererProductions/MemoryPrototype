@@ -127,7 +127,7 @@ namespace MemoryManager.Types
             var denseSpan = _arena.GetSpan<int>(_denseHandle, _denseCapacity);
             var valuesSpan = _arena.GetSpan<T>(_valuesHandle, _denseCapacity);
 
-            int denseIndex = _count++;
+            var denseIndex = _count++;
             sparseSpan[entityId] = denseIndex;
             denseSpan[denseIndex] = entityId;
             valuesSpan[denseIndex] = component;
@@ -146,7 +146,7 @@ namespace MemoryManager.Types
             if (entityId < 0 || entityId >= _sparseCapacity) return false;
 
             var sparse = _arena.GetSpan<int>(_sparseHandle, _sparseCapacity);
-            int denseIndex = sparse[entityId];
+            var denseIndex = sparse[entityId];
 
             if (denseIndex < 0 || denseIndex >= _count) return false;
 
@@ -167,9 +167,9 @@ namespace MemoryManager.Types
             var dense = _arena.GetSpan<int>(_denseHandle, _denseCapacity);
             var values = _arena.GetSpan<T>(_valuesHandle, _denseCapacity);
 
-            int removedDenseIndex = sparse[entityId];
-            int lastDenseIndex = --_count;
-            int lastEntityId = dense[lastDenseIndex];
+            var removedDenseIndex = sparse[entityId];
+            var lastDenseIndex = --_count;
+            var lastEntityId = dense[lastDenseIndex];
 
             // Swap-Back Technique: Move the last dense element into the deleted slot to preserve tight packing
             dense[removedDenseIndex] = lastEntityId;
@@ -213,7 +213,7 @@ namespace MemoryManager.Types
         {
             if (requiredCapacity <= _sparseCapacity) return;
 
-            int newCapacity = Math.Max(_sparseCapacity * 2, requiredCapacity);
+            var newCapacity = Math.Max(_sparseCapacity * 2, requiredCapacity);
             var newHandle = _arena.Allocate(sizeof(int) * newCapacity, _priority, _hints);
 
             var oldSpan = _arena.GetSpan<int>(_sparseHandle, _sparseCapacity);
@@ -235,7 +235,7 @@ namespace MemoryManager.Types
         {
             if (requiredCapacity <= _denseCapacity) return;
 
-            int newCapacity = _denseCapacity * 2;
+            var newCapacity = _denseCapacity * 2;
             var newDenseHandle = _arena.Allocate(sizeof(int) * newCapacity, _priority, _hints);
             var newValuesHandle = _arena.Allocate(Unsafe.SizeOf<T>() * newCapacity, _priority, _hints);
 

@@ -38,7 +38,7 @@ namespace MemoryManager.Lanes
         /// or
         /// slowLane
         /// </exception>
-        public OneWayLane(IFastLane? fastLane, IMemoryLane slowLane)
+        public OneWayLane(IFastLane? fastLane, IMemoryLane? slowLane)
         {
             _fastLane = fastLane ?? throw new ArgumentNullException(nameof(fastLane));
             _slowLane = slowLane ?? throw new ArgumentNullException(nameof(slowLane));

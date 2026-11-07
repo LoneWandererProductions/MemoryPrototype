@@ -47,7 +47,7 @@ namespace MemoryManager.Tests
                 // Free immediately
                 lane.Free(handle);
 
-                // CRITICAL REGRESSION ASSERTION: 
+                // CRITICAL REGRESSION ASSERTION:
                 // Once freed, EntryCount is 0, so free space must return to 100% full capacity (1024 bytes).
                 Assert.AreEqual(0, lane.EntryCount);
                 Assert.AreEqual(1024, lane.FreeSpace(),

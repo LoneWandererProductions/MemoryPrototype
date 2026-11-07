@@ -133,10 +133,7 @@ namespace Extended.Unmanaged
         /// <value>
         ///     The values.
         /// </value>
-        public IEnumerable<TValue> Values
-        {
-            get { return GetValuesSnapshot(); }
-        }
+        public IEnumerable<TValue> Values => GetValuesSnapshot();
 
         /// <summary>
         /// Gets the values snapshot.

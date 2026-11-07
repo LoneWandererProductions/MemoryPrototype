@@ -51,7 +51,7 @@ namespace MemoryManager
         /// <summary>
         /// Gets the active slow lane engine instance.
         /// </summary>
-        public SlowLane SlowLane { get; set; }
+        public SlowLane? SlowLane { get; set; }
 
         /// <summary>
         /// Gets the block size threshold separating lanes.

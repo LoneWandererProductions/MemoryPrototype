@@ -81,7 +81,7 @@ namespace MemoryManager.Tests
             const int count = 50000;
             const int size = 32; // 32-byte structs (e.g., matrices, vectors)
 
-            // Calculate capacity using the true aligned physical size, 
+            // Calculate capacity using the true aligned physical size,
             // and add a small 4KB cushion padding to accommodate non-reclaiming warmup bumps
             var physicalSize = MemoryCanary.GetPhysicalSize(size);
             var capacity = (count * physicalSize) + 4096;

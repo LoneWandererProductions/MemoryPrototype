@@ -20,7 +20,7 @@ using System.Threading;
 namespace MemoryManager
 {
     /// <summary>
-    /// A thread-safe, highly concurrent memory arena. 
+    /// A thread-safe, highly concurrent memory arena.
     /// Provisions lock-free, independent fast lanes for every individual worker thread.
     /// </summary>
     public sealed class ConcurrentMemoryArena : IMemoryAllocator
@@ -33,7 +33,7 @@ namespace MemoryManager
         /// <summary>
         /// The global slow lane
         /// </summary>
-        private readonly SlowLane _globalSlowLane;
+        private readonly SlowLane? _globalSlowLane;
 
         /// <summary>
         /// The global lock
@@ -103,7 +103,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Allocates memory from the calling thread's isolated fast lane (lock-free) 
+        /// Allocates memory from the calling thread's isolated fast lane (lock-free)
         /// or routes to the shared slow lane.
         /// </summary>
         public MemoryHandle Allocate(int size, AllocationPriority priority = AllocationPriority.Normal,
@@ -196,7 +196,7 @@ namespace MemoryManager
             }
             else
             {
-                // Chaos Path: A foreign thread is deleting our memory. 
+                // Chaos Path: A foreign thread is deleting our memory.
                 // Hand it off via lock-free concurrent staging array to avoid racing internal indices.
                 _remoteFreeQueue.Enqueue(handle);
             }

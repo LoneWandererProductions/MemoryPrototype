@@ -60,8 +60,8 @@ namespace MemoryManager.Tests
         {
             using var pool = new ArenaInternPool<int>(_arena!, initialCapacity: 8);
 
-            int idx1 = pool.Add(42);
-            int idx2 = pool.Add(84);
+            var idx1 = pool.Add(42);
+            var idx2 = pool.Add(84);
 
             Assert.AreNotEqual(idx1, idx2);
             Assert.AreEqual(42, pool.Get(idx1));
@@ -80,8 +80,8 @@ namespace MemoryManager.Tests
         {
             using var pool = new ArenaInternPool<int>(_arena!, initialCapacity: 8);
 
-            int idx1 = pool.Add(42);
-            int idx2 = pool.Add(42);
+            var idx1 = pool.Add(42);
+            var idx2 = pool.Add(42);
 
             Assert.AreEqual(idx1, idx2);
             Assert.AreEqual(2, pool.GetRefCount(idx1));
@@ -97,7 +97,7 @@ namespace MemoryManager.Tests
         {
             using var pool = new ArenaInternPool<int>(_arena!, initialCapacity: 4);
 
-            int idx1 = pool.Add(100);
+            var idx1 = pool.Add(100);
             pool.Add(100); // RefCount = 2
 
             Assert.IsTrue(pool.Release(idx1));
@@ -109,7 +109,7 @@ namespace MemoryManager.Tests
             Assert.AreEqual(0, pool.UniqueCount);
 
             // Re-adding 100 should recycle a slot now that it was fully released
-            int idx3 = pool.Add(100);
+            var idx3 = pool.Add(100);
             Assert.AreEqual(idx1, idx3);
             Assert.AreEqual(1, pool.GetRefCount(idx3));
         }
@@ -123,11 +123,11 @@ namespace MemoryManager.Tests
         {
             using var pool = new ArenaInternPool<int>(_arena!, initialCapacity: 2);
 
-            int idx0 = pool.Add(10);
-            int idx1 = pool.Add(20);
+            var idx0 = pool.Add(10);
+            var idx1 = pool.Add(20);
             pool.Add(10); // RefCount for 10 = 2
 
-            int idx2 = pool.Add(30); // Triggers growth
+            var idx2 = pool.Add(30); // Triggers growth
 
             Assert.IsTrue(pool.Capacity >= 3);
             Assert.AreEqual(3, pool.UniqueCount);
@@ -150,10 +150,10 @@ namespace MemoryManager.Tests
         {
             using var pool = new ArenaInternPool<int>(_arena!, initialCapacity: 4);
 
-            int idx = pool.Add(50);
+            var idx = pool.Add(50);
             pool.Release(idx);
 
-            bool releasedAgain = pool.Release(idx);
+            var releasedAgain = pool.Release(idx);
             Assert.IsFalse(releasedAgain);
         }
     }

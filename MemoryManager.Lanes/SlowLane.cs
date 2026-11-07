@@ -55,7 +55,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         ///      The allocated entries
         /// </summary>
-        private AllocationEntry[] _entries;
+        private AllocationEntry[]? _entries;
 
         /// <summary>
         ///      The next handle identifier
@@ -786,6 +786,7 @@ namespace MemoryManager.Lanes
         private unsafe void Dispose(bool disposing)
         {
             if (_disposed) return;
+
             _disposed = true;
 
             if (disposing)

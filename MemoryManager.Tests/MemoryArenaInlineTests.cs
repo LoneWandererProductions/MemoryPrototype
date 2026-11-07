@@ -310,7 +310,7 @@ namespace MemoryManager.Tests
             // Resolve the raw byte pointer to our user data space
             var userDataPtr = (byte*)arena.Resolve(handle);
 
-            // 1. INTENTIONAL CORRUPTION: 
+            // 1. INTENTIONAL CORRUPTION:
             // The post-canary sits exactly at (userDataPtr + entry.Size)
             var postCanaryPtr = (uint*)(userDataPtr + entry.Size);
 

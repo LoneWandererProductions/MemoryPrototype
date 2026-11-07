@@ -100,6 +100,7 @@ namespace MemoryManager.Types
         public void Unset(int index)
         {
             if (index >= _bitCapacity) return;
+
             var span = _arena.GetSpan<ulong>(_handle, _ulongCapacity);
             span[index >> 6] &= ~(1UL << (index & 63));
         }
@@ -113,6 +114,7 @@ namespace MemoryManager.Types
         public bool Get(int index)
         {
             if (index >= _bitCapacity) return false;
+
             var span = _arena.GetSpan<ulong>(_handle, _ulongCapacity);
             return (span[index >> 6] & (1UL << (index & 63))) != 0;
         }
@@ -142,8 +144,8 @@ namespace MemoryManager.Types
         {
             if (requiredBits <= _bitCapacity) return;
 
-            int newBitCapacity = Math.Max(_bitCapacity * 2, requiredBits);
-            int newUlongCapacity = (newBitCapacity + 63) / 64;
+            var newBitCapacity = Math.Max(_bitCapacity * 2, requiredBits);
+            var newUlongCapacity = (newBitCapacity + 63) / 64;
             var newHandle = _arena.Allocate(sizeof(ulong) * newUlongCapacity, _priority, _hints);
 
             var oldSpan = _arena.GetSpan<ulong>(_handle, _ulongCapacity);
@@ -162,6 +164,7 @@ namespace MemoryManager.Types
         public void Dispose()
         {
             if (_handle.IsInvalid) return;
+
             _arena?.Free(_handle);
             _handle = default;
         }

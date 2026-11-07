@@ -216,7 +216,7 @@ namespace MemoryManager.Lanes
         /// <returns>
         /// Generic debug Dump
         /// </returns>
-        internal static string DebugDump(AllocationEntry[] entries, int entryCount)
+        internal static string DebugDump(AllocationEntry[]? entries, int entryCount)
         {
             var sb = new StringBuilder(entryCount * 48);
             for (var i = 0; i < entryCount; i++)
@@ -362,7 +362,7 @@ namespace MemoryManager.Lanes
         /// <param name="entryCount">The entry count.</param>
         /// <param name="debugNames">The debug names.</param>
         /// <returns>Debug string representing the redirections.</returns>
-        internal static string DebugRedirections(AllocationEntry[] entries, int entryCount,
+        internal static string DebugRedirections(AllocationEntry[]? entries, int entryCount,
             IReadOnlyDictionary<int, string>? debugNames = null)
         {
             var sb = new StringBuilder(entryCount * 64);
@@ -444,7 +444,7 @@ namespace MemoryManager.Lanes
         /// <exception cref="InvalidOperationException">$"{lane}: Invalid handle</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static AllocationEntry GetEntry(MemoryHandle handle, UnmanagedMap<int> handleIndex,
-            AllocationEntry[] entries, string lane)
+            AllocationEntry[]? entries, string lane)
         {
             if (entries == null)
                 throw new ArgumentException($"{lane}: Invalid handle");
@@ -467,7 +467,7 @@ namespace MemoryManager.Lanes
         /// <exception cref="InvalidOperationException">$"{lane}: Invalid handle</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int GetAllocationSize(MemoryHandle handle, UnmanagedMap<int> handleIndex,
-            AllocationEntry[] entries, string lane)
+            AllocationEntry[]? entries, string lane)
         {
             if (entries == null)
                 throw new ArgumentException($"{lane}: Invalid handle");
@@ -485,7 +485,7 @@ namespace MemoryManager.Lanes
         /// <param name="requiredSlotIndex">Index of the required slot.</param>
         /// <returns>The new size of the entries array.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int EnsureEntryCapacity(ref AllocationEntry[] entries, int requiredSlotIndex)
+        internal static int EnsureEntryCapacity(ref AllocationEntry[]? entries, int requiredSlotIndex)
         {
             if (requiredSlotIndex < entries.Length)
                 return entries.Length;

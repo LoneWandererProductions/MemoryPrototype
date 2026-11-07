@@ -76,7 +76,7 @@ namespace MemoryManager.Tests
             queue.Enqueue(100, 1.5f);
             queue.Enqueue(200, 0.2f);
 
-            ref int topElement = ref queue.Peek(out float priority);
+            ref var topElement = ref queue.Peek(out var priority);
 
             Assert.AreEqual(200, topElement);
             Assert.AreEqual(0.2f, priority);

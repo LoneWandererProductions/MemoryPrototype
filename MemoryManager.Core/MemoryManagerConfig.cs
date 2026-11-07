@@ -247,8 +247,8 @@ namespace MemoryManager.Core
         /// <returns>MemoryManagerConfig instance configured for real-time game loops.</returns>
         public static MemoryManagerConfig CreateForGameLoop(int totalBudget = 16 * 1024 * 1024)
         {
-            int fastLaneSize = (int)(totalBudget * 0.25);
-            int slowLaneSize = (int)(totalBudget * 0.75);
+            var fastLaneSize = (int)(totalBudget * 0.25);
+            var slowLaneSize = (int)(totalBudget * 0.75);
 
             return new MemoryManagerConfig
             {
@@ -276,8 +276,8 @@ namespace MemoryManager.Core
         /// <returns>MemoryManagerConfig instance configured for bulk processing.</returns>
         public static MemoryManagerConfig CreateForBulkProcessing(int totalBudget = 64 * 1024 * 1024)
         {
-            int fastLaneSize = (int)(totalBudget * 0.15);
-            int slowLaneSize = (int)(totalBudget * 0.85);
+            var fastLaneSize = (int)(totalBudget * 0.15);
+            var slowLaneSize = (int)(totalBudget * 0.85);
 
             return new MemoryManagerConfig
             {
@@ -305,8 +305,8 @@ namespace MemoryManager.Core
         /// <returns>MemoryManagerConfig instance configured for low memory scenarios.</returns>
         public static MemoryManagerConfig CreateForLowMemory()
         {
-            int fastLaneSize = 256 * 1024; // 256 KB
-            int slowLaneSize = 1024 * 1024; // 1 MB
+            var fastLaneSize = 256 * 1024; // 256 KB
+            var slowLaneSize = 1024 * 1024; // 1 MB
 
             return new MemoryManagerConfig
             {
@@ -336,8 +336,8 @@ namespace MemoryManager.Core
         /// <returns>MemoryManagerConfig instance configured for object pooling.</returns>
         public static MemoryManagerConfig CreateForObjectPooling(int totalBudget = 32 * 1024 * 1024)
         {
-            int fastLaneSize = (int)(totalBudget * 0.30);
-            int slowLaneSize = (int)(totalBudget * 0.70);
+            var fastLaneSize = (int)(totalBudget * 0.30);
+            var slowLaneSize = (int)(totalBudget * 0.70);
 
             return new MemoryManagerConfig
             {
@@ -355,9 +355,9 @@ namespace MemoryManager.Core
         }
 
         /// <summary>
-        /// Creates a configuration tuned exclusively for transient, per-frame scratchpads 
+        /// Creates a configuration tuned exclusively for transient, per-frame scratchpads
         /// (e.g., inner-loop math, light solvers, soft-rasterizers, or temporary render commands).
-        /// Allocates 100% of the budget directly to the ultra-fast Bump FastLane and sets 
+        /// Allocates 100% of the budget directly to the ultra-fast Bump FastLane and sets
         /// the routing threshold so allocations never attempt to fall back to SlowLane.
         /// </summary>
         /// <param name="totalBudget">The total scratchpad budget in bytes (default 8 MB).</param>

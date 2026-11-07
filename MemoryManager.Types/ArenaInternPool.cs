@@ -115,7 +115,7 @@ namespace MemoryManager.Types
         /// <returns>The slot index containing the pooled instance.</returns>
         public int Add(in T item)
         {
-            if (_lookup.TryGetValue(item, out int existingIndex))
+            if (_lookup.TryGetValue(item, out var existingIndex))
             {
                 var refCounts = _arena.GetSpan<int>(_refCountsHandle, _capacity);
                 refCounts[existingIndex]++;
@@ -125,7 +125,7 @@ namespace MemoryManager.Types
             if (_freeCount == 0) Grow();
 
             var freeIndices = _arena.GetSpan<int>(_freeIndicesHandle, _capacity);
-            int index = freeIndices[--_freeCount];
+            var index = freeIndices[--_freeCount];
 
             var dataSpan = _arena.GetSpan<T>(_dataHandle, _capacity);
             dataSpan[index] = item;
@@ -155,7 +155,7 @@ namespace MemoryManager.Types
             if (refCounts[index] == 0)
             {
                 var dataSpan = _arena.GetSpan<T>(_dataHandle, _capacity);
-                T value = dataSpan[index];
+                var value = dataSpan[index];
 
                 _lookup.Remove(value);
                 dataSpan[index] = default;
@@ -202,7 +202,7 @@ namespace MemoryManager.Types
         private void InitializeFreeIndices(int start, int end)
         {
             var freeIndices = _arena.GetSpan<int>(_freeIndicesHandle, _capacity);
-            for (int i = start; i < end; i++)
+            for (var i = start; i < end; i++)
             {
                 freeIndices[_freeCount++] = i;
             }

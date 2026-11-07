@@ -24,7 +24,7 @@ namespace MemoryManager.Tests
         private const int ScratchBudgetBytes = 8 * 1024 * 1024; // 8 MB full scratchpad budget
 
         /// <summary>
-        /// Verifies that large allocations (up to full budget) hit FastLane directly 
+        /// Verifies that large allocations (up to full budget) hit FastLane directly
         /// and never touch SlowLane (0 entries in SlowLane).
         /// </summary>
         [TestMethod]
@@ -55,7 +55,7 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
-        /// Confirms that using AllocationHints.NoSpill with CreateForFrameScratch succeeds 
+        /// Confirms that using AllocationHints.NoSpill with CreateForFrameScratch succeeds
         /// without throwing an OutOfMemoryException.
         /// </summary>
         [TestMethod]
@@ -74,7 +74,7 @@ namespace MemoryManager.Tests
         }
 
         /// <summary>
-        /// Simulates 100,000 real-time game frames continuously renting and disposing 
+        /// Simulates 100,000 real-time game frames continuously renting and disposing
         /// transient scratch memory using CreateForFrameScratch.
         /// Proves zero OutOfMemoryException crashes and zero native memory leaks.
         /// </summary>

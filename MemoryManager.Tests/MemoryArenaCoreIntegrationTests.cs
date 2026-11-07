@@ -61,7 +61,7 @@ namespace MemoryManager.Tests
         public void Allocate_SizeSpansEntireFastLane_FallbackRoutesToSlowLane()
         {
             var arena = new MemoryArena(_config);
-            // Request size safely underneath the threshold boundary routing rule, 
+            // Request size safely underneath the threshold boundary routing rule,
             // but configure it to request more space than the entire FastLane block contains.
             var tightConfig = new MemoryManagerConfig
             {
@@ -174,7 +174,7 @@ namespace MemoryManager.Tests
             Assert.AreEqual(baselineStruct.Velocity, migratedStruct.Velocity,
                 "Floating point alignment errors inside structure allocation layout shifts.");
 
-            // 4. Assert the old SlowLane handles are cleanly destroyed 
+            // 4. Assert the old SlowLane handles are cleanly destroyed
             Assert.ThrowsException<InvalidOperationException>(() => { arena.Resolve(slowHandle); },
                 "Resolving the old slow lane index handle after execution transfers must trigger invalid token failures.");
         }
@@ -275,7 +275,7 @@ namespace MemoryManager.Tests
             var arena = new MemoryArena(_config);
             var trueHandle = arena.Store(999);
 
-            // Construct a fake handle targeting the exact same ID slot tracking address, 
+            // Construct a fake handle targeting the exact same ID slot tracking address,
             // but inject a spoofed generational token sequence signature.
             var forgedHandle = new MemoryHandle(trueHandle.Id, trueHandle.Version + 5, arena.FastLane);
 

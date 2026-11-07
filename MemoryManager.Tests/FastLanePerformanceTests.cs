@@ -99,7 +99,7 @@ namespace MemoryManager.Tests
             for (var i = 0; i < count; i++)
                 handles[i] = fastLane.Allocate(size);
 
-            // Fragmentierung erzeugen
+            // Generate fragmentation by freeing every 4th allocation
             for (var i = 0; i < count; i += 4)
                 fastLane.Free(handles[i]);
 

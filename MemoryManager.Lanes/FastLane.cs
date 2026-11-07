@@ -45,7 +45,7 @@ namespace MemoryManager.Lanes
         /// <summary>
         ///     The slow lane
         /// </summary>
-        private readonly SlowLane _slowLane;
+        private readonly SlowLane? _slowLane;
 
         /// <summary>
         ///     The entries
@@ -94,7 +94,7 @@ namespace MemoryManager.Lanes
         /// <param name="slowLane">The slow lane.</param>
         /// <param name="maxEntries">The maximum entries.</param>
         /// <param name="fastLaneFreeListStrategy">The fast lane free list strategy.</param>
-        public unsafe FastLane(int size, SlowLane slowLane, int maxEntries = 1024,
+        public unsafe FastLane(int size, SlowLane? slowLane, int maxEntries = 1024,
             AllocationStrategy fastLaneFreeListStrategy = default)
         {
             _slowLane = slowLane;
@@ -700,6 +700,7 @@ namespace MemoryManager.Lanes
         private unsafe void Dispose(bool disposing)
         {
             if (_disposed) return;
+
             _disposed = true;
 
             if (disposing)

@@ -49,7 +49,7 @@ namespace MemoryManager.Tests
             using var arena = new MemoryArena(MemoryManagerConfig.CreateForBulkProcessing(2 * 1024 * 1024));
             using var list = new ArenaList<int>(arena, initialCapacity: 4);
 
-            for (int i = 1; i <= 10; i++)
+            for (var i = 1; i <= 10; i++)
             {
                 list.Add(i * 10);
             }
@@ -72,7 +72,7 @@ namespace MemoryManager.Tests
             queue.Enqueue(new Vector3 { X = 1, Y = 0, Z = 0 });
             queue.Enqueue(new Vector3 { X = 0, Y = 1, Z = 0 });
 
-            Vector3 first = queue.Dequeue();
+            var first = queue.Dequeue();
             Assert.AreEqual(1.0f, first.X);
             Assert.AreEqual(1, queue.Count);
         }
@@ -108,7 +108,7 @@ namespace MemoryManager.Tests
             map.AddOrUpdate(42, 3.14159f);
             map.AddOrUpdate(100, 2.71828f);
 
-            Assert.IsTrue(map.TryGetValue(42, out float val));
+            Assert.IsTrue(map.TryGetValue(42, out var val));
             Assert.AreEqual(3.14159f, val);
 
             map.Remove(42);
@@ -133,7 +133,7 @@ namespace MemoryManager.Tests
             Assert.AreEqual(2, set.Count);
 
             // Contiguous slice for zero-GC iteration
-            Span<Vector3> activeComponents = set.AsSpan();
+            var activeComponents = set.AsSpan();
             Assert.AreEqual(2, activeComponents.Length);
         }
 
@@ -170,7 +170,7 @@ namespace MemoryManager.Tests
             using var arena = new MemoryArena(MemoryManagerConfig.CreateForObjectPooling(4 * 1024 * 1024));
             using var pool = new ArenaPool<Vector3>(arena, initialCapacity: 16);
 
-            ref var particle = ref pool.Rent(out int index);
+            ref var particle = ref pool.Rent(out var index);
             particle.X = 10.0f;
             particle.Y = 20.0f;
 
@@ -193,8 +193,8 @@ namespace MemoryManager.Tests
             var matA = new MaterialConfig { Roughness = 0.5f, Metallic = 0.8f, TextureId = 12 };
             var matB = new MaterialConfig { Roughness = 0.5f, Metallic = 0.8f, TextureId = 12 };
 
-            int idxA = internPool.Add(matA);
-            int idxB = internPool.Add(matB);
+            var idxA = internPool.Add(matA);
+            var idxB = internPool.Add(matB);
 
             // Deduplication verification: identical structs share the exact same slot index
             Assert.AreEqual(idxA, idxB);
@@ -240,7 +240,7 @@ namespace MemoryManager.Tests
             // RAII stack scope renting[cite: 7]
             using (var rent = new ArenaRent<byte>(arena, count: 256))
             {
-                Span<byte> bytes = rent.Span;
+                var bytes = rent.Span;
                 bytes.Fill(0xAB);
                 Assert.AreEqual(256, rent.Length);
                 Assert.AreEqual(0xAB, bytes[0]);

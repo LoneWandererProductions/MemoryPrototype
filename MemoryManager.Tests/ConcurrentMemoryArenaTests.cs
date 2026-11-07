@@ -85,7 +85,7 @@ namespace MemoryManager.Tests
 
         /// <summary>
         /// Concurrency Test: Verifies the "Chaos Path" where Thread A allocates an object,
-        /// hands it to Thread B, and Thread B calls Free(). 
+        /// hands it to Thread B, and Thread B calls Free().
         /// Ensures the handle safely passes through the ConcurrentQueue and is recycled by Thread A.
         /// </summary>
         [TestMethod]

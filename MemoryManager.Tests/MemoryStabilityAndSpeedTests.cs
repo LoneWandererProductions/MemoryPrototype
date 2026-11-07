@@ -21,7 +21,7 @@ namespace MemoryManager.Tests
         private const int TightBudgetBytes = 16 * 1024 * 1024; // Strict 16MB budget
 
         /// <summary>
-        /// Simulates 100,000 real-time game loop cycles allocating and disposing thousands 
+        /// Simulates 100,000 real-time game loop cycles allocating and disposing thousands
         /// of temporary structs per frame. Proves that surviving managed memory does NOT leak.
         /// </summary>
         [TestMethod]
@@ -31,7 +31,7 @@ namespace MemoryManager.Tests
             const int itemsPerFrame = 256;
 
             // --- PHASE 1: JIT Warm-Up Pass ---
-            // Forces the .NET runtime to JIT-compile all methods, structures, 
+            // Forces the .NET runtime to JIT-compile all methods, structures,
             // and allocator code paths before taking the baseline memory snapshot.
             {
                 var warmConfig = MemoryManagerConfig.CreateForGameLoop(TightBudgetBytes);
@@ -106,14 +106,14 @@ namespace MemoryManager.Tests
             var finalManagedMemory = GC.GetTotalMemory(false);
             var managedDelta = Math.Abs(finalManagedMemory - initialManagedMemory);
 
-            // Guardrail: Allow up to 150 MB for .NET GC heap segment reservation overhead 
+            // Guardrail: Allow up to 150 MB for .NET GC heap segment reservation overhead
             // across 400,000 temporary wrapper object instantiations.
             Assert.IsTrue(managedDelta < 150 * 1024 * 1024,
                 $"Memory leak detected! Retained {managedDelta / (1024.0 * 1024.0):F2} MB after Arena disposal.");
         }
 
         /// <summary>
-        /// Benchmarks high-frequency ArenaRent throughput. 
+        /// Benchmarks high-frequency ArenaRent throughput.
         /// </summary>
         [TestMethod]
         public void SpeedBenchmark_1MillionRents_ExecutesUnderTimeBudget()
@@ -124,15 +124,15 @@ namespace MemoryManager.Tests
             var sw = Stopwatch.StartNew();
 
             // Re-instantiate the arena in batches to simulate frame/arena resets cleanly
-            for (int batchStart = 0; batchStart < iterations; batchStart += batchSize)
+            for (var batchStart = 0; batchStart < iterations; batchStart += batchSize)
             {
                 var config = MemoryManagerConfig.CreateForGameLoop(TightBudgetBytes);
                 using var arena = new MemoryArena(config);
 
-                int currentBatchSize = Math.Min(batchSize, iterations - batchStart);
-                for (int j = 0; j < currentBatchSize; j++)
+                var currentBatchSize = Math.Min(batchSize, iterations - batchStart);
+                for (var j = 0; j < currentBatchSize; j++)
                 {
-                    int i = batchStart + j;
+                    var i = batchStart + j;
                     using var rent = new ArenaRent<int>(arena, 64);
                     rent[0] = i;
                     rent[63] = i * 2;
@@ -144,7 +144,7 @@ namespace MemoryManager.Tests
             Trace.WriteLine($"1,000,000 ArenaRent operations completed in: {sw.ElapsedMilliseconds} ms");
 
 #if DEBUG
-            int maxAllowedMs = 10000; // Allow breathing room for Debug overhead
+            var maxAllowedMs = 10000; // Allow breathing room for Debug overhead
 #else
     int maxAllowedMs = 1200; // Realistic target for Release mode
 #endif

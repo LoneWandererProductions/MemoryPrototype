@@ -129,7 +129,7 @@ namespace MemoryManager.Types
                 throw new InvalidOperationException("The ArenaQueue is empty.");
 
             var span = _arena.GetSpan<T>(_handle, _capacity);
-            T item = span[_head];
+            var item = span[_head];
 
             // Advance the front coordinate tracking pointer around the ring loop
             _head = (_head + 1) % _capacity;

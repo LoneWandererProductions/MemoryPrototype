@@ -107,9 +107,9 @@ namespace MemoryManager.Types
             }
 
             var entries = _arena.GetSpan<ArenaMapEntry<TKey, TValue>>(_entriesHandle, _capacity);
-            int mask = _capacity - 1;
-            int index = (int)((uint)key.GetHashCode() & mask);
-            int firstTombstone = -1;
+            var mask = _capacity - 1;
+            var index = (int)((uint)key.GetHashCode() & mask);
+            var firstTombstone = -1;
 
             while (entries[index].State != SlotState.Free)
             {
@@ -128,7 +128,7 @@ namespace MemoryManager.Types
             }
 
             // Reuse tombstone if available, otherwise use free slot
-            int insertIndex = firstTombstone != -1 ? firstTombstone : index;
+            var insertIndex = firstTombstone != -1 ? firstTombstone : index;
             entries[insertIndex] = new ArenaMapEntry<TKey, TValue>
             {
                 Key = key,
@@ -144,12 +144,12 @@ namespace MemoryManager.Types
         /// </summary>
         /// <param name="key">The key.</param>
         /// <param name="value">The value.</param>
-        /// <returns>Refernce the value <true> if value is available, <false> if nothing was referenced.</returns>
+        /// <returns>Reference the value <true> if value is available, <false> if nothing was referenced.</returns>
         public bool TryGetValue(in TKey key, out TValue value)
         {
             var entries = _arena.GetSpan<ArenaMapEntry<TKey, TValue>>(_entriesHandle, _capacity);
-            int mask = _capacity - 1;
-            int index = (int)((uint)key.GetHashCode() & mask);
+            var mask = _capacity - 1;
+            var index = (int)((uint)key.GetHashCode() & mask);
 
             while (entries[index].State != SlotState.Free)
             {
@@ -174,8 +174,8 @@ namespace MemoryManager.Types
         public bool Remove(in TKey key)
         {
             var entries = _arena.GetSpan<ArenaMapEntry<TKey, TValue>>(_entriesHandle, _capacity);
-            int mask = _capacity - 1;
-            int index = (int)((uint)key.GetHashCode() & mask);
+            var mask = _capacity - 1;
+            var index = (int)((uint)key.GetHashCode() & mask);
 
             while (entries[index].State != SlotState.Free)
             {
@@ -210,7 +210,7 @@ namespace MemoryManager.Types
         /// </summary>
         private void Grow()
         {
-            int oldCapacity = _capacity;
+            var oldCapacity = _capacity;
             var oldEntries = _arena.GetSpan<ArenaMapEntry<TKey, TValue>>(_entriesHandle, oldCapacity);
 
             _capacity *= 2;
@@ -219,14 +219,14 @@ namespace MemoryManager.Types
             var newEntries = _arena.GetSpan<ArenaMapEntry<TKey, TValue>>(newHandle, _capacity);
             newEntries.Clear();
 
-            int mask = _capacity - 1;
+            var mask = _capacity - 1;
 
             // Rehash all existing active items into the enlarged table
-            for (int i = 0; i < oldCapacity; i++)
+            for (var i = 0; i < oldCapacity; i++)
             {
                 if (oldEntries[i].State == SlotState.Occupied)
                 {
-                    int index = (int)((uint)oldEntries[i].Key.GetHashCode() & mask);
+                    var index = (int)((uint)oldEntries[i].Key.GetHashCode() & mask);
                     while (newEntries[index].State != SlotState.Free)
                     {
                         index = (index + 1) & mask;

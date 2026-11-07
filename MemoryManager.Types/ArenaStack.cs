@@ -174,6 +174,7 @@ namespace MemoryManager.Types
         public void Dispose()
         {
             if (_handle.IsInvalid) return;
+
             _arena?.Free(_handle);
             _handle = default;
         }

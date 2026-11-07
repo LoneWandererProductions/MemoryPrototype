@@ -11,8 +11,8 @@ using System.Runtime.CompilerServices;
 namespace MemoryManager.Core
 {
     /// <summary>
-    /// Canary class provides a simple mechanism for detecting buffer overruns and underruns in debug builds by placing known "canary" values before and after user allocations. 
-    /// In release builds, the canary logic is completely stripped out to ensure zero overhead, 
+    /// Canary class provides a simple mechanism for detecting buffer overruns and underruns in debug builds by placing known "canary" values before and after user allocations.
+    /// In release builds, the canary logic is completely stripped out to ensure zero overhead,
     /// making it an effective tool for catching memory corruption issues during development without impacting performance in production.
     /// It additionally acts as an alignment boundary engine, snapping unmanaged pointers cleanly to hardware memory channels.
     /// </summary>

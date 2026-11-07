@@ -55,10 +55,10 @@ namespace MemoryManager.Tests
             map.AddOrUpdate(20, 200);
 
             Assert.AreEqual(2, map.Count);
-            Assert.IsTrue(map.TryGetValue(10, out int value1));
+            Assert.IsTrue(map.TryGetValue(10, out var value1));
             Assert.AreEqual(100, value1);
 
-            Assert.IsTrue(map.TryGetValue(20, out int value2));
+            Assert.IsTrue(map.TryGetValue(20, out var value2));
             Assert.AreEqual(200, value2);
 
             Assert.IsFalse(map.TryGetValue(99, out _));
@@ -79,7 +79,7 @@ namespace MemoryManager.Tests
             map.AddOrUpdate(1, 999);
             Assert.AreEqual(1, map.Count);
 
-            Assert.IsTrue(map.TryGetValue(1, out int value));
+            Assert.IsTrue(map.TryGetValue(1, out var value));
             Assert.AreEqual(999, value);
         }
 
@@ -112,7 +112,7 @@ namespace MemoryManager.Tests
             using var map = new ArenaMap<int, int>(_arena!, initialCapacity: 8);
 
             // Insert 16 items to force table rehashing
-            for (int i = 0; i < 16; i++)
+            for (var i = 0; i < 16; i++)
             {
                 map.AddOrUpdate(i, i * 10);
             }
@@ -120,9 +120,9 @@ namespace MemoryManager.Tests
             Assert.AreEqual(16, map.Count);
             Assert.IsTrue(map.Capacity > 8);
 
-            for (int i = 0; i < 16; i++)
+            for (var i = 0; i < 16; i++)
             {
-                Assert.IsTrue(map.TryGetValue(i, out int val));
+                Assert.IsTrue(map.TryGetValue(i, out var val));
                 Assert.AreEqual(i * 10, val);
             }
         }

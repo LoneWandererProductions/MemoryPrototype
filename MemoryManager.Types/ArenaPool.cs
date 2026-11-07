@@ -144,7 +144,7 @@ namespace MemoryManager.Types
         private void InitializeFreeIndices(int start, int end)
         {
             var freeIndices = _arena.GetSpan<int>(_freeIndicesHandle, _capacity);
-            for (int i = start; i < end; i++)
+            for (var i = start; i < end; i++)
             {
                 freeIndices[_freeCount++] = i;
             }

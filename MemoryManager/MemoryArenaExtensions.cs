@@ -117,7 +117,7 @@ namespace MemoryManager
         }
 
         /// <summary>
-        /// Safely passes a mutable Span payload directly to the atomic native arena handler 
+        /// Safely passes a mutable Span payload directly to the atomic native arena handler
         /// by automatically resolving compiler type inference constraints.
         /// </summary>
         /// <typeparam name="T">The unmanaged type.</typeparam>
@@ -147,7 +147,7 @@ namespace MemoryManager
             if (handle.IsInvalid || count <= 0) return Span<T>.Empty;
 
             // Resolve handles thread-isolation tracks or global locks automatically
-            nint pointer = allocator.Resolve(handle);
+            var pointer = allocator.Resolve(handle);
             if (pointer == nint.Zero) return Span<T>.Empty;
 
             // Pivot straight into raw unmanaged address spaces
